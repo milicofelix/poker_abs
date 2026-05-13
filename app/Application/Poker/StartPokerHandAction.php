@@ -40,7 +40,38 @@ final readonly class StartPokerHandAction
             ...$communityCards,
         ]);
 
+        $smallBlind = 10;
+        $bigBlind = 20;
+
         return [
+            'street' => 'pre_flop',
+            'streetLabel' => 'Pré-flop',
+            'pot' => $smallBlind + $bigBlind,
+            'playerStack' => 1000 - $smallBlind,
+            'opponentStack' => 1000 - $bigBlind,
+            'currentBet' => $bigBlind,
+            'playerStreetBet' => $smallBlind,
+            'opponentStreetBet' => $bigBlind,
+            'amountToCall' => $bigBlind - $smallBlind,
+            'minimumRaise' => $bigBlind,
+            'minimumRaiseTo' => $bigBlind * 2,
+            'maximumRaiseTo' => 1000,
+            'smallBlind' => $smallBlind,
+            'bigBlind' => $bigBlind,
+            'dealerPosition' => 1,
+            'canCheck' => false,
+            'canCall' => true,
+            'canRaise' => true,
+            'bettingSummary' => [
+                'playerCommitted' => $smallBlind,
+                'opponentCommitted' => $bigBlind,
+                'amountToCall' => $bigBlind - $smallBlind,
+                'currentBet' => $bigBlind,
+            ],
+            'lastAction' => null,
+            'actionHistory' => [],
+            'conclusion' => null,
+            'isFinished' => false,
             'playerCards' => array_map($this->serializeCard(...), $playerCards),
             'opponentCards' => array_map($this->serializeCard(...), $opponentCards),
             'communityCards' => array_map($this->serializeCard(...), $communityCards),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Poker;
 
 use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
+use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\LocalPokerSessionService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,6 +16,7 @@ final class PokerPlayController extends Controller
         Request $request,
         StartPokerHandAction $startPokerHand,
         LocalPokerSessionService $pokerSession,
+        LocalPokerPersistenceService $pokerPersistence,
     ): Response {
         if ($request->boolean('new')) {
             $pokerSession->forget();
@@ -23,7 +25,8 @@ final class PokerPlayController extends Controller
         $hand = $pokerSession->current();
 
         if (! $hand) {
-            $hand = $pokerSession->store($startPokerHand->execute());
+            $hand = $pokerPersistence->start($startPokerHand->execute());
+            $pokerSession->store($hand);
         }
 
         return Inertia::render('Poker/Play', [

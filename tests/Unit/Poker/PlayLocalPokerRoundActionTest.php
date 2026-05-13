@@ -74,6 +74,55 @@ final class PlayLocalPokerRoundActionTest extends TestCase
         $this->assertSame(0, $state['actionHistory'][0]['amount']);
     }
 
+
+    public function test_raise_abaixo_do_minimo_e_ajustado_para_o_menor_raise_valido(): void
+    {
+        $state = (new PlayLocalPokerRoundAction())->execute([
+            'street' => 'flop',
+            'pot' => 40,
+            'playerStack' => 990,
+            'opponentStack' => 980,
+            'currentBet' => 20,
+            'playerStreetBet' => 10,
+            'opponentStreetBet' => 20,
+            'minimumRaise' => 20,
+            'actionHistory' => [],
+        ], 'raise', 25);
+
+        $this->assertSame(30, $state['actionHistory'][0]['amount']);
+        $this->assertSame(20, $state['actionHistory'][1]['amount']);
+        $this->assertSame(90, $state['pot']);
+        $this->assertSame(960, $state['playerStack']);
+        $this->assertSame(960, $state['opponentStack']);
+    }
+
+    public function test_estado_retorna_limites_e_permissoes_de_aposta_para_o_frontend(): void
+    {
+        $state = (new PlayLocalPokerRoundAction())->execute([
+            'street' => 'flop',
+            'pot' => 70,
+            'playerStack' => 980,
+            'opponentStack' => 980,
+            'currentBet' => 0,
+            'playerStreetBet' => 0,
+            'opponentStreetBet' => 0,
+            'minimumRaise' => 20,
+            'smallBlind' => 10,
+            'bigBlind' => 20,
+            'dealerPosition' => 1,
+            'actionHistory' => [],
+        ], 'check');
+
+        $this->assertTrue($state['canCheck']);
+        $this->assertFalse($state['canCall']);
+        $this->assertTrue($state['canRaise']);
+        $this->assertSame(20, $state['minimumRaiseTo']);
+        $this->assertSame(980, $state['maximumRaiseTo']);
+        $this->assertSame(10, $state['smallBlind']);
+        $this->assertSame(20, $state['bigBlind']);
+        $this->assertSame(1, $state['dealerPosition']);
+    }
+
     public function test_ao_desistir_finaliza_a_mao_com_conclusao_de_derrota(): void
     {
         $state = (new PlayLocalPokerRoundAction())->execute([

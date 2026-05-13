@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Poker;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 final class PokerRoundActionTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_jogador_consegue_executar_uma_acao_e_receber_resposta_do_oponente(): void
     {
         $response = $this->postJson('/poker/actions', [

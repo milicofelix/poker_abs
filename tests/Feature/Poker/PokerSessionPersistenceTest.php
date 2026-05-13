@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Poker;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 final class PokerSessionPersistenceTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_pagina_do_poker_guarda_a_mao_inicial_na_sessao(): void
     {
         $response = $this->get('/poker');

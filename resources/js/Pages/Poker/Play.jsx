@@ -14,13 +14,28 @@ function buildInitialState(hand) {
         street: 'pre_flop',
         streetLabel: 'Pré-flop',
         pot: 30,
-        playerStack: 1000,
-        opponentStack: 1000,
+        playerStack: 990,
+        opponentStack: 980,
         currentBet: 20,
-        playerStreetBet: 0,
-        opponentStreetBet: 0,
-        amountToCall: 20,
-        minimumRaise: 10,
+        playerStreetBet: 10,
+        opponentStreetBet: 20,
+        amountToCall: 10,
+        minimumRaise: 20,
+        minimumRaiseTo: 40,
+        maximumRaiseTo: 1000,
+        smallBlind: 10,
+        bigBlind: 20,
+        dealerPosition: 1,
+        canCheck: false,
+        canCall: true,
+        canRaise: true,
+        bettingSummary: {
+            playerCommitted: 10,
+            opponentCommitted: 20,
+            amountToCall: 10,
+            currentBet: 20,
+        },
+        tableSeats: [],
         lastAction: null,
         actionHistory: [],
         conclusion: null,
@@ -73,6 +88,11 @@ export default function Play({ hand }) {
                     currentBet={state.currentBet}
                     amountToCall={state.amountToCall}
                     minimumRaise={state.minimumRaise}
+                    minimumRaiseTo={state.minimumRaiseTo}
+                    maximumRaiseTo={state.maximumRaiseTo}
+                    canCheck={state.canCheck}
+                    canCall={state.canCall}
+                    canRaise={state.canRaise}
                     onAction={handleAction}
                 />
 

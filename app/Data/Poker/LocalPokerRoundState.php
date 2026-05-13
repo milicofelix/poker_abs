@@ -18,6 +18,9 @@ final readonly class LocalPokerRoundState
         public int $opponentStreetBet = 0,
         public int $amountToCall = 0,
         public int $minimumRaise = 10,
+        public int $smallBlind = 10,
+        public int $bigBlind = 20,
+        public int $dealerPosition = 1,
         public ?array $lastAction = null,
         public bool $isFinished = false,
     ) {
@@ -37,11 +40,24 @@ final readonly class LocalPokerRoundState
             opponentStreetBet: (int) ($payload['opponentStreetBet'] ?? 0),
             amountToCall: max(0, (int) ($payload['currentBet'] ?? 20) - (int) ($payload['playerStreetBet'] ?? 0)),
             minimumRaise: max(10, (int) ($payload['minimumRaise'] ?? 10)),
+            smallBlind: max(1, (int) ($payload['smallBlind'] ?? 10)),
+            bigBlind: max(2, (int) ($payload['bigBlind'] ?? 20)),
+            dealerPosition: max(1, (int) ($payload['dealerPosition'] ?? 1)),
             lastAction: isset($payload['lastAction']) && is_array($payload['lastAction'])
                 ? $payload['lastAction']
                 : null,
             isFinished: (bool) ($payload['isFinished'] ?? false),
         );
+    }
+
+    public function minimumRaiseTo(): int
+    {
+        return $this->currentBet + $this->minimumRaise;
+    }
+
+    public function maximumRaiseTo(): int
+    {
+        return $this->playerStreetBet + $this->playerStack;
     }
 
     /**
@@ -59,6 +75,20 @@ final readonly class LocalPokerRoundState
             'opponentStreetBet' => $this->opponentStreetBet,
             'amountToCall' => $this->amountToCall,
             'minimumRaise' => $this->minimumRaise,
+            'minimumRaiseTo' => $this->minimumRaiseTo(),
+            'maximumRaiseTo' => $this->maximumRaiseTo(),
+            'smallBlind' => $this->smallBlind,
+            'bigBlind' => $this->bigBlind,
+            'dealerPosition' => $this->dealerPosition,
+            'canCheck' => $this->amountToCall === 0,
+            'canCall' => $this->amountToCall > 0 && $this->playerStack > 0,
+            'canRaise' => $this->playerStack > $this->amountToCall,
+            'bettingSummary' => [
+                'playerCommitted' => $this->playerStreetBet,
+                'opponentCommitted' => $this->opponentStreetBet,
+                'amountToCall' => $this->amountToCall,
+                'currentBet' => $this->currentBet,
+            ],
             'lastAction' => $this->lastAction,
             'isFinished' => $this->isFinished,
         ];
