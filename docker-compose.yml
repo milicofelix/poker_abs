@@ -1,0 +1,72 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: poker_abs_app
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - poker_abs
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: poker_abs_nginx
+    ports:
+      - "8085:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - poker_abs
+
+  mysql:
+    image: mysql:8.4
+    container_name: poker_abs_mysql
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_DATABASE: poker_abs
+      MYSQL_USER: poker
+      MYSQL_PASSWORD: poker_secret
+      MYSQL_ROOT_PASSWORD: root_secret
+    volumes:
+      - poker_abs_mysql_data:/var/lib/mysql
+    networks:
+      - poker_abs
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: poker_abs_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - poker_abs
+
+  vite:
+    image: node:20-alpine
+    container_name: poker_abs_vite
+    working_dir: /var/www/html
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5175:5173"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+    networks:
+      - poker_abs
+
+volumes:
+  poker_abs_mysql_data:
+
+networks:
+  poker_abs:
+    external: true
+    name: shared_net
