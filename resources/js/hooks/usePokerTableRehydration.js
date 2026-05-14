@@ -49,7 +49,7 @@ export default function usePokerTableRehydration(stateUrl, onStateRehydrated) {
 
             if (nextSyncVersion >= latestSyncVersionRef.current) {
                 latestSyncVersionRef.current = nextSyncVersion;
-                onStateRehydrated(nextState);
+                onStateRehydrated(nextState, response.data);
             }
 
             setStatus({
@@ -89,11 +89,18 @@ export default function usePokerTableRehydration(stateUrl, onStateRehydrated) {
             }
         };
 
+        const heartbeat = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                rehydrate();
+            }
+        }, 15000);
+
         window.addEventListener('focus', handleFocus);
         window.addEventListener('online', handleFocus);
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
+            window.clearInterval(heartbeat);
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('online', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);

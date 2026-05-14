@@ -19,6 +19,7 @@ final class JoinPokerTableAction
                 'nickname' => $user->name,
                 'status' => 'online',
                 'left_at' => null,
+                'last_seen_at' => now(),
                 'joined_at' => now(),
             ],
         );

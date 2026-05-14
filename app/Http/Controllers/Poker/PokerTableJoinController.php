@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Poker;
 use App\Actions\Poker\JoinPokerTableAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
+use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class PokerTableJoinController extends Controller
 {
+    use SerializesPokerTablePlayers;
+
     public function __invoke(
         Request $request,
         PokerTable $table,
@@ -21,11 +24,6 @@ final class PokerTableJoinController extends Controller
 
         $player = $joinPokerTable->execute($table, $user);
 
-        $players = $table->realPlayers()
-            ->with('user:id,name,email')
-            ->orderBy('joined_at')
-            ->get();
-
         return response()->json([
             'message' => 'Jogador entrou na mesa com sucesso.',
             'player' => [
@@ -35,15 +33,10 @@ final class PokerTableJoinController extends Controller
                 'stack' => $player->stack,
                 'status' => $player->status,
                 'seatNumber' => $player->seat_number,
+                'lastSeenAt' => $player->last_seen_at?->toIso8601String(),
             ],
-            'players' => $players->map(static fn ($tablePlayer): array => [
-                'id' => $tablePlayer->id,
-                'userId' => $tablePlayer->user_id,
-                'nickname' => $tablePlayer->nickname,
-                'stack' => $tablePlayer->stack,
-                'status' => $tablePlayer->status,
-                'seatNumber' => $tablePlayer->seat_number,
-            ])->values(),
+            'players' => $this->serializeRealPlayers($table),
+            'seatSlots' => $this->serializeSeatSlots($table),
         ]);
     }
 }

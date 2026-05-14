@@ -104,6 +104,14 @@ final class LocalPokerPersistenceService
             $state = $this->turnTimer->start([
                 ...$state,
                 'tableSeats' => $this->serializeSeats([$playerSeat, $opponentSeat]),
+                'currentTurn' => [
+                    'actor' => 'player',
+                    'actedThisStreet' => [
+                        'player' => false,
+                        'opponent' => false,
+                    ],
+                    'label' => 'Vez do jogador',
+                ],
                 'persistence' => [
                     'tableId' => $table->id,
                     'handId' => $hand->id,

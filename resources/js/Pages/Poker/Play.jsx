@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import HandConclusionBanner from '../../Components/Poker/HandConclusionBanner';
 import LastActionAlert from '../../Components/Poker/LastActionAlert';
@@ -149,29 +149,57 @@ export default function Play({ hand, table = null }) {
 
     const [loading, setLoading] = useState(false);
     const [joiningTable, setJoiningTable] = useState(false);
+    const [seatingTable, setSeatingTable] = useState(false);
+    const [leavingTable, setLeavingTable] = useState(false);
+    const [startingNewHand, setStartingNewHand] = useState(false);
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
+    const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
     const [joinMessage, setJoinMessage] = useState(null);
+    const realPlayersRef = useRef(realPlayers);
+    const currentUserIdRef = useRef(table?.currentUserId ?? null);
 
-    const handleCanonicalRealtimeState = useCallback((nextState) => {
-        setState(personalizeCanonicalStateForCurrentUser(
-            nextState,
-            realPlayers,
-            table?.currentUserId,
-        ));
-    }, [realPlayers, table?.currentUserId]);
+    useEffect(() => {
+        realPlayersRef.current = realPlayers;
+    }, [realPlayers]);
 
-    const handlePersonalizedState = useCallback((nextState) => {
+    useEffect(() => {
+        currentUserIdRef.current = table?.currentUserId ?? null;
+    }, [table?.currentUserId]);
+
+    const handlePersonalizedState = useCallback((nextState, payload = null) => {
         setState(nextState);
-    }, []);
 
-    const realtimeStatus = usePokerTableRealtime(
-        state?.persistence?.tableId,
-        handleCanonicalRealtimeState,
-    );
+        if (Array.isArray(payload?.players)) {
+            setRealPlayers(payload.players);
+        }
+
+        if (Array.isArray(payload?.seatSlots)) {
+            setSeatSlots(payload.seatSlots);
+        }
+    }, []);
 
     const rehydrationStatus = usePokerTableRehydration(
         table?.stateUrl,
         handlePersonalizedState,
+    );
+
+    const rehydratePokerTable = rehydrationStatus.rehydrate;
+
+    const handleRealtimeStateNotification = useCallback((canonicalState = null) => {
+        if (canonicalState) {
+            setState(personalizeCanonicalStateForCurrentUser(
+                canonicalState,
+                realPlayersRef.current,
+                currentUserIdRef.current,
+            ));
+        }
+
+        rehydratePokerTable();
+    }, [rehydratePokerTable]);
+
+    const realtimeStatus = usePokerTableRealtime(
+        state?.persistence?.tableId,
+        handleRealtimeStateNotification,
     );
 
     const turnTimer = usePokerTurnTimer(state.turnTimer);
@@ -195,7 +223,9 @@ export default function Play({ hand, table = null }) {
             const response = await axios.post(table.joinUrl);
 
             setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
             setJoinMessage(response.data.message ?? 'Jogador entrou na mesa com sucesso.');
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -203,6 +233,97 @@ export default function Play({ hand, table = null }) {
             );
         } finally {
             setJoiningTable(false);
+        }
+    }
+
+    async function handleSeatTable(seatNumber) {
+        if (!table?.seatUrl) {
+            return;
+        }
+
+        setSeatingTable(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.seatUrl, {
+                seat_number: seatNumber,
+            });
+
+            setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
+            setJoinMessage(response.data.message ?? 'Assento escolhido com sucesso.');
+
+            if (response.data.state) {
+                setState(response.data.state);
+            }
+
+            rehydrationStatus.rehydrate();
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível escolher este assento.',
+            );
+        } finally {
+            setSeatingTable(false);
+        }
+    }
+
+    async function handleLeaveTable() {
+        if (!table?.leaveUrl) {
+            return;
+        }
+
+        setLeavingTable(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.leaveUrl);
+
+            setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
+            setJoinMessage(response.data.message ?? 'Você saiu da mesa.');
+
+            if (response.data.state) {
+                setState(response.data.state);
+            }
+
+            rehydrationStatus.rehydrate();
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível sair da mesa.',
+            );
+        } finally {
+            setLeavingTable(false);
+        }
+    }
+
+    async function handleStartNewHand() {
+        if (!table?.newHandActionUrl) {
+            return;
+        }
+
+        setStartingNewHand(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.newHandActionUrl);
+
+            if (response.data.state) {
+                setState(response.data.state);
+            }
+
+            setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
+            setJoinMessage(response.data.message ?? 'Nova mão iniciada.');
+            rehydrationStatus.rehydrate();
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível iniciar uma nova mão.',
+            );
+        } finally {
+            setStartingNewHand(false);
         }
     }
 
@@ -255,9 +376,17 @@ export default function Play({ hand, table = null }) {
 
                 <PokerRealPlayersPanel
                     players={realPlayers}
-                    loading={joiningTable}
+                    seatSlots={seatSlots}
+                    currentUserId={table?.currentUserId}
+                    maxPlayers={table?.maxPlayers}
+                    loading={joiningTable || seatingTable || leavingTable}
+                    joining={joiningTable}
+                    seating={seatingTable}
+                    leaving={leavingTable}
                     message={joinMessage}
                     onJoin={table?.joinUrl ? handleJoinTable : null}
+                    onSeat={table?.seatUrl ? handleSeatTable : null}
+                    onLeave={table?.leaveUrl ? handleLeaveTable : null}
                 />
 
                 <PokerTableStatus state={state} />
@@ -276,7 +405,7 @@ export default function Play({ hand, table = null }) {
                 </div>
 
                 <PokerActionPanel
-                    disabled={loading || state.isFinished}
+                    disabled={loading || state.isFinished || !state.canAct}
                     currentBet={state.currentBet}
                     amountToCall={state.amountToCall}
                     minimumRaise={state.minimumRaise}
@@ -289,12 +418,23 @@ export default function Play({ hand, table = null }) {
                 />
 
                 {state.isFinished && (
-                    <a
-                        href={table?.newHandUrl ?? "/poker?new=1"}
-                        className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
-                    >
-                        Nova mão
-                    </a>
+                    table?.newHandActionUrl ? (
+                        <button
+                            type="button"
+                            onClick={handleStartNewHand}
+                            disabled={startingNewHand}
+                            className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {startingNewHand ? 'Iniciando nova mão...' : 'Nova mão para a mesa'}
+                        </button>
+                    ) : (
+                        <a
+                            href={table?.newHandUrl ?? "/poker?new=1"}
+                            className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
+                        >
+                            Nova mão
+                        </a>
+                    )
                 )}
             </div>
         </main>

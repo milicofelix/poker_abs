@@ -20,6 +20,7 @@ final class PokerTablePlayer extends Model
         'status',
         'joined_at',
         'left_at',
+        'last_seen_at',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ final class PokerTablePlayer extends Model
         'seat_number' => 'integer',
         'joined_at' => 'datetime',
         'left_at' => 'datetime',
+        'last_seen_at' => 'datetime',
     ];
 
     /**

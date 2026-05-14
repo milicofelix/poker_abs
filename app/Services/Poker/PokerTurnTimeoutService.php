@@ -2,7 +2,6 @@
 
 namespace App\Services\Poker;
 
-use App\Application\Poker\PlayLocalPokerRoundAction;
 use App\Models\Poker\PokerTable;
 use Illuminate\Support\Carbon;
 
@@ -10,7 +9,7 @@ final readonly class PokerTurnTimeoutService
 {
     public function __construct(
         private LocalPokerPersistenceService $pokerPersistence,
-        private PlayLocalPokerRoundAction $playRound,
+        private PokerTableTurnActionService $turnAction,
         private PokerTurnTimerService $turnTimer,
     ) {
     }
@@ -36,7 +35,7 @@ final readonly class PokerTurnTimeoutService
 
         $action = $this->automaticActionFor($state);
 
-        $nextState = $this->playRound->execute($state, $action);
+        $nextState = $this->turnAction->executeAutomatic($state, $action);
         $nextState['turnTimeout'] = [
             'processed' => true,
             'action' => $action,

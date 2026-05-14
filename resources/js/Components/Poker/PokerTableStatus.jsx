@@ -22,7 +22,7 @@ export default function PokerTableStatus({ state }) {
     const seats = Array.isArray(state.tableSeats) ? state.tableSeats : [];
 
     return (
-        <section className="grid gap-4 rounded-3xl border border-emerald-300/20 bg-emerald-900/40 p-6 shadow-2xl md:grid-cols-6">
+        <section className="grid gap-4 rounded-3xl border border-emerald-300/20 bg-emerald-900/40 p-6 shadow-2xl md:grid-cols-7">
             <div>
                 <span className="text-sm text-emerald-200">Street</span>
                 <strong className="block text-2xl">{state.streetLabel}</strong>
@@ -53,8 +53,14 @@ export default function PokerTableStatus({ state }) {
                 <strong className="block text-2xl">{state.bestHand.name}</strong>
             </div>
 
+            <div>
+                <span className="text-sm text-emerald-200">Vez atual</span>
+                <strong className="block text-xl">{state.currentTurn?.actorLabel ?? 'Jogador'}</strong>
+                <span className="text-xs text-emerald-100">{state.currentTurn?.message ?? 'Aguardando ação.'}</span>
+            </div>
+
             {seats.length > 0 && (
-                <div className="md:col-span-6">
+                <div className="md:col-span-7">
                     <span className="text-sm text-emerald-200">Estrutura da mesa</span>
                     <div className="mt-2 grid gap-2 md:grid-cols-2">
                         {seats.map((seat) => (

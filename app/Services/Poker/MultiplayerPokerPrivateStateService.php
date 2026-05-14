@@ -41,6 +41,15 @@ final class MultiplayerPokerPrivateStateService
 
         $position = $this->resolvePosition($realPlayers, $currentPlayer);
 
+        if ($position === 'waiting_seat') {
+            return $this->withPlayersContext(
+                $this->withoutPrivateOpponentData($state, 'waiting_seat'),
+                $realPlayers,
+                $currentPlayer,
+                'waiting_seat',
+            );
+        }
+
         $state = $position === 'opponent'
             ? $this->asOpponentPerspective($state, $currentPlayer)
             : $this->asPlayerPerspective($state, $currentPlayer);
@@ -66,6 +75,10 @@ final class MultiplayerPokerPrivateStateService
      */
     private function resolvePosition(Collection $players, PokerTablePlayer $currentPlayer): string
     {
+        if ($currentPlayer->seat_number === null) {
+            return 'waiting_seat';
+        }
+
         if ((int) $currentPlayer->seat_number === 2) {
             return 'opponent';
         }
@@ -110,9 +123,22 @@ final class MultiplayerPokerPrivateStateService
         $originalOpponentCards = $state['opponentCards'] ?? [];
         $originalBestHand = $state['bestHand'] ?? null;
         $originalOpponentBestHand = $state['opponentBestHand'] ?? null;
+        $originalPlayerStack = (int) ($state['playerStack'] ?? 1000);
+        $originalOpponentStack = (int) ($state['opponentStack'] ?? 1000);
+        $originalPlayerStreetBet = (int) ($state['playerStreetBet'] ?? 0);
+        $originalOpponentStreetBet = (int) ($state['opponentStreetBet'] ?? 0);
 
         $state['playerCards'] = $originalOpponentCards;
         $state['bestHand'] = $originalOpponentBestHand;
+        $state['playerStack'] = $originalOpponentStack;
+        $state['opponentStack'] = $originalPlayerStack;
+        $state['playerStreetBet'] = $originalOpponentStreetBet;
+        $state['opponentStreetBet'] = $originalPlayerStreetBet;
+
+        if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
+            $state['bettingSummary']['playerCommitted'] = $originalOpponentStreetBet;
+            $state['bettingSummary']['opponentCommitted'] = $originalPlayerStreetBet;
+        }
 
         if ((bool) ($state['isFinished'] ?? false)) {
             $state['opponentCards'] = $originalPlayerCards;
@@ -180,7 +206,63 @@ final class MultiplayerPokerPrivateStateService
         $state['conclusion'] = $this->personalizeConclusion($state['conclusion'] ?? null, $role, $state['playersContext']['canonical']);
         $state['lastAction'] = $this->personalizeLastAction($state['lastAction'] ?? null, $role, $state['playersContext']['canonical']);
 
+        return $this->withTurnContext($state, $role, $state['playersContext']['canonical']);
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @param array<string, mixed> $canonicalPlayers
+     * @return array<string, mixed>
+     */
+    private function withTurnContext(array $state, string $role, array $canonicalPlayers): array
+    {
+        $canonicalActor = (string) data_get($state, 'currentTurn.actor', 'player');
+        $canonicalActor = $canonicalActor === 'opponent' ? 'opponent' : 'player';
+        $visibleActor = $this->visibleActor($canonicalActor, $role);
+        $isCurrentUserTurn = in_array($role, ['player', 'opponent'], true) && $visibleActor === 'player';
+        $amountToCall = $this->amountToCallForVisiblePlayer($state);
+        $maximumRaiseTo = ((int) ($state['playerStreetBet'] ?? 0)) + ((int) ($state['playerStack'] ?? 0));
+
+        $state['currentTurn'] = [
+            ...(is_array($state['currentTurn'] ?? null) ? $state['currentTurn'] : []),
+            'canonicalActor' => $canonicalActor,
+            'actor' => $visibleActor,
+            'actorLabel' => $this->actorLabel($canonicalActor, $role, $canonicalPlayers),
+            'isCurrentUserTurn' => $isCurrentUserTurn,
+            'message' => $isCurrentUserTurn
+                ? 'Sua vez de agir.'
+                : ($role === 'waiting_seat'
+                    ? 'Escolha um assento livre para participar da mão.'
+                    : 'Aguardando ação de '.$this->actorLabel($canonicalActor, $role, $canonicalPlayers).'.'),
+        ];
+
+        $state['amountToCall'] = $amountToCall;
+        $state['minimumRaiseTo'] = ((int) ($state['currentBet'] ?? 0)) + ((int) ($state['minimumRaise'] ?? 10));
+        $state['maximumRaiseTo'] = $maximumRaiseTo;
+        $state['canCheck'] = $isCurrentUserTurn && $amountToCall === 0 && ! (bool) ($state['isFinished'] ?? false);
+        $state['canCall'] = $isCurrentUserTurn && $amountToCall > 0 && ((int) ($state['playerStack'] ?? 0)) > 0;
+        $state['canRaise'] = $isCurrentUserTurn && ((int) ($state['playerStack'] ?? 0)) > $amountToCall && ! (bool) ($state['isFinished'] ?? false);
+        $state['canAct'] = $isCurrentUserTurn && ! (bool) ($state['isFinished'] ?? false);
+
+        if (isset($state['turnTimer']) && is_array($state['turnTimer'])) {
+            $state['turnTimer']['label'] = $state['currentTurn']['actorLabel'];
+            $state['turnTimer']['isCurrentUserTurn'] = $isCurrentUserTurn;
+        }
+
+        if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
+            $state['bettingSummary']['amountToCall'] = $amountToCall;
+            $state['bettingSummary']['currentActor'] = $visibleActor;
+        }
+
         return $state;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function amountToCallForVisiblePlayer(array $state): int
+    {
+        return max(0, (int) ($state['currentBet'] ?? 0) - (int) ($state['playerStreetBet'] ?? 0));
     }
 
     /**

@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Poker;
 
-use App\Application\Poker\PlayLocalPokerRoundAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Poker\PlayPokerRoundRequest;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
+use App\Services\Poker\PokerTableTurnActionService;
 use Illuminate\Http\JsonResponse;
 
 final class PokerTableRoundActionController extends Controller
@@ -16,17 +16,19 @@ final class PokerTableRoundActionController extends Controller
     public function __invoke(
         PlayPokerRoundRequest $request,
         PokerTable $table,
-        PlayLocalPokerRoundAction $playRound,
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
         MultiplayerPokerPrivateStateService $privateState,
+        PokerTableTurnActionService $turnAction,
     ): JsonResponse {
         $currentState = $pokerPersistence->currentStateForTable($table);
 
         abort_if(! $currentState, 404, 'Mesa sem mão ativa.');
 
-        $nextState = $playRound->execute(
+        $nextState = $turnAction->execute(
+            $table,
             $currentState,
+            $request->user(),
             $request->pokerAction(),
             $request->raiseAmount(),
         );

@@ -18,6 +18,8 @@ use App\Http\Controllers\Poker\PokerTableJoinController;
 use App\Http\Controllers\Poker\PokerTableSeatController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Poker\PokerTableLeaveController;
+use App\Http\Controllers\Poker\PokerTableNewHandController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -48,3 +50,5 @@ Route::get('/poker/tables/{table}/state', PokerTableStateController::class)->nam
 Route::post('/poker/tables/{table}/timeout', PokerTableTurnTimeoutController::class)->name('poker.tables.timeout');
 Route::post('/poker/tables/{table}/join', PokerTableJoinController::class)->name('poker.tables.join');
 Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name('poker.tables.seat');
+Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
+Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
