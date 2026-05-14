@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import axios from 'axios';
 import HandConclusionBanner from '../../Components/Poker/HandConclusionBanner';
 import LastActionAlert from '../../Components/Poker/LastActionAlert';
@@ -8,6 +8,13 @@ import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
+import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
+import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
+import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
+import usePokerTableRealtime from '../../hooks/usePokerTableRealtime';
+import usePokerTableRehydration from '../../hooks/usePokerTableRehydration';
+import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
+import usePokerTurnTimeout from '../../hooks/usePokerTurnTimeout';
 
 function buildInitialState(hand) {
     return {
@@ -39,27 +46,78 @@ function buildInitialState(hand) {
         lastAction: null,
         actionHistory: [],
         conclusion: null,
+        turnTimer: null,
         isFinished: false,
         ...hand,
     };
 }
 
-export default function Play({ hand }) {
+export default function Play({ hand, table = null }) {
     const [state, setState] = useState(() => buildInitialState(hand));
 
     const [loading, setLoading] = useState(false);
+    const [joiningTable, setJoiningTable] = useState(false);
+    const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
+    const [joinMessage, setJoinMessage] = useState(null);
+
+    const handleRealtimeState = useCallback((nextState) => {
+        setState(nextState);
+    }, []);
+
+    const realtimeStatus = usePokerTableRealtime(
+        state?.persistence?.tableId,
+        handleRealtimeState,
+    );
+
+    const rehydrationStatus = usePokerTableRehydration(
+        table?.stateUrl,
+        handleRealtimeState,
+    );
+
+    const turnTimer = usePokerTurnTimer(state.turnTimer);
+
+    const timeoutStatus = usePokerTurnTimeout(
+        table?.timeoutUrl,
+        turnTimer,
+        handleRealtimeState,
+    );
+
+
+    async function handleJoinTable() {
+        if (!table?.joinUrl) {
+            return;
+        }
+
+        setJoiningTable(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.joinUrl);
+
+            setRealPlayers(response.data.players ?? []);
+            setJoinMessage(response.data.message ?? 'Jogador entrou na mesa com sucesso.');
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível entrar como jogador real nesta mesa.',
+            );
+        } finally {
+            setJoiningTable(false);
+        }
+    }
 
     async function handleAction(action, raiseAmount = 0) {
         setLoading(true);
 
         try {
-            const response = await axios.post('/poker/actions', {
+            const response = await axios.post(table?.actionUrl ?? '/poker/actions', {
                 state,
                 action,
                 raiseAmount,
             });
 
             setState(response.data.state);
+            rehydrationStatus.rehydrate();
         } finally {
             setLoading(false);
         }
@@ -68,9 +126,43 @@ export default function Play({ hand }) {
     return (
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-6 text-white">
             <div className="mx-auto flex max-w-6xl flex-col gap-6">
-                <PokerHeader />
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <PokerHeader />
+
+                    <div className="flex flex-wrap gap-2">
+                        {table?.lobbyUrl && (
+                            <a
+                                href={table.lobbyUrl}
+                                className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/20"
+                            >
+                                Lobby
+                            </a>
+                        )}
+
+                        {table?.name && (
+                            <span className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-100">
+                                {table.name}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                    <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
+                    <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
+                    <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
+                </div>
+
+                <PokerRealPlayersPanel
+                    players={realPlayers}
+                    loading={joiningTable}
+                    message={joinMessage}
+                    onJoin={table?.joinUrl ? handleJoinTable : null}
+                />
 
                 <PokerTableStatus state={state} />
+
+                <PokerTurnTimer timer={turnTimer} />
 
                 <PokerStreetProgress currentStreet={state.street} />
 
@@ -98,7 +190,7 @@ export default function Play({ hand }) {
 
                 {state.isFinished && (
                     <a
-                        href="/poker?new=1"
+                        href={table?.newHandUrl ?? "/poker?new=1"}
                         className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
                     >
                         Nova mão

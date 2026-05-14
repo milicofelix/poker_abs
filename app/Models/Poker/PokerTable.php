@@ -33,6 +33,14 @@ final class PokerTable extends Model
     }
 
     /**
+     * @return HasMany<PokerTablePlayer, $this>
+     */
+    public function realPlayers(): HasMany
+    {
+        return $this->hasMany(PokerTablePlayer::class);
+    }
+
+    /**
      * @return HasMany<PokerTableSeat, $this>
      */
     public function seats(): HasMany

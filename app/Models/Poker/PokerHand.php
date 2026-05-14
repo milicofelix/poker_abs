@@ -19,6 +19,7 @@ final class PokerHand extends Model
         'pot',
         'current_bet',
         'dealer_position',
+        'state_payload',
         'winner',
         'winner_label',
         'winning_hand_name',
@@ -30,6 +31,7 @@ final class PokerHand extends Model
         'pot' => 'integer',
         'current_bet' => 'integer',
         'dealer_position' => 'integer',
+        'state_payload' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];

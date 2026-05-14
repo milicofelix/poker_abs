@@ -14,7 +14,7 @@ RUN apk add --no-cache \
     npm \
     mysql-client \
     $PHPIZE_DEPS \
-    && docker-php-ext-install \
+    && docker-php-ext-install pcntl\
         pdo \
         pdo_mysql \
         mbstring \

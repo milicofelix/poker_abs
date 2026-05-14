@@ -13,6 +13,10 @@ use Illuminate\Support\Str;
 
 final class LocalPokerPersistenceService
 {
+    public function __construct(
+        private readonly PokerTurnTimerService $turnTimer,
+    ) {
+    }
     /**
      * @param array<string, mixed> $state
      * @return array<string, mixed>
@@ -28,41 +32,62 @@ final class LocalPokerPersistenceService
                 'max_players' => 2,
             ]);
 
-            $player = $table->players()->create([
-                'seat' => 1,
-                'name' => 'Você',
-                'type' => 'local_user',
-                'stack' => (int) ($state['playerStack'] ?? 1000),
-            ]);
+            return $this->startOnTable($table, $state);
+        });
+    }
 
-            $opponent = $table->players()->create([
-                'seat' => 2,
-                'name' => 'Oponente',
-                'type' => 'simple_bot',
-                'stack' => (int) ($state['opponentStack'] ?? 1000),
-            ]);
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    public function startOnTable(PokerTable $table, array $state): array
+    {
+        return DB::transaction(function () use ($table, $state): array {
+            $table->forceFill(['status' => 'playing'])->save();
 
-            $playerSeat = $table->seats()->create([
-                'poker_player_id' => $player->id,
-                'seat_number' => 1,
-                'status' => 'occupied',
-                'role' => 'local_user',
-                'stack_snapshot' => $player->stack,
-                'is_dealer' => true,
-                'is_small_blind' => true,
-                'is_big_blind' => false,
-            ]);
+            $player = $table->players()->firstOrCreate(
+                ['seat' => 1],
+                [
+                    'name' => 'Você',
+                    'type' => 'local_user',
+                    'stack' => (int) ($state['playerStack'] ?? 1000),
+                ],
+            );
 
-            $opponentSeat = $table->seats()->create([
-                'poker_player_id' => $opponent->id,
-                'seat_number' => 2,
-                'status' => 'occupied',
-                'role' => 'simple_bot',
-                'stack_snapshot' => $opponent->stack,
-                'is_dealer' => false,
-                'is_small_blind' => false,
-                'is_big_blind' => true,
-            ]);
+            $opponent = $table->players()->firstOrCreate(
+                ['seat' => 2],
+                [
+                    'name' => 'Oponente',
+                    'type' => 'simple_bot',
+                    'stack' => (int) ($state['opponentStack'] ?? 1000),
+                ],
+            );
+
+            $playerSeat = $table->seats()->updateOrCreate(
+                ['seat_number' => 1],
+                [
+                    'poker_player_id' => $player->id,
+                    'status' => 'occupied',
+                    'role' => 'local_user',
+                    'stack_snapshot' => (int) ($state['playerStack'] ?? $player->stack),
+                    'is_dealer' => true,
+                    'is_small_blind' => true,
+                    'is_big_blind' => false,
+                ],
+            );
+
+            $opponentSeat = $table->seats()->updateOrCreate(
+                ['seat_number' => 2],
+                [
+                    'poker_player_id' => $opponent->id,
+                    'status' => 'occupied',
+                    'role' => 'simple_bot',
+                    'stack_snapshot' => (int) ($state['opponentStack'] ?? $opponent->stack),
+                    'is_dealer' => false,
+                    'is_small_blind' => false,
+                    'is_big_blind' => true,
+                ],
+            );
 
             $hand = $table->hands()->create([
                 'code' => (string) Str::uuid(),
@@ -76,7 +101,7 @@ final class LocalPokerPersistenceService
                 'finished_at' => (bool) ($state['isFinished'] ?? false) ? now() : null,
             ]);
 
-            return [
+            $state = $this->turnTimer->start([
                 ...$state,
                 'tableSeats' => $this->serializeSeats([$playerSeat, $opponentSeat]),
                 'persistence' => [
@@ -87,9 +112,34 @@ final class LocalPokerPersistenceService
                     'playerSeatId' => $playerSeat->id,
                     'opponentSeatId' => $opponentSeat->id,
                     'loggedActions' => 0,
+                    'syncVersion' => 1,
                 ],
-            ];
+            ]);
+
+            $hand->forceFill(['state_payload' => $state])->save();
+
+            return $state;
         });
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function currentStateForTable(PokerTable $table): ?array
+    {
+        /** @var PokerHand|null $hand */
+        $hand = $table->hands()
+            ->where('status', 'running')
+            ->latest('id')
+            ->first();
+
+        if (! $hand) {
+            return null;
+        }
+
+        return is_array($hand->state_payload)
+            ? $this->turnTimer->refresh($hand->state_payload)
+            : null;
     }
 
     /**
@@ -106,11 +156,20 @@ final class LocalPokerPersistenceService
             /** @var PokerHand $hand */
             $hand = PokerHand::query()->findOrFail((int) $persistence['handId']);
 
+            $state['persistence']['syncVersion'] = max(1, (int) ($state['persistence']['syncVersion'] ?? 1)) + 1;
+
+            if ((bool) ($state['isFinished'] ?? false)) {
+                unset($state['turnTimer']);
+            } else {
+                $state = $this->turnTimer->start($state);
+            }
+
             $hand->forceFill([
                 'status' => (bool) ($state['isFinished'] ?? false) ? 'finished' : 'running',
                 'street' => (string) ($state['street'] ?? 'pre_flop'),
                 'pot' => (int) ($state['pot'] ?? 0),
                 'current_bet' => (int) ($state['currentBet'] ?? 0),
+                'state_payload' => $state,
                 ...$this->winnerAttributes($state),
                 'finished_at' => (bool) ($state['isFinished'] ?? false)
                     ? ($hand->finished_at ?? now())
@@ -167,6 +226,8 @@ final class LocalPokerPersistenceService
             }
 
             $state['persistence']['loggedActions'] = count($history);
+
+            $hand->forceFill(['state_payload' => $state])->save();
 
             return $state;
         });
@@ -237,7 +298,6 @@ final class LocalPokerPersistenceService
         ];
     }
 
-
     /**
      * @param array<int, PokerTableSeat> $seats
      * @return array<int, array<string, mixed>>
@@ -259,5 +319,4 @@ final class LocalPokerPersistenceService
             $seats,
         );
     }
-
 }
