@@ -9,6 +9,7 @@ use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
 use App\Services\Poker\PokerTableTurnActionService;
+use App\Services\Poker\PokerBotTurnProcessor;
 use Illuminate\Http\JsonResponse;
 
 final class PokerTableRoundActionController extends Controller
@@ -20,6 +21,7 @@ final class PokerTableRoundActionController extends Controller
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
         MultiplayerPokerPrivateStateService $privateState,
         PokerTableTurnActionService $turnAction,
+        PokerBotTurnProcessor $botTurnProcessor,
     ): JsonResponse {
         $currentState = $pokerPersistence->currentStateForTable($table);
 
@@ -32,6 +34,8 @@ final class PokerTableRoundActionController extends Controller
             $request->pokerAction(),
             $request->raiseAmount(),
         );
+
+        $nextState = $botTurnProcessor->process($table, $nextState);
 
         $nextState = $pokerPersistence->persist($nextState);
 

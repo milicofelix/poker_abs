@@ -8,6 +8,7 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerTablePresenceService;
+use App\Support\Poker\PokerBotProfiles;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -51,11 +52,15 @@ final class PokerTablePlayController extends Controller
                 'joinUrl' => route('poker.tables.join', $table),
                 'seatUrl' => route('poker.tables.seat', $table),
                 'leaveUrl' => route('poker.tables.leave', $table),
+                'botUrl' => route('poker.tables.bots', $table),
                 'maxPlayers' => $table->max_players,
                 'lobbyUrl' => route('poker.lobby'),
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,
+                'botProfiles' => array_values(PokerBotProfiles::all()),
+                'botDifficulties' => PokerBotProfiles::difficulties(),
+                'botDifficultyOptions' => array_values(PokerBotProfiles::difficultyOptions()),
             ],
         ]);
     }

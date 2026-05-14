@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import axios from 'axios';
 import HandConclusionBanner from '../../Components/Poker/HandConclusionBanner';
 import LastActionAlert from '../../Components/Poker/LastActionAlert';
@@ -151,20 +151,11 @@ export default function Play({ hand, table = null }) {
     const [joiningTable, setJoiningTable] = useState(false);
     const [seatingTable, setSeatingTable] = useState(false);
     const [leavingTable, setLeavingTable] = useState(false);
+    const [addingBot, setAddingBot] = useState(false);
     const [startingNewHand, setStartingNewHand] = useState(false);
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
     const [joinMessage, setJoinMessage] = useState(null);
-    const realPlayersRef = useRef(realPlayers);
-    const currentUserIdRef = useRef(table?.currentUserId ?? null);
-
-    useEffect(() => {
-        realPlayersRef.current = realPlayers;
-    }, [realPlayers]);
-
-    useEffect(() => {
-        currentUserIdRef.current = table?.currentUserId ?? null;
-    }, [table?.currentUserId]);
 
     const handlePersonalizedState = useCallback((nextState, payload = null) => {
         setState(nextState);
@@ -185,15 +176,7 @@ export default function Play({ hand, table = null }) {
 
     const rehydratePokerTable = rehydrationStatus.rehydrate;
 
-    const handleRealtimeStateNotification = useCallback((canonicalState = null) => {
-        if (canonicalState) {
-            setState(personalizeCanonicalStateForCurrentUser(
-                canonicalState,
-                realPlayersRef.current,
-                currentUserIdRef.current,
-            ));
-        }
-
+    const handleRealtimeStateNotification = useCallback(() => {
         rehydratePokerTable();
     }, [rehydratePokerTable]);
 
@@ -298,6 +281,39 @@ export default function Play({ hand, table = null }) {
         }
     }
 
+    async function handleAddBot(profile, difficulty = 'normal') {
+        if (!table?.botUrl) {
+            return;
+        }
+
+        setAddingBot(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.botUrl, {
+                profile,
+                difficulty,
+            });
+
+            setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
+            setJoinMessage(response.data.message ?? 'Bot adicionado à mesa.');
+
+            if (response.data.state) {
+                setState(response.data.state);
+            }
+
+            rehydrationStatus.rehydrate();
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível adicionar o bot nesta mesa.',
+            );
+        } finally {
+            setAddingBot(false);
+        }
+    }
+
     async function handleStartNewHand() {
         if (!table?.newHandActionUrl) {
             return;
@@ -379,14 +395,19 @@ export default function Play({ hand, table = null }) {
                     seatSlots={seatSlots}
                     currentUserId={table?.currentUserId}
                     maxPlayers={table?.maxPlayers}
-                    loading={joiningTable || seatingTable || leavingTable}
+                    loading={joiningTable || seatingTable || leavingTable || addingBot}
                     joining={joiningTable}
                     seating={seatingTable}
                     leaving={leavingTable}
+                    addingBot={addingBot}
                     message={joinMessage}
                     onJoin={table?.joinUrl ? handleJoinTable : null}
                     onSeat={table?.seatUrl ? handleSeatTable : null}
                     onLeave={table?.leaveUrl ? handleLeaveTable : null}
+                    onAddBot={table?.botUrl ? handleAddBot : null}
+                    botProfiles={table?.botProfiles ?? []}
+                    botDifficulties={table?.botDifficulties ?? []}
+                    botDifficultyOptions={table?.botDifficultyOptions ?? []}
                 />
 
                 <PokerTableStatus state={state} />

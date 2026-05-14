@@ -20,6 +20,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Poker\PokerTableLeaveController;
 use App\Http\Controllers\Poker\PokerTableNewHandController;
+use App\Http\Controllers\Poker\PokerTableBotController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -52,3 +53,4 @@ Route::post('/poker/tables/{table}/join', PokerTableJoinController::class)->name
 Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name('poker.tables.seat');
 Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
 Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
+Route::post('/poker/tables/{table}/bots', PokerTableBotController::class)->name('poker.tables.bots');

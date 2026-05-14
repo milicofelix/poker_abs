@@ -4,6 +4,7 @@ function statusLabel(status) {
     const labels = {
         online: 'Online',
         offline: 'Offline',
+        bot_online: 'Bot',
     };
 
     return labels[status] ?? status;
@@ -22,11 +23,19 @@ export default function PokerRealPlayersPanel({
     joining = false,
     seating = false,
     leaving = false,
+    addingBot = false,
     message = null,
     onJoin = null,
     onSeat = null,
     onLeave = null,
+    onAddBot = null,
+    botProfiles = [],
+    botDifficulties = [],
+    botDifficultyOptions = [],
 }) {
+    const [selectedBotDifficulty, setSelectedBotDifficulty] = React.useState(
+        botDifficulties.includes('normal') ? 'normal' : (botDifficulties[0] ?? 'normal'),
+    );
     const currentPlayer = players.find((player) => Number(player.userId) === Number(currentUserId));
     const currentPlayerIsSeated = playerHasSeat(currentPlayer);
     const hasJoined = Boolean(currentPlayer);
@@ -96,7 +105,8 @@ export default function PokerRealPlayersPanel({
                 {normalizedSeatSlots.map((seat) => {
                     const player = seat.player ?? players.find((item) => Number(item.seatNumber) === Number(seat.seatNumber));
                     const occupied = Boolean(player);
-                    const isOnline = player?.status === 'online';
+                    const isBot = Boolean(player?.isBot);
+                    const isOnline = player?.status === 'online' || isBot;
                     const isCurrentSeat = occupied && Number(player.userId) === Number(currentUserId);
                     const canChooseSeat = hasJoined && !currentPlayerIsSeated && !occupied && onSeat;
 
@@ -117,6 +127,11 @@ export default function PokerRealPlayersPanel({
                                                 {isCurrentSeat ? 'Você' : player.nickname}
                                             </p>
                                             <p className="text-xs text-slate-400">Stack inicial: {player.stack}</p>
+                                            {isBot && (
+                                                <p className="mt-1 text-xs font-bold text-purple-200">
+                                                    Perfil: {player.botProfile ?? 'bot'} · Dificuldade: {player.botDifficultyLabel ?? player.botDifficulty ?? 'normal'}
+                                                </p>
+                                            )}
                                         </>
                                     ) : (
                                         <p className="mt-1 font-black text-slate-300">Livre</p>
@@ -125,7 +140,7 @@ export default function PokerRealPlayersPanel({
 
                                 {occupied ? (
                                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${isOnline ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-400/10 text-slate-300'}`}>
-                                        {statusLabel(player.status)}
+                                        {isBot ? 'Bot IA' : statusLabel(player.status)}
                                     </span>
                                 ) : (
                                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">
@@ -148,6 +163,51 @@ export default function PokerRealPlayersPanel({
                     );
                 })}
             </div>
+
+            {onAddBot && botProfiles.length > 0 && normalizedSeatSlots.some((seat) => !seat.player) && (
+                <div className="mt-4 rounded-2xl border border-purple-300/20 bg-purple-400/10 p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-200">Bots/IA</p>
+                            <p className="text-sm text-purple-100">Adicione um adversário automático para completar a mesa.</p>
+                        </div>
+
+                        <div className="flex flex-col gap-2 md:items-end">
+                            {botDifficultyOptions.length > 0 && (
+                                <label className="flex flex-col gap-1 text-xs font-bold text-purple-100">
+                                    Dificuldade
+                                    <select
+                                        value={selectedBotDifficulty}
+                                        onChange={(event) => setSelectedBotDifficulty(event.target.value)}
+                                        className="rounded-xl border border-purple-200/30 bg-slate-950 px-3 py-2 text-sm font-black text-purple-50 outline-none transition focus:border-purple-200/70"
+                                    >
+                                        {botDifficultyOptions.map((difficulty) => (
+                                            <option key={difficulty.key} value={difficulty.key}>
+                                                {difficulty.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
+
+                            <div className="flex flex-wrap gap-2 md:justify-end">
+                                {botProfiles.map((profile) => (
+                                    <button
+                                        key={profile.key}
+                                        type="button"
+                                        onClick={() => onAddBot(profile.key, selectedBotDifficulty)}
+                                        disabled={loading}
+                                        className="rounded-xl border border-purple-200/30 bg-purple-300/15 px-4 py-2 text-sm font-black text-purple-50 transition hover:bg-purple-300/25 disabled:cursor-not-allowed disabled:opacity-60"
+                                        title={`${profile.description} Dificuldade: ${selectedBotDifficulty}.`}
+                                    >
+                                        {addingBot ? 'Adicionando...' : `Adicionar bot ${profile.label}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {!hasJoined && (
                 <div className="mt-4 rounded-2xl border border-dashed border-white/15 bg-white/5 p-4 text-sm text-slate-400">

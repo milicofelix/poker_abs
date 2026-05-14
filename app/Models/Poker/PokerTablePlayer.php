@@ -14,6 +14,9 @@ final class PokerTablePlayer extends Model
     protected $fillable = [
         'poker_table_id',
         'user_id',
+        'is_bot',
+        'bot_profile',
+        'bot_difficulty',
         'nickname',
         'stack',
         'seat_number',
@@ -26,6 +29,7 @@ final class PokerTablePlayer extends Model
     protected $casts = [
         'poker_table_id' => 'integer',
         'user_id' => 'integer',
+        'is_bot' => 'boolean',
         'stack' => 'integer',
         'seat_number' => 'integer',
         'joined_at' => 'datetime',

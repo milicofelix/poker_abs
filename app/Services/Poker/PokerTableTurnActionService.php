@@ -44,6 +44,15 @@ final readonly class PokerTableTurnActionService
         return $this->applyAction($state, $this->currentActor($state), $action, 0, true);
     }
 
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    public function executeBot(array $state, string $actor, string $action, int $raiseAmount = 0): array
+    {
+        return $this->applyAction($state, $actor, $action, $raiseAmount, true);
+    }
+
     public function canonicalActorForUser(PokerTable $table, ?User $user): ?string
     {
         $players = $table->realPlayers()

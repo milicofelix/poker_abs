@@ -26,15 +26,7 @@ final class PokerTableJoinController extends Controller
 
         return response()->json([
             'message' => 'Jogador entrou na mesa com sucesso.',
-            'player' => [
-                'id' => $player->id,
-                'userId' => $player->user_id,
-                'nickname' => $player->nickname,
-                'stack' => $player->stack,
-                'status' => $player->status,
-                'seatNumber' => $player->seat_number,
-                'lastSeenAt' => $player->last_seen_at?->toIso8601String(),
-            ],
+            'player' => $this->serializeTablePlayer($player),
             'players' => $this->serializeRealPlayers($table),
             'seatSlots' => $this->serializeSeatSlots($table),
         ]);
