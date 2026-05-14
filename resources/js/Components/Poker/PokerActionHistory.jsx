@@ -1,7 +1,11 @@
 import React from 'react';
 
-function actorLabel(actor) {
-    return actor === 'opponent' ? 'Oponente' : 'Você';
+function actorLabel(item) {
+    if (item?.actorLabel) {
+        return item.actorLabel;
+    }
+
+    return item?.actor === 'opponent' ? 'Oponente' : 'Você';
 }
 
 export default function PokerActionHistory({ history }) {
@@ -26,7 +30,7 @@ export default function PokerActionHistory({ history }) {
                     >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <strong className={item.actor === 'opponent' ? 'text-amber-200' : 'text-emerald-200'}>
-                                {index + 1}. {actorLabel(item.actor)} — {item.street} — {item.action}
+                                {index + 1}. {actorLabel(item)} — {item.street} — {item.action}
                             </strong>
 
                             <span className="text-slate-400">

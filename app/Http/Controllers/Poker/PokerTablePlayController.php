@@ -6,6 +6,7 @@ use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
+use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,6 +18,7 @@ final class PokerTablePlayController extends Controller
         PokerTable $table,
         StartPokerHandAction $startPokerHand,
         LocalPokerPersistenceService $pokerPersistence,
+        MultiplayerPokerPrivateStateService $privateState,
     ): Response {
         $hand = $request->boolean('new')
             ? null
@@ -35,7 +37,10 @@ final class PokerTablePlayController extends Controller
                 'nickname' => $player->nickname,
                 'stack' => $player->stack,
                 'status' => $player->status,
+                'seatNumber' => $player->seat_number,
             ]);
+
+        $hand = $privateState->forUser($table, $hand, $request->user());
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -50,6 +55,7 @@ final class PokerTablePlayController extends Controller
                 'joinUrl' => route('poker.tables.join', $table),
                 'lobbyUrl' => route('poker.lobby'),
                 'realPlayers' => $realPlayers,
+                'currentUserId' => $request->user()?->id,
             ],
         ]);
     }

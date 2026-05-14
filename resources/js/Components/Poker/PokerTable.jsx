@@ -18,14 +18,25 @@ function visibleCommunityCards(state) {
     };
 }
 
+function opponentCardsTitle(state) {
+    const opponent = state?.playersContext?.opponents?.[0];
+
+    if (opponent?.nickname) {
+        return `Cartas de ${opponent.nickname}`;
+    }
+
+    return 'Cartas do adversário';
+}
+
 export default function PokerTable({ state }) {
     const community = visibleCommunityCards(state);
+    const currentName = state?.playersContext?.current?.nickname;
 
     return (
         <div className="rounded-[2rem] border border-white/10 bg-black/20 p-6 shadow-2xl">
             <div className="flex flex-col gap-8">
                 {state.isFinished && state.opponentCards && (
-                    <CardRow title="Cartas do oponente" cards={state.opponentCards} />
+                    <CardRow title={opponentCardsTitle(state)} cards={state.opponentCards} />
                 )}
 
                 <CardRow
@@ -34,7 +45,10 @@ export default function PokerTable({ state }) {
                     hiddenCount={community.hiddenCount}
                 />
 
-                <CardRow title="Suas cartas" cards={state.playerCards} />
+                <CardRow
+                    title={currentName ? `Suas cartas (${currentName})` : 'Suas cartas'}
+                    cards={state.playerCards}
+                />
             </div>
         </div>
     );

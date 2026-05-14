@@ -16,6 +16,98 @@ import usePokerTableRehydration from '../../hooks/usePokerTableRehydration';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
 import usePokerTurnTimeout from '../../hooks/usePokerTurnTimeout';
 
+
+function resolveCurrentPlayerRole(players = [], currentUserId = null) {
+    if (!currentUserId) {
+        return 'spectator';
+    }
+
+    const orderedPlayers = [...players].sort((first, second) => {
+        const firstSeat = first.seatNumber ?? 999;
+        const secondSeat = second.seatNumber ?? 999;
+
+        if (firstSeat !== secondSeat) {
+            return firstSeat - secondSeat;
+        }
+
+        return (first.id ?? 0) - (second.id ?? 0);
+    });
+
+    const currentPlayerIndex = orderedPlayers.findIndex(
+        (player) => Number(player.userId) === Number(currentUserId),
+    );
+
+    const currentPlayer = orderedPlayers[currentPlayerIndex];
+
+    if (!currentPlayer) {
+        return 'spectator';
+    }
+
+    if (Number(currentPlayer.seatNumber) === 2) {
+        return 'opponent';
+    }
+
+    if (Number(currentPlayer.seatNumber) === 1) {
+        return 'player';
+    }
+
+    return currentPlayerIndex === 1 ? 'opponent' : 'player';
+}
+
+function personalizeCanonicalStateForCurrentUser(nextState, players = [], currentUserId = null) {
+    const role = resolveCurrentPlayerRole(players, currentUserId);
+
+    if (nextState?.multiplayerPerspective?.role && nextState?.playersContext) {
+        return nextState;
+    }
+
+    if (role !== 'opponent') {
+        if (!nextState?.isFinished) {
+            const { opponentCards, opponentBestHand, ...safeState } = nextState;
+            return {
+                ...safeState,
+                multiplayerPerspective: {
+                    ...(safeState.multiplayerPerspective ?? {}),
+                    role,
+                },
+            };
+        }
+
+        return {
+            ...nextState,
+            multiplayerPerspective: {
+                ...(nextState.multiplayerPerspective ?? {}),
+                role,
+            },
+        };
+    }
+
+    const originalPlayerCards = nextState.playerCards ?? [];
+    const originalOpponentCards = nextState.opponentCards ?? [];
+    const originalBestHand = nextState.bestHand ?? null;
+    const originalOpponentBestHand = nextState.opponentBestHand ?? null;
+
+    const personalized = {
+        ...nextState,
+        playerCards: originalOpponentCards,
+        bestHand: originalOpponentBestHand,
+        multiplayerPerspective: {
+            ...(nextState.multiplayerPerspective ?? {}),
+            role: 'opponent',
+        },
+    };
+
+    if (nextState.isFinished) {
+        personalized.opponentCards = originalPlayerCards;
+        personalized.opponentBestHand = originalBestHand;
+    } else {
+        delete personalized.opponentCards;
+        delete personalized.opponentBestHand;
+    }
+
+    return personalized;
+}
+
 function buildInitialState(hand) {
     return {
         street: 'pre_flop',
@@ -60,18 +152,26 @@ export default function Play({ hand, table = null }) {
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [joinMessage, setJoinMessage] = useState(null);
 
-    const handleRealtimeState = useCallback((nextState) => {
+    const handleCanonicalRealtimeState = useCallback((nextState) => {
+        setState(personalizeCanonicalStateForCurrentUser(
+            nextState,
+            realPlayers,
+            table?.currentUserId,
+        ));
+    }, [realPlayers, table?.currentUserId]);
+
+    const handlePersonalizedState = useCallback((nextState) => {
         setState(nextState);
     }, []);
 
     const realtimeStatus = usePokerTableRealtime(
         state?.persistence?.tableId,
-        handleRealtimeState,
+        handleCanonicalRealtimeState,
     );
 
     const rehydrationStatus = usePokerTableRehydration(
         table?.stateUrl,
-        handleRealtimeState,
+        handlePersonalizedState,
     );
 
     const turnTimer = usePokerTurnTimer(state.turnTimer);
@@ -79,7 +179,7 @@ export default function Play({ hand, table = null }) {
     const timeoutStatus = usePokerTurnTimeout(
         table?.timeoutUrl,
         turnTimer,
-        handleRealtimeState,
+        handlePersonalizedState,
     );
 
 

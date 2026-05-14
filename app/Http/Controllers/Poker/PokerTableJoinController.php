@@ -34,6 +34,7 @@ final class PokerTableJoinController extends Controller
                 'nickname' => $player->nickname,
                 'stack' => $player->stack,
                 'status' => $player->status,
+                'seatNumber' => $player->seat_number,
             ],
             'players' => $players->map(static fn ($tablePlayer): array => [
                 'id' => $tablePlayer->id,
@@ -41,6 +42,7 @@ final class PokerTableJoinController extends Controller
                 'nickname' => $tablePlayer->nickname,
                 'stack' => $tablePlayer->stack,
                 'status' => $tablePlayer->status,
+                'seatNumber' => $tablePlayer->seat_number,
             ])->values(),
         ]);
     }
