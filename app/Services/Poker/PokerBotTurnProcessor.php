@@ -12,6 +12,8 @@ final readonly class PokerBotTurnProcessor
         private PokerBotDecisionService $decisionService,
         private PokerBotHandStrengthService $handStrengthService,
         private PokerTableTurnActionService $turnAction,
+        private PokerBotStatTrackingService $statTracking,
+        private PokerBotMemoryAdaptationService $memoryAdaptation,
     ) {
     }
 
@@ -40,6 +42,16 @@ final readonly class PokerBotTurnProcessor
                 ? (int) ($state['opponentStack'] ?? 0)
                 : (int) ($state['playerStack'] ?? 0);
             $strength = $this->handStrengthService->evaluate($state, $actor);
+            $context = $this->tableContext($state, $actor, $botStack);
+            $memory = $this->memoryAdaptation->analyze($bot, $state, $actor);
+            $context['memory'] = $memory;
+            $strength = array_merge($strength, $context, [
+                'context' => $context,
+                'memory' => $memory,
+                'memoryAdjustment' => (int) $memory['scoreAdjustment'],
+                'bluffPressure' => (int) $memory['bluffPressure'],
+                'callDownBias' => (int) $memory['callDownBias'],
+            ]);
 
             $decision = $this->decisionService->decide(
                 (string) ($bot->bot_profile ?: 'conservative'),
@@ -51,12 +63,25 @@ final readonly class PokerBotTurnProcessor
                 $strength,
             );
 
+            $decisionContext = $state;
+
             $state = $this->turnAction->executeBot(
                 $state,
                 $actor,
                 $decision->action->value,
                 $decision->amount,
             );
+
+            $this->statTracking->recordDecision(
+                $table,
+                $bot,
+                $actor,
+                $decisionContext,
+                $strength,
+                $decision,
+            );
+
+            $stats = $this->statTracking->summarizeForBot($bot);
 
             $state['botDecision'] = [
                 'processed' => true,
@@ -67,6 +92,9 @@ final readonly class PokerBotTurnProcessor
                 'amount' => $decision->amount,
                 'handStrength' => $strength,
                 'message' => $decision->message,
+                'stats' => $stats,
+                'context' => $context,
+                'memory' => $memory,
             ];
 
             if (isset($state['lastAction']) && is_array($state['lastAction'])) {
@@ -74,10 +102,44 @@ final readonly class PokerBotTurnProcessor
                 $state['lastAction']['isBot'] = true;
                 $state['lastAction']['botProfile'] = $bot->bot_profile;
                 $state['lastAction']['handStrength'] = $strength;
+                $state['lastAction']['botStats'] = $stats;
+                $state['lastAction']['botContext'] = $context;
+                $state['lastAction']['botMemory'] = $memory;
             }
         }
 
         return $state;
+    }
+
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array{pot:int,spr:float,potPressure:string,stackPressure:string,opponentAggressionRate:int,opponentFoldRate:int,recentOpponentActions:int}
+     */
+    private function tableContext(array $state, string $actor, int $botStack): array
+    {
+        $pot = max(0, (int) ($state['pot'] ?? 0));
+        $spr = $pot > 0 ? round($botStack / max(1, $pot), 2) : (float) $botStack;
+        $history = is_array($state['actionHistory'] ?? null) ? $state['actionHistory'] : [];
+        $opponentActor = $actor === 'opponent' ? 'player' : 'opponent';
+        $recentOpponentActions = array_values(array_filter(
+            array_slice($history, -8),
+            static fn (mixed $action): bool => is_array($action) && (string) ($action['actor'] ?? '') === $opponentActor,
+        ));
+
+        $total = count($recentOpponentActions);
+        $raises = count(array_filter($recentOpponentActions, static fn (array $action): bool => (string) ($action['action'] ?? '') === 'raise'));
+        $folds = count(array_filter($recentOpponentActions, static fn (array $action): bool => (string) ($action['action'] ?? '') === 'fold'));
+
+        return [
+            'pot' => $pot,
+            'spr' => $spr,
+            'potPressure' => $pot >= 240 ? 'large_pot' : ($pot <= 60 ? 'small_pot' : 'normal_pot'),
+            'stackPressure' => $botStack <= max(120, $pot) ? 'short_stack' : ($botStack >= max(900, $pot * 5) ? 'deep_stack' : 'comfortable'),
+            'opponentAggressionRate' => $total > 0 ? (int) round(($raises / $total) * 100) : 0,
+            'opponentFoldRate' => $total > 0 ? (int) round(($folds / $total) * 100) : 0,
+            'recentOpponentActions' => $total,
+        ];
     }
 
     /**

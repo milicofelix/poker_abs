@@ -25,6 +25,11 @@ final class PokerBotsMesaTest extends TestCase
                 ->where('table.botUrl', route('poker.tables.bots', $table))
                 ->where('table.botProfiles.0.key', 'conservative')
                 ->where('table.botProfiles.1.key', 'aggressive')
+                ->where('table.botProfiles.2.key', 'tag')
+                ->where('table.botProfiles.3.key', 'lag')
+                ->where('table.botProfiles.4.key', 'nit')
+                ->where('table.botProfiles.5.key', 'calling_station')
+                ->where('table.botProfiles.6.key', 'maniac')
                 ->where('table.botDifficulties.1', 'normal')
                 ->where('table.botDifficultyOptions.0.key', 'easy')
                 ->where('table.botDifficultyOptions.1.label', 'Normal')
@@ -72,6 +77,44 @@ final class PokerBotsMesaTest extends TestCase
         ]);
     }
 
+
+    public function test_usuario_consegue_adicionar_bot_com_personalidade_avancada(): void
+    {
+        $user = User::factory()->create(['name' => 'Adriano']);
+        $table = $this->createTable();
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $user->id,
+            'nickname' => $user->name,
+            'stack' => 1000,
+            'seat_number' => 1,
+            'status' => 'online',
+            'joined_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'maniac',
+                'difficulty' => 'hard',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Bot Maniac entrou na mesa.')
+            ->assertJsonPath('bot.nickname', 'Bot Maniac')
+            ->assertJsonPath('bot.botProfile', 'maniac')
+            ->assertJsonPath('bot.botDifficulty', 'hard')
+            ->assertJsonPath('seatSlots.1.player.botProfile', 'maniac');
+
+        $this->assertDatabaseHas('poker_table_players', [
+            'poker_table_id' => $table->id,
+            'seat_number' => 2,
+            'is_bot' => true,
+            'bot_profile' => 'maniac',
+            'bot_difficulty' => 'hard',
+            'nickname' => 'Bot Maniac',
+        ]);
+    }
 
     public function test_usuario_consegue_adicionar_bot_com_dificuldade_dificil(): void
     {
@@ -173,7 +216,30 @@ final class PokerBotsMesaTest extends TestCase
             ->assertJsonPath('state.lastAction.isBot', true)
             ->assertJsonPath('state.botDecision.processed', true)
             ->assertJsonPath('state.botDecision.actor', 'opponent')
-            ->assertJsonPath('state.botDecision.handStrength.label', 'mão jogável');
+            ->assertJsonPath('state.botDecision.handStrength.label', 'mão jogável')
+            ->assertJsonPath('state.botDecision.stats.totalDecisions', 1)
+            ->assertJsonPath('state.botDecision.context.potPressure', 'small_pot')
+            ->assertJsonPath('state.botDecision.memory.opponentModel', 'unknown')
+            ->assertJsonPath('state.botDecision.context.stackPressure', 'deep_stack')
+            ->assertJsonPath('state.botDecision.handStrength.probability.callRecommendation', 'neutral')
+            ->assertJsonPath('state.botDecision.handStrength.probability.outs', 0)
+            ->assertJsonPath('state.lastAction.botStats.totalDecisions', 1)
+            ->assertJsonPath('state.lastAction.botContext.potPressure', 'small_pot')
+            ->assertJsonPath('state.lastAction.botMemory.opponentModel', 'unknown');
+
+        $this->assertDatabaseHas('poker_bot_decision_logs', [
+            'poker_table_id' => $table->id,
+            'actor' => 'opponent',
+            'profile' => 'conservative',
+            'difficulty' => 'normal',
+            'label' => 'mão jogável',
+        ]);
+
+        $this->assertDatabaseCount('poker_bot_decision_logs', 1);
+        $log = \App\Models\Poker\PokerBotDecisionLog::query()->firstOrFail();
+        $this->assertIsArray($log->context);
+        $this->assertArrayHasKey('probability', $log->context);
+        $this->assertSame(0, $log->context['outs']);
     }
 
     private function createTable(): PokerTable

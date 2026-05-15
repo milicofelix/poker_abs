@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PokerTablePlayer extends Model
 {
@@ -52,4 +53,13 @@ final class PokerTablePlayer extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /**
+     * @return HasMany<PokerBotDecisionLog, $this>
+     */
+    public function botDecisionLogs(): HasMany
+    {
+        return $this->hasMany(PokerBotDecisionLog::class, 'poker_table_player_id');
+    }
 }
+

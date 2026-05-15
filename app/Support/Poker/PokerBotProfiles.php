@@ -20,6 +20,31 @@ final class PokerBotProfiles
                 'label' => 'Agressivo',
                 'description' => 'Pressiona mais, aceita apostas maiores e prepara raises com mais frequência.',
             ],
+            'tag' => [
+                'key' => 'tag',
+                'label' => 'TAG',
+                'description' => 'Tight agressivo: seleciona melhor as mãos, mas pressiona forte quando entra no pote.',
+            ],
+            'lag' => [
+                'key' => 'lag',
+                'label' => 'LAG',
+                'description' => 'Loose agressivo: joga mais mãos, aumenta a pressão e usa blefes com maior frequência.',
+            ],
+            'nit' => [
+                'key' => 'nit',
+                'label' => 'Nit',
+                'description' => 'Extremamente seletivo: evita spots marginais e só pressiona com mãos muito fortes.',
+            ],
+            'calling_station' => [
+                'key' => 'calling_station',
+                'label' => 'Calling Station',
+                'description' => 'Paga muitas apostas, raramente aumenta e demora mais para largar mãos médias.',
+            ],
+            'maniac' => [
+                'key' => 'maniac',
+                'label' => 'Maniac',
+                'description' => 'Muito agressivo: pressiona ranges fracos, blefa mais e força decisões caras.',
+            ],
         ];
     }
 
