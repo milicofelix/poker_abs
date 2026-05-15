@@ -20,15 +20,18 @@ body {
 @keyframes poker-card-deal {
     0% {
         opacity: 0;
-        transform: translateY(-18px) rotate(-4deg) scale(0.92);
+        transform: translate3d(var(--poker-deal-x, 0), var(--poker-deal-y, -92px), 0) rotate(var(--poker-deal-rotate, -9deg)) scale(0.72);
+        filter: blur(1px);
     }
-    70% {
+    62% {
         opacity: 1;
-        transform: translateY(3px) rotate(1deg) scale(1.02);
+        transform: translate3d(0, 4px, 0) rotate(1deg) scale(1.035);
+        filter: blur(0);
     }
     100% {
         opacity: 1;
-        transform: translateY(0) rotate(0deg) scale(1);
+        transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+        filter: blur(0);
     }
 }
 
@@ -99,11 +102,20 @@ body {
 }
 
 .poker-card-deal {
-    animation: poker-card-deal 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: poker-card-deal 560ms cubic-bezier(0.16, 0.9, 0.2, 1) both;
 }
 
 .poker-hidden-card-pulse {
     animation: poker-hidden-card-pulse 2.4s ease-in-out infinite;
+}
+
+.poker-card-deal.poker-hidden-card-pulse {
+    animation-name: poker-card-deal, poker-hidden-card-pulse;
+    animation-duration: 560ms, 2.4s;
+    animation-timing-function: cubic-bezier(0.16, 0.9, 0.2, 1), ease-in-out;
+    animation-fill-mode: both, none;
+    animation-iteration-count: 1, infinite;
+    animation-delay: var(--poker-card-delay, 0ms), calc(var(--poker-card-delay, 0ms) + 700ms);
 }
 
 .poker-pot-pulse {
@@ -124,6 +136,21 @@ body {
 
 .poker-action-shine {
     animation: poker-action-shine 1.7s ease-in-out infinite;
+}
+
+.poker-dealer-shoe {
+    animation: poker-dealer-shoe 1.9s ease-in-out infinite;
+}
+
+@keyframes poker-dealer-shoe {
+    0%, 100% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 0.88;
+    }
+    50% {
+        transform: translateX(-50%) translateY(3px);
+        opacity: 1;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -219,4 +246,43 @@ body {
 .poker-compact-scroll::-webkit-scrollbar-thumb {
     background: rgba(251, 191, 36, 0.5);
     border-radius: 999px;
+}
+
+@keyframes poker-bot-thinking-dot {
+    0%, 100% {
+        transform: scale(0.75);
+        opacity: 0.45;
+        box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.25);
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+        box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+    }
+}
+
+@keyframes poker-bot-thinking-bubble {
+    0%, 100% {
+        transform: translateY(0);
+        opacity: 0.35;
+    }
+    50% {
+        transform: translateY(-5px);
+        opacity: 1;
+    }
+}
+
+.poker-bot-thinking-dot {
+    animation: poker-bot-thinking-dot 1.25s ease-in-out infinite;
+}
+
+.poker-bot-thinking-bubble {
+    animation: poker-bot-thinking-bubble 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poker-bot-thinking-dot,
+    .poker-bot-thinking-bubble {
+        animation: none !important;
+    }
 }

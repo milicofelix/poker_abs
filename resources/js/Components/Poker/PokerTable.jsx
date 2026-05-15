@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import CardRow from './CardRow';
 
 function visibleCommunityCards(state) {
@@ -34,6 +34,27 @@ function currentPlayerTitle(state) {
     return currentName ? `Suas cartas (${currentName})` : 'Suas cartas';
 }
 
+
+function cardSignature(cards = []) {
+    return cards
+        .map((card) => `${card?.rank ?? card?.label ?? ''}-${card?.suit ?? ''}`)
+        .join('|');
+}
+
+function hiddenPlayerHandTitle(isRevealed) {
+    return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
+}
+
+function hiddenPlayerHandDescription(isRevealed, isFinished) {
+    if (isFinished) {
+        return 'Mão encerrada — cartas liberadas para conferência.';
+    }
+
+    return isRevealed
+        ? 'Clique para esconder sua mão novamente.'
+        : 'Clique para espiar sua mão quando quiser.';
+}
+
 function currentTurnLabel(state) {
     return state?.currentTurn?.actorLabel ?? 'Jogador';
 }
@@ -50,6 +71,18 @@ function chipAmountParts(value) {
         Math.max(1, Math.ceil(amount / 220)),
         Math.max(1, Math.ceil(amount / 360)),
     ].slice(0, 3);
+}
+
+function dealerAnimationLabel(state) {
+    if (state?.isFinished) {
+        return 'Showdown finalizado';
+    }
+
+    if ((state?.actionHistory ?? []).length > 0) {
+        return 'Cartas na mesa';
+    }
+
+    return 'Dealer distribuindo';
 }
 
 function currentTurnMessage(state) {
@@ -112,12 +145,29 @@ function seatBadgeClasses(state, seat) {
 
 export default function PokerTable({ state }) {
     const community = visibleCommunityCards(state);
+    const playerHandSignature = useMemo(
+        () => cardSignature(state.playerCards ?? []),
+        [state.playerCards],
+    );
+    const [playerCardsRevealed, setPlayerCardsRevealed] = useState(false);
+
+    useEffect(() => {
+        setPlayerCardsRevealed(false);
+    }, [playerHandSignature]);
+
+    const hasPlayerCards = (state.playerCards ?? []).length > 0;
+    const shouldRevealPlayerCards = state.isFinished || playerCardsRevealed;
+    const playerBestHandVisible = shouldRevealPlayerCards && state.bestHand?.name;
 
     return (
         <section className="relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
             <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
             <div className="pointer-events-none absolute inset-3 rounded-[0.9rem] border border-amber-200/20 sm:inset-6 sm:rounded-[1.35rem]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
+            <div className="poker-dealer-shoe pointer-events-none absolute left-1/2 top-3 z-20 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-amber-200/30 bg-black/55 px-3 py-1.5 text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100 shadow-2xl shadow-black/45 sm:flex">
+                <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.9)]" />
+                {dealerAnimationLabel(state)}
+            </div>
 
             <div className="relative z-10 grid min-h-[360px] gap-1 sm:gap-3 lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
                 <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-start">
@@ -135,12 +185,21 @@ export default function PokerTable({ state }) {
                         )}
 
                         {state.isFinished && state.opponentCards ? (
-                            <CardRow title={opponentCardsTitle(state)} cards={state.opponentCards ?? []} align="left" />
+                            <CardRow
+                                title={opponentCardsTitle(state)}
+                                cards={state.opponentCards ?? []}
+                                align="left"
+                                dealStartIndex={2}
+                                dealFrom="left"
+                            />
                         ) : (
-                            <div className="text-center">
-                                <p className="text-[0.62rem] font-black uppercase tracking-[0.22em] text-slate-300">Adversário</p>
-                                <p className="mt-1 text-xs font-semibold text-slate-400">Cartas protegidas até o showdown</p>
-                            </div>
+                            <CardRow
+                                title="Adversário"
+                                hiddenCount={2}
+                                align="left"
+                                dealStartIndex={1}
+                                dealFrom="left"
+                            />
                         )}
 
                         {state.isFinished && state.opponentBestHand?.name && (
@@ -180,12 +239,39 @@ export default function PokerTable({ state }) {
                             cards={community.visible}
                             hiddenCount={community.hiddenCount}
                             tone="hero"
+                            dealStartIndex={4}
+                            dealFrom="dealer"
                         />
                     </div>
                 </div>
 
                 <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-end">
-                    <CardRow title={currentPlayerTitle(state)} cards={state.playerCards ?? []} />
+                    <button
+                        type="button"
+                        disabled={!hasPlayerCards || state.isFinished}
+                        onClick={() => hasPlayerCards && !state.isFinished && setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                        className={`group relative block min-w-0 rounded-2xl text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 ${hasPlayerCards && !state.isFinished ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-amber-950/25' : 'cursor-default'}`}
+                        aria-label={hiddenPlayerHandTitle(shouldRevealPlayerCards)}
+                    >
+                        <CardRow
+                            title={currentPlayerTitle(state)}
+                            cards={shouldRevealPlayerCards ? (state.playerCards ?? []) : []}
+                            hiddenCount={shouldRevealPlayerCards ? 0 : (state.playerCards ?? []).length}
+                            dealStartIndex={0}
+                            dealFrom="bottom"
+                        />
+
+                        {hasPlayerCards && (
+                            <div className="mt-1.5 rounded-xl border border-amber-200/20 bg-black/30 px-2 py-1.5 text-center shadow-inner shadow-black/30 sm:mt-2">
+                                <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-100/90 sm:text-[0.65rem] sm:tracking-[0.24em]">
+                                    {hiddenPlayerHandTitle(shouldRevealPlayerCards)}
+                                </p>
+                                <p className="mt-0.5 text-[0.62rem] font-semibold text-emerald-100/75 sm:text-[0.7rem]">
+                                    {hiddenPlayerHandDescription(shouldRevealPlayerCards, state.isFinished)}
+                                </p>
+                            </div>
+                        )}
+                    </button>
 
                     <div className={[
                         'relative overflow-hidden rounded-lg border p-1.5 text-center transition duration-300 sm:rounded-2xl sm:p-3',
@@ -201,7 +287,7 @@ export default function PokerTable({ state }) {
                         )}
 
                         <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-emerald-100 sm:text-xs sm:tracking-[0.28em]">Melhor mão</p>
-                        <strong className="mt-0.5 block text-sm font-black text-white sm:mt-1 sm:text-base">{state.bestHand?.name ?? 'Aguardando'}</strong>
+                        <strong className="mt-0.5 block text-sm font-black text-white sm:mt-1 sm:text-base">{playerBestHandVisible ? state.bestHand.name : (shouldRevealPlayerCards ? 'Aguardando' : 'Cartas ocultas')}</strong>
                         <p className="mt-0.5 text-[0.62rem] text-slate-300 sm:mt-1 sm:text-[0.7rem]">Stack: {state.playerStack}</p>
                     </div>
                 </div>

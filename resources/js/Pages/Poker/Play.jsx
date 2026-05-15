@@ -4,6 +4,7 @@ import HandConclusionBanner from '../../Components/Poker/HandConclusionBanner';
 import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
+import PokerBotThinkingIndicator from '../../Components/Poker/PokerBotThinkingIndicator';
 import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
@@ -19,6 +20,23 @@ import usePokerTableRehydration from '../../hooks/usePokerTableRehydration';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
 import usePokerTurnTimeout from '../../hooks/usePokerTurnTimeout';
 
+
+
+function tableHasBot(players = [], state = null) {
+    return players.some((player) => Boolean(player?.isBot))
+        || Boolean(state?.lastAction?.isBot)
+        || Boolean(state?.botDecision?.processed);
+}
+
+function botThinkingLabel(players = []) {
+    const bot = players.find((player) => Boolean(player?.isBot));
+
+    if (!bot) {
+        return 'Oponente pensando...';
+    }
+
+    return `${bot.nickname ?? bot.name ?? 'Bot'} pensando...`;
+}
 
 function resolveCurrentPlayerRole(players = [], currentUserId = null) {
     if (!currentUserId) {
@@ -199,6 +217,9 @@ export default function Play({ hand, table = null }) {
         turnTimer,
         handlePersonalizedState,
     );
+
+    const botThinking = loading && Boolean(actionInFlight) && tableHasBot(realPlayers, state);
+    const currentBotThinkingLabel = botThinkingLabel(realPlayers);
 
 
     async function handleJoinTable() {
@@ -416,6 +437,7 @@ export default function Play({ hand, table = null }) {
 
                 <HandConclusionBanner conclusion={state.conclusion} />
                 <LastActionAlert action={state.lastAction} />
+                <PokerBotThinkingIndicator active={botThinking} label={currentBotThinkingLabel} />
 
                 <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_390px]">
                     <section className="min-w-0 space-y-3">
@@ -453,6 +475,8 @@ export default function Play({ hand, table = null }) {
                                     canCall={state.canCall}
                                     canRaise={state.canRaise}
                                     actingAction={actionInFlight}
+                                    thinking={botThinking}
+                                    thinkingLabel={currentBotThinkingLabel}
                                     errorMessage={actionError}
                                     onAction={handleAction}
                                 />
@@ -512,6 +536,8 @@ export default function Play({ hand, table = null }) {
                                 canCall={state.canCall}
                                 canRaise={state.canRaise}
                                 actingAction={actionInFlight}
+                                thinking={botThinking}
+                                thinkingLabel={currentBotThinkingLabel}
                                 errorMessage={actionError}
                                 onAction={handleAction}
                             />

@@ -70,6 +70,8 @@ export default function PokerActionPanel({
     canCall = amountToCall > 0,
     canRaise = true,
     actingAction = null,
+    thinking = false,
+    thinkingLabel = 'Oponente pensando...',
     errorMessage = null,
     onAction,
 }) {
@@ -128,9 +130,11 @@ export default function PokerActionPanel({
                         <p className="text-[0.56rem] font-black uppercase tracking-[0.14em] text-amber-200 sm:text-[0.65rem]">Ações</p>
                         <h2 className="hidden text-base font-black text-white sm:mt-0.5 sm:block sm:text-lg">Escolha sua jogada</h2>
                         <p className="truncate text-[0.6rem] font-semibold text-slate-400 sm:mt-0.5 sm:text-xs">
-                            {panelLocked
-                                ? (actingAction ? `Executando ${actingAction}...` : 'Aguarde sua vez.')
-                                : 'Sua vez: escolha uma ação.'}
+                            {thinking
+                                ? thinkingLabel
+                                : (panelLocked
+                                    ? (actingAction ? `Executando ${actingAction}...` : 'Aguarde sua vez.')
+                                    : 'Sua vez: escolha uma ação.')}
                         </p>
                     </div>
 
@@ -153,6 +157,12 @@ export default function PokerActionPanel({
                 {errorMessage && (
                     <div className="mb-2 rounded-xl border border-rose-300/25 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-100">
                         {errorMessage}
+                    </div>
+                )}
+
+                {thinking && (
+                    <div className="mb-2 rounded-xl border border-amber-200/25 bg-amber-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-amber-100">
+                        🤖 {thinkingLabel}
                     </div>
                 )}
 

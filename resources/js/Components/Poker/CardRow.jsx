@@ -1,7 +1,17 @@
 import React from 'react';
 import PlayingCard from './PlayingCard';
 
-export default function CardRow({ title, cards = [], hiddenCount = 0, align = 'center', tone = 'default', animate = true }) {
+export default function CardRow({
+    title,
+    cards = [],
+    hiddenCount = 0,
+    align = 'center',
+    tone = 'default',
+    animate = true,
+    dealStartIndex = 0,
+    dealStepMs = 170,
+    dealFrom = 'dealer',
+}) {
     const alignment = align === 'left' ? 'justify-start text-left' : 'justify-center text-center';
     const rowFlow = tone === 'hero' ? 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0' : 'flex-wrap';
     const toneClass = tone === 'hero'
@@ -16,11 +26,25 @@ export default function CardRow({ title, cards = [], hiddenCount = 0, align = 'c
 
             <div className={`poker-card-scroll flex ${rowFlow} gap-1 sm:gap-2 ${alignment}`}>
                 {cards.map((card, index) => (
-                    <PlayingCard key={`${card.label}-${index}`} card={card} dealIndex={index} animate={animate} />
+                    <PlayingCard
+                        key={`${card.label}-${index}`}
+                        card={card}
+                        dealIndex={dealStartIndex + index}
+                        dealStepMs={dealStepMs}
+                        dealFrom={dealFrom}
+                        animate={animate}
+                    />
                 ))}
 
                 {Array.from({ length: hiddenCount }).map((_, index) => (
-                    <PlayingCard key={`hidden-${index}`} hidden dealIndex={cards.length + index} animate={animate} />
+                    <PlayingCard
+                        key={`hidden-${index}`}
+                        hidden
+                        dealIndex={dealStartIndex + cards.length + index}
+                        dealStepMs={dealStepMs}
+                        dealFrom={dealFrom}
+                        animate={animate}
+                    />
                 ))}
             </div>
         </section>

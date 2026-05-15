@@ -35,6 +35,8 @@ final readonly class PokerBotTurnProcessor
                 break;
             }
 
+            $this->waitBeforeBotAction();
+
             $street = RoundStreet::tryFrom((string) ($state['street'] ?? RoundStreet::PreFlop->value)) ?? RoundStreet::PreFlop;
             $amountToCall = (int) ($state['amountToCall'] ?? 0);
             $currentBet = (int) ($state['currentBet'] ?? 0);
@@ -86,6 +88,7 @@ final readonly class PokerBotTurnProcessor
             $state['botDecision'] = [
                 'processed' => true,
                 'actor' => $actor,
+                'thinkingDelaySeconds' => $this->thinkingDelaySeconds(),
                 'profile' => $bot->bot_profile,
                 'difficulty' => $bot->bot_difficulty,
                 'action' => $decision->action->value,
@@ -100,6 +103,7 @@ final readonly class PokerBotTurnProcessor
             if (isset($state['lastAction']) && is_array($state['lastAction'])) {
                 $state['lastAction']['message'] = $decision->message;
                 $state['lastAction']['isBot'] = true;
+                $state['lastAction']['botThinkingDelaySeconds'] = $this->thinkingDelaySeconds();
                 $state['lastAction']['botProfile'] = $bot->bot_profile;
                 $state['lastAction']['handStrength'] = $strength;
                 $state['lastAction']['botStats'] = $stats;
@@ -145,6 +149,26 @@ final readonly class PokerBotTurnProcessor
     /**
      * @param array<string, mixed> $state
      */
+    private function waitBeforeBotAction(): void
+    {
+        $delay = $this->thinkingDelaySeconds();
+
+        if ($delay <= 0) {
+            return;
+        }
+
+        sleep($delay);
+    }
+
+    private function thinkingDelaySeconds(): int
+    {
+        if (app()->environment('testing')) {
+            return 0;
+        }
+
+        return max(0, (int) config('poker.bot_thinking_seconds', env('POKER_BOT_THINKING_SECONDS', 5)));
+    }
+
     private function currentActor(array $state): string
     {
         $actor = (string) data_get($state, 'currentTurn.actor', 'player');
