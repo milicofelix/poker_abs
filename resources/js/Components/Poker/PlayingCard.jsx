@@ -15,8 +15,8 @@ function rankLabel(card) {
 
 export default function PlayingCard({ card, hidden = false, compact = false, dealIndex = 0, animate = true }) {
     const sizeClass = compact
-        ? 'h-20 w-14 shrink-0 rounded-2xl text-lg sm:h-28 sm:w-20 sm:text-2xl'
-        : 'h-24 w-16 shrink-0 rounded-[1.15rem] text-xl sm:h-32 sm:w-24 sm:rounded-[1.35rem] sm:text-3xl';
+        ? 'h-12 w-9 shrink-0 rounded-lg text-xs sm:h-20 sm:w-14 sm:rounded-xl sm:text-xl'
+        : 'h-14 w-10 shrink-0 rounded-lg text-sm sm:h-24 sm:w-16 sm:rounded-2xl sm:text-2xl';
 
     if (hidden) {
         return (
@@ -26,7 +26,7 @@ export default function PlayingCard({ card, hidden = false, compact = false, dea
             >
                 <div className="absolute inset-2 rounded-[1rem] border border-amber-100/20" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.20),transparent_55%)]" />
-                <span className="relative text-base tracking-[0.25em] sm:text-lg">ABS</span>
+                <span className="relative text-[0.65rem] tracking-[0.18em] sm:text-base">ABS</span>
             </div>
         );
     }
@@ -38,20 +38,20 @@ export default function PlayingCard({ card, hidden = false, compact = false, dea
     return (
         <div
             style={animate ? { animationDelay: `${dealIndex * 70}ms` } : undefined}
-            className={`group relative flex ${sizeClass} flex-col justify-between overflow-hidden border border-white/70 bg-gradient-to-br from-white via-slate-50 to-slate-200 p-2 font-black shadow-2xl shadow-black/40 ring-1 ring-black/5 transition duration-200 hover:-translate-y-1 hover:shadow-amber-300/20 ${animate ? 'poker-card-deal' : ''} ${isRed ? 'text-red-600' : 'text-slate-950'}`}
+            className={`group relative flex ${sizeClass} flex-col justify-between overflow-hidden border border-white/70 bg-gradient-to-br from-white via-slate-50 to-slate-200 p-1 font-black sm:p-1.5 shadow-2xl shadow-black/40 ring-1 ring-black/5 transition duration-200 hover:-translate-y-1 hover:shadow-amber-300/20 ${animate ? 'poker-card-deal' : ''} ${isRed ? 'text-red-600' : 'text-slate-950'}`}
         >
             <div className="flex items-start justify-between leading-none">
                 <span>{rank}</span>
-                <span className="text-base sm:text-xl">{symbol}</span>
+                <span className="text-xs sm:text-lg">{symbol}</span>
             </div>
 
-            <div className="flex flex-1 items-center justify-center text-3xl leading-none sm:text-5xl">
+            <div className="flex flex-1 items-center justify-center text-xl leading-none sm:text-4xl">
                 {symbol || card?.label}
             </div>
 
             <div className="flex rotate-180 items-start justify-between leading-none">
                 <span>{rank}</span>
-                <span className="text-base sm:text-xl">{symbol}</span>
+                <span className="text-xs sm:text-lg">{symbol}</span>
             </div>
         </div>
     );

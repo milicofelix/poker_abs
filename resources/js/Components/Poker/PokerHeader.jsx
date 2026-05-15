@@ -1,12 +1,72 @@
 import React from 'react';
 import { router, usePage } from '@inertiajs/react';
 
-export default function PokerHeader() {
+export default function PokerHeader({ compact = false, table = null, rightSlot = null }) {
     const { auth } = usePage().props;
     const user = auth?.user;
 
     function logout() {
         router.post('/logout');
+    }
+
+    if (compact) {
+        return (
+            <header className="sticky top-2 z-30 flex items-center justify-between gap-2 rounded-2xl border border-amber-200/20 bg-slate-950/88 px-3 py-2 shadow-2xl shadow-black/50 backdrop-blur md:rounded-[1.75rem] md:px-5 md:py-3">
+                <a href="/poker/lobby" className="flex items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-white/5">
+                    <span className="text-2xl text-amber-300 md:text-4xl">♠</span>
+                    <span className="leading-none">
+                        <span className="block text-base font-black uppercase tracking-[0.08em] text-white md:text-2xl">Poker</span>
+                        <span className="block text-[0.58rem] font-black uppercase tracking-[0.2em] text-amber-300 md:text-xs">Inteligente</span>
+                    </span>
+                </a>
+
+                <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 md:flex">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-200">
+                        {table?.name ?? 'Mesa de poker'}
+                    </span>
+                    {table?.bigBlind && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-200">
+                            Blinds {table?.smallBlind ?? 10} / {table.bigBlind}
+                        </span>
+                    )}
+                    {table?.id && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-200">
+                            ID da mesa: {table.id}
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                    {rightSlot}
+
+                    {table?.lobbyUrl && (
+                        <a
+                            href={table.lobbyUrl}
+                            className="hidden rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20 sm:inline-flex"
+                        >
+                            Lobby
+                        </a>
+                    )}
+
+                    {user ? (
+                        <button
+                            type="button"
+                            onClick={logout}
+                            className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+                        >
+                            Sair
+                        </button>
+                    ) : (
+                        <a
+                            href="/login"
+                            className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+                        >
+                            Entrar
+                        </a>
+                    )}
+                </div>
+            </header>
+        );
     }
 
     return (

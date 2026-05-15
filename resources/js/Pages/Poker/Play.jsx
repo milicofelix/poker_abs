@@ -4,6 +4,7 @@ import HandConclusionBanner from '../../Components/Poker/HandConclusionBanner';
 import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
+import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
@@ -160,6 +161,7 @@ export default function Play({ hand, table = null }) {
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
     const [joinMessage, setJoinMessage] = useState(null);
+    const [handRankHelpOpen, setHandRankHelpOpen] = useState(false);
     const soundEffects = usePokerSoundEffects(state);
 
     const handlePersonalizedState = useCallback((nextState, payload = null) => {
@@ -374,111 +376,161 @@ export default function Play({ hand, table = null }) {
     }
 
     return (
-        <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#020617,#042f2e_45%,#020617)] px-3 py-4 text-white sm:px-6 sm:py-6">
+        <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#020617,#031b16_45%,#020617)] px-2 py-2 text-white sm:px-4 sm:py-3">
             <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.08),transparent_26%),radial-gradient(circle_at_80%_5%,rgba(16,185,129,0.12),transparent_28%)]" />
 
-            <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-4 pb-36 sm:gap-6 lg:pb-8">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <PokerHeader />
-
-                    <div className="flex flex-wrap gap-2">
-                        {table?.lobbyUrl && (
-                            <a
-                                href={table.lobbyUrl}
-                                className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/20"
+            <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-3 pb-28 lg:pb-6">
+                <PokerHeader
+                    compact
+                    table={table}
+                    rightSlot={(
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setHandRankHelpOpen(true)}
+                                className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-amber-100 transition hover:bg-amber-300/20 sm:px-4"
+                                title="Ver hierarquia das mãos"
                             >
-                                Lobby
-                            </a>
-                        )}
+                                <span className="hidden sm:inline">Ranking das mãos</span>
+                                <span className="sm:hidden">Mãos</span>
+                            </button>
 
-                        <PokerSoundToggle
-                            enabled={soundEffects.enabled}
-                            onToggle={soundEffects.toggleEnabled}
-                        />
-
-                        {table?.name && (
-                            <span className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-100">
-                                {table.name}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
-                    <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
-                    <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
-                </div>
-
-                <PokerRealPlayersPanel
-                    players={realPlayers}
-                    seatSlots={seatSlots}
-                    currentUserId={table?.currentUserId}
-                    maxPlayers={table?.maxPlayers}
-                    loading={joiningTable || seatingTable || leavingTable || addingBot}
-                    joining={joiningTable}
-                    seating={seatingTable}
-                    leaving={leavingTable}
-                    addingBot={addingBot}
-                    message={joinMessage}
-                    onJoin={table?.joinUrl ? handleJoinTable : null}
-                    onSeat={table?.seatUrl ? handleSeatTable : null}
-                    onLeave={table?.leaveUrl ? handleLeaveTable : null}
-                    onAddBot={table?.botUrl ? handleAddBot : null}
-                    botProfiles={table?.botProfiles ?? []}
-                    botDifficulties={table?.botDifficulties ?? []}
-                    botDifficultyOptions={table?.botDifficultyOptions ?? []}
+                            <PokerSoundToggle
+                                enabled={soundEffects.enabled}
+                                onToggle={soundEffects.toggleEnabled}
+                            />
+                        </div>
+                    )}
                 />
 
-                <PokerTableStatus state={state} />
+                <PokerHandRankCheatSheet
+                    open={handRankHelpOpen}
+                    onClose={() => setHandRankHelpOpen(false)}
+                />
 
-                <PokerTurnTimer timer={turnTimer} />
-
-                <PokerStreetProgress currentStreet={state.street} />
+                {(joinMessage || actionError) && (
+                    <div className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50 shadow-xl shadow-black/35">
+                        {actionError ?? joinMessage}
+                    </div>
+                )}
 
                 <HandConclusionBanner conclusion={state.conclusion} />
-
                 <LastActionAlert action={state.lastAction} />
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-                    <div className="order-1 xl:order-none"><PokerTable state={state} /></div>
-                    <div className="order-2 xl:order-none"><PokerActionHistory history={state.actionHistory} /></div>
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_390px]">
+                    <section className="min-w-0 space-y-3">
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:hidden">
+                            <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 px-3 py-2 shadow-xl shadow-black/30">
+                                <span className="block text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-200">Street</span>
+                                <strong className="mt-1 block truncate text-base font-black text-white">{state.streetLabel}</strong>
+                            </div>
+                            <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 px-3 py-2 shadow-xl shadow-black/30">
+                                <span className="block text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-200">Pote</span>
+                                <strong className="mt-1 block truncate text-base font-black text-white">{state.pot}</strong>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 shadow-xl shadow-black/30">
+                                <span className="block text-[0.58rem] font-black uppercase tracking-[0.18em] text-emerald-200">Vez</span>
+                                <strong className="mt-1 block truncate text-base font-black text-white">{state.currentTurn?.actorLabel ?? 'Jogador'}</strong>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 shadow-xl shadow-black/30">
+                                <span className="block text-[0.58rem] font-black uppercase tracking-[0.18em] text-emerald-200">Timer</span>
+                                <strong className="mt-1 block truncate text-base font-black text-white">{turnTimer ? `${turnTimer.secondsRemaining}s` : '-'}</strong>
+                            </div>
+                        </div>
+
+                        <PokerTable state={state} />
+
+                        <div className="xl:hidden">
+                            <div className="sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                                <PokerActionPanel
+                                    disabled={loading || state.isFinished || !state.canAct}
+                                    currentBet={state.currentBet}
+                                    amountToCall={state.amountToCall}
+                                    minimumRaise={state.minimumRaise}
+                                    minimumRaiseTo={state.minimumRaiseTo}
+                                    maximumRaiseTo={state.maximumRaiseTo}
+                                    canCheck={state.canCheck}
+                                    canCall={state.canCall}
+                                    canRaise={state.canRaise}
+                                    actingAction={actionInFlight}
+                                    errorMessage={actionError}
+                                    onAction={handleAction}
+                                />
+                            </div>
+                        </div>
+
+                        <PokerActionHistory history={state.actionHistory} compact />
+
+                        <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
+                            <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">
+                                Detalhes da mesa
+                            </summary>
+
+                            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                                <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
+                                <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
+                                <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
+                            </div>
+
+                            <div className="mt-3">
+                                <PokerRealPlayersPanel
+                                    players={realPlayers}
+                                    seatSlots={seatSlots}
+                                    currentUserId={table?.currentUserId}
+                                    maxPlayers={table?.maxPlayers}
+                                    loading={joiningTable || seatingTable || leavingTable || addingBot}
+                                    joining={joiningTable}
+                                    seating={seatingTable}
+                                    leaving={leavingTable}
+                                    addingBot={addingBot}
+                                    message={joinMessage}
+                                    onJoin={table?.joinUrl ? handleJoinTable : null}
+                                    onSeat={table?.seatUrl ? handleSeatTable : null}
+                                    onLeave={table?.leaveUrl ? handleLeaveTable : null}
+                                    onAddBot={table?.botUrl ? handleAddBot : null}
+                                    botProfiles={table?.botProfiles ?? []}
+                                    botDifficulties={table?.botDifficulties ?? []}
+                                    botDifficultyOptions={table?.botDifficultyOptions ?? []}
+                                />
+                            </div>
+                        </details>
+                    </section>
+
+                    <aside className="space-y-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
+                        <PokerTableStatus state={state} compact />
+                        <PokerTurnTimer timer={turnTimer} compact />
+
+                        <div className="hidden xl:block">
+                            <PokerActionPanel
+                                disabled={loading || state.isFinished || !state.canAct}
+                                currentBet={state.currentBet}
+                                amountToCall={state.amountToCall}
+                                minimumRaise={state.minimumRaise}
+                                minimumRaiseTo={state.minimumRaiseTo}
+                                maximumRaiseTo={state.maximumRaiseTo}
+                                canCheck={state.canCheck}
+                                canCall={state.canCall}
+                                canRaise={state.canRaise}
+                                actingAction={actionInFlight}
+                                errorMessage={actionError}
+                                onAction={handleAction}
+                            />
+                        </div>
+
+                        <PokerStreetProgress currentStreet={state.street} compact />
+
+                        {state.isFinished && table?.newHandActionUrl && (
+                            <button
+                                type="button"
+                                onClick={handleStartNewHand}
+                                disabled={startingNewHand}
+                                className="w-full rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {startingNewHand ? 'Iniciando...' : 'Iniciar nova mão'}
+                            </button>
+                        )}
+                    </aside>
                 </div>
-
-                <PokerActionPanel
-                    disabled={loading || state.isFinished || !state.canAct}
-                    currentBet={state.currentBet}
-                    amountToCall={state.amountToCall}
-                    minimumRaise={state.minimumRaise}
-                    minimumRaiseTo={state.minimumRaiseTo}
-                    maximumRaiseTo={state.maximumRaiseTo}
-                    canCheck={state.canCheck}
-                    canCall={state.canCall}
-                    canRaise={state.canRaise}
-                    actingAction={actionInFlight}
-                    errorMessage={actionError}
-                    onAction={handleAction}
-                />
-
-                {state.isFinished && (
-                    table?.newHandActionUrl ? (
-                        <button
-                            type="button"
-                            onClick={handleStartNewHand}
-                            disabled={startingNewHand}
-                            className="inline-flex w-fit rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {startingNewHand ? 'Iniciando nova mão...' : 'Nova mão para a mesa'}
-                        </button>
-                    ) : (
-                        <a
-                            href={table?.newHandUrl ?? "/poker?new=1"}
-                            className="inline-flex w-fit rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200"
-                        >
-                            Nova mão
-                        </a>
-                    )
-                )}
             </div>
         </main>
     );

@@ -114,20 +114,20 @@ export default function PokerTable({ state }) {
     const community = visibleCommunityCards(state);
 
     return (
-        <section className="relative overflow-hidden rounded-[1.75rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-3 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2.5rem] sm:p-6">
-            <div className="pointer-events-none absolute inset-2 rounded-[1.35rem] border-[6px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-4 sm:rounded-[2rem] sm:border-[10px]" />
-            <div className="pointer-events-none absolute inset-5 rounded-[1.25rem] border border-amber-200/20 sm:inset-8 sm:rounded-[1.75rem]" />
+        <section className="relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
+            <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
+            <div className="pointer-events-none absolute inset-3 rounded-[0.9rem] border border-amber-200/20 sm:inset-6 sm:rounded-[1.35rem]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
 
-            <div className="relative z-10 grid min-h-[auto] gap-3 sm:gap-5 lg:min-h-[620px] lg:grid-rows-[auto_1fr_auto]">
-                <div className="grid gap-3 sm:gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+            <div className="relative z-10 grid min-h-[360px] gap-1 sm:gap-3 lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
+                <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-start">
                     <div className={[
-                        'relative overflow-hidden rounded-3xl border p-4 transition duration-300',
+                        'relative overflow-hidden rounded-lg border p-1.5 transition duration-300 sm:rounded-2xl sm:p-3',
                         seatFrameClasses(state, 'opponent'),
                     ].join(' ')}>
                         {winnerBadgeLabel(state, 'opponent') && (
                             <span className={[
-                                'absolute right-4 top-4 rounded-full border px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.22em]',
+                                'absolute right-2 top-2 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.22em]',
                                 seatBadgeClasses(state, 'opponent'),
                             ].join(' ')}>
                                 {winnerBadgeLabel(state, 'opponent')}
@@ -138,41 +138,41 @@ export default function PokerTable({ state }) {
                             <CardRow title={opponentCardsTitle(state)} cards={state.opponentCards ?? []} align="left" />
                         ) : (
                             <div className="text-center">
-                                <p className="text-xs font-black uppercase tracking-[0.32em] text-slate-300">Adversário</p>
-                                <p className="mt-2 text-sm font-semibold text-slate-400">Cartas protegidas até o showdown</p>
+                                <p className="text-[0.62rem] font-black uppercase tracking-[0.22em] text-slate-300">Adversário</p>
+                                <p className="mt-1 text-xs font-semibold text-slate-400">Cartas protegidas até o showdown</p>
                             </div>
                         )}
 
                         {state.isFinished && state.opponentBestHand?.name && (
-                            <p className="mt-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-center text-xs font-bold text-slate-100">
+                            <p className="mt-2 rounded-xl border border-white/10 bg-white/10 px-2 py-1.5 text-center text-[0.7rem] font-bold text-slate-100">
                                 Melhor mão: {state.opponentBestHand.name}
                             </p>
                         )}
                     </div>
 
-                    <div className="poker-turn-glow rounded-3xl border border-amber-200/30 bg-black/35 p-3 text-center shadow-2xl shadow-black/40 sm:p-4">
-                        <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-200">Turno atual</p>
-                        <strong className="mt-2 block text-xl font-black text-white">{currentTurnLabel(state)}</strong>
-                        <span className="mt-1 block text-xs font-semibold text-emerald-100/80">{currentTurnMessage(state)}</span>
+                    <div className="poker-turn-glow rounded-lg border border-amber-200/30 bg-black/35 p-1.5 text-center shadow-2xl shadow-black/40 sm:rounded-2xl sm:p-3">
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-200 sm:text-xs sm:tracking-[0.28em]">Turno atual</p>
+                        <strong className="mt-0.5 block text-sm font-black text-white sm:mt-1 sm:text-base">{currentTurnLabel(state)}</strong>
+                        <span className="mt-0.5 block truncate text-[0.62rem] font-semibold text-emerald-100/80 sm:text-[0.68rem]">{currentTurnMessage(state)}</span>
                     </div>
                 </div>
 
                 <div className="flex items-center justify-center">
-                    <div className="w-full min-w-0 max-w-3xl rounded-[1.5rem] border border-amber-200/25 bg-black/25 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:rounded-[2rem] sm:p-5">
-                        <div className="poker-pot-pulse relative mx-auto mb-4 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-5 py-2.5 text-center shadow-xl shadow-amber-950/20 sm:mb-5 sm:px-6 sm:py-3">
-                            <div className="pointer-events-none absolute -top-5 left-1/2 flex -translate-x-1/2 items-end gap-1">
+                    <div className="w-full min-w-0 max-w-2xl rounded-xl border border-amber-200/25 bg-black/25 p-1.5 shadow-2xl shadow-black/50 backdrop-blur sm:rounded-2xl sm:p-3">
+                        <div className="poker-pot-pulse relative mx-auto mb-1.5 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-3 py-1 text-center shadow-xl shadow-amber-950/20 sm:mb-3 sm:px-5 sm:py-2">
+                            <div className="pointer-events-none absolute -top-4 left-1/2 flex -translate-x-1/2 items-end gap-1">
                                 {chipAmountParts(state.pot).map((height, index) => (
                                     <span
                                         key={`pot-chip-${index}`}
                                         style={{ animationDelay: `${index * 180}ms` }}
-                                        className="poker-chip-float block h-7 w-7 rounded-full border-4 border-amber-100/80 bg-gradient-to-br from-red-500 via-red-700 to-red-950 shadow-lg shadow-black/35"
+                                        className="poker-chip-float block h-4 w-4 rounded-full border-2 border-amber-100/80 bg-gradient-to-br from-red-500 via-red-700 to-red-950 shadow-lg shadow-black/35 sm:h-5 sm:w-5 sm:border-[3px]"
                                     >
-                                        <span className="mx-auto mt-1 block h-2 w-2 rounded-full bg-amber-100/80" />
+                                        <span className="mx-auto mt-0.5 block h-1.5 w-1.5 rounded-full bg-amber-100/80" />
                                     </span>
                                 ))}
                             </div>
-                            <p className="text-xs font-black uppercase tracking-[0.32em] text-amber-100">Pote total</p>
-                            <strong className="block text-3xl font-black text-white sm:text-5xl">{state.pot}</strong>
+                            <p className="text-[0.55rem] font-black uppercase tracking-[0.18em] text-amber-100 sm:text-[0.62rem] sm:tracking-[0.22em]">Pote total</p>
+                            <strong className="block text-lg font-black text-white sm:text-4xl">{state.pot}</strong>
                         </div>
 
                         <CardRow
@@ -184,25 +184,25 @@ export default function PokerTable({ state }) {
                     </div>
                 </div>
 
-                <div className="grid gap-3 sm:gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+                <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-end">
                     <CardRow title={currentPlayerTitle(state)} cards={state.playerCards ?? []} />
 
                     <div className={[
-                        'relative overflow-hidden rounded-3xl border p-4 text-center transition duration-300',
+                        'relative overflow-hidden rounded-lg border p-1.5 text-center transition duration-300 sm:rounded-2xl sm:p-3',
                         seatFrameClasses(state, 'player'),
                     ].join(' ')}>
                         {winnerBadgeLabel(state, 'player') && (
                             <span className={[
-                                'mx-auto mb-3 inline-flex rounded-full border px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.22em]',
+                                'mx-auto mb-2 inline-flex rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.22em]',
                                 seatBadgeClasses(state, 'player'),
                             ].join(' ')}>
                                 {winnerBadgeLabel(state, 'player')}
                             </span>
                         )}
 
-                        <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-100">Melhor mão</p>
-                        <strong className="mt-2 block text-lg font-black text-white">{state.bestHand?.name ?? 'Aguardando'}</strong>
-                        <p className="mt-2 text-xs text-slate-300">Stack: {state.playerStack}</p>
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-emerald-100 sm:text-xs sm:tracking-[0.28em]">Melhor mão</p>
+                        <strong className="mt-0.5 block text-sm font-black text-white sm:mt-1 sm:text-base">{state.bestHand?.name ?? 'Aguardando'}</strong>
+                        <p className="mt-0.5 text-[0.62rem] text-slate-300 sm:mt-1 sm:text-[0.7rem]">Stack: {state.playerStack}</p>
                     </div>
                 </div>
             </div>
