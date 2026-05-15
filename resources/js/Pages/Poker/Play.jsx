@@ -5,12 +5,14 @@ import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
 import PokerHeader from '../../Components/Poker/PokerHeader';
+import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
 import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
 import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
 import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
+import usePokerSoundEffects from '../../hooks/usePokerSoundEffects';
 import usePokerTableRealtime from '../../hooks/usePokerTableRealtime';
 import usePokerTableRehydration from '../../hooks/usePokerTableRehydration';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
@@ -148,6 +150,8 @@ export default function Play({ hand, table = null }) {
     const [state, setState] = useState(() => buildInitialState(hand));
 
     const [loading, setLoading] = useState(false);
+    const [actionInFlight, setActionInFlight] = useState(null);
+    const [actionError, setActionError] = useState(null);
     const [joiningTable, setJoiningTable] = useState(false);
     const [seatingTable, setSeatingTable] = useState(false);
     const [leavingTable, setLeavingTable] = useState(false);
@@ -156,6 +160,7 @@ export default function Play({ hand, table = null }) {
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
     const [joinMessage, setJoinMessage] = useState(null);
+    const soundEffects = usePokerSoundEffects(state);
 
     const handlePersonalizedState = useCallback((nextState, payload = null) => {
         setState(nextState);
@@ -345,6 +350,8 @@ export default function Play({ hand, table = null }) {
 
     async function handleAction(action, raiseAmount = 0) {
         setLoading(true);
+        setActionInFlight(action);
+        setActionError(null);
 
         try {
             const response = await axios.post(table?.actionUrl ?? '/poker/actions', {
@@ -355,14 +362,22 @@ export default function Play({ hand, table = null }) {
 
             setState(response.data.state);
             rehydrationStatus.rehydrate();
+        } catch (error) {
+            setActionError(
+                error?.response?.data?.message
+                    ?? 'Não foi possível executar esta ação agora. Atualize a mesa e tente novamente.',
+            );
         } finally {
             setLoading(false);
+            setActionInFlight(null);
         }
     }
 
     return (
-        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-6 text-white">
-            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#020617,#042f2e_45%,#020617)] px-3 py-4 text-white sm:px-6 sm:py-6">
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.08),transparent_26%),radial-gradient(circle_at_80%_5%,rgba(16,185,129,0.12),transparent_28%)]" />
+
+            <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-4 pb-36 sm:gap-6 lg:pb-8">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <PokerHeader />
 
@@ -376,6 +391,11 @@ export default function Play({ hand, table = null }) {
                             </a>
                         )}
 
+                        <PokerSoundToggle
+                            enabled={soundEffects.enabled}
+                            onToggle={soundEffects.toggleEnabled}
+                        />
+
                         {table?.name && (
                             <span className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-100">
                                 {table.name}
@@ -384,7 +404,7 @@ export default function Play({ hand, table = null }) {
                     </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
                     <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
                     <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
@@ -420,9 +440,9 @@ export default function Play({ hand, table = null }) {
 
                 <LastActionAlert action={state.lastAction} />
 
-                <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-                    <PokerTable state={state} />
-                    <PokerActionHistory history={state.actionHistory} />
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+                    <div className="order-1 xl:order-none"><PokerTable state={state} /></div>
+                    <div className="order-2 xl:order-none"><PokerActionHistory history={state.actionHistory} /></div>
                 </div>
 
                 <PokerActionPanel
@@ -435,6 +455,8 @@ export default function Play({ hand, table = null }) {
                     canCheck={state.canCheck}
                     canCall={state.canCall}
                     canRaise={state.canRaise}
+                    actingAction={actionInFlight}
+                    errorMessage={actionError}
                     onAction={handleAction}
                 />
 
@@ -444,14 +466,14 @@ export default function Play({ hand, table = null }) {
                             type="button"
                             onClick={handleStartNewHand}
                             disabled={startingNewHand}
-                            className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex w-fit rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {startingNewHand ? 'Iniciando nova mão...' : 'Nova mão para a mesa'}
                         </button>
                     ) : (
                         <a
                             href={table?.newHandUrl ?? "/poker?new=1"}
-                            className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
+                            className="inline-flex w-fit rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200"
                         >
                             Nova mão
                         </a>

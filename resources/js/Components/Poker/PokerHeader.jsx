@@ -10,16 +10,16 @@ export default function PokerHeader() {
     }
 
     return (
-        <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl md:flex-row md:items-start md:justify-between">
+        <header className="flex flex-col gap-4 rounded-[2rem] border border-amber-200/15 bg-white/[0.06] p-6 shadow-2xl shadow-black/40 backdrop-blur md:flex-row md:items-start md:justify-between">
             <div>
                 <p className="text-sm uppercase tracking-[0.35em] text-emerald-300">Poker ABS</p>
 
                 <h1 className="mt-2 text-3xl font-black md:text-5xl">
-                    Mesa local de Texas Hold'em
+                    Poker Inteligente
                 </h1>
 
                 <p className="mt-3 max-w-3xl text-slate-300">
-                    Fase 2: backend com persistência, histórico de ações e base para evoluir mesa, jogadores e ranking.
+                    Fase 5: mesa com visual poker room, destaque de turno, pote central e experiência mais próxima de cassino.
                 </p>
             </div>
 
