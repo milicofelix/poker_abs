@@ -11,6 +11,7 @@ final readonly class PokerTurnTimeoutService
         private LocalPokerPersistenceService $pokerPersistence,
         private PokerTableTurnActionService $turnAction,
         private PokerTurnTimerService $turnTimer,
+        private PokerBotTurnProcessor $botTurnProcessor,
     ) {
     }
 
@@ -30,6 +31,26 @@ final readonly class PokerTurnTimeoutService
                 'state' => $state,
                 'processed' => false,
                 'action' => null,
+            ];
+        }
+
+        if ($this->botTurnProcessor->currentTurnBelongsToBot($table, $state)) {
+            $nextState = $this->botTurnProcessor->processOne($table, $state);
+            $nextState['botVsBotSimulation'] = $this->botTurnProcessor->isBotVsBotTable($table);
+            $nextState['turnTimeout'] = [
+                'processed' => true,
+                'action' => 'bot',
+                'label' => 'Jogada automática do bot',
+                'message' => 'Tempo do bot processado automaticamente pela mesa.',
+                'processedAt' => ($now ?? now())->copy()->timezone(config('app.timezone'))->toIso8601String(),
+            ];
+
+            $nextState = $this->pokerPersistence->persist($nextState);
+
+            return [
+                'state' => $nextState,
+                'processed' => true,
+                'action' => 'bot',
             ];
         }
 

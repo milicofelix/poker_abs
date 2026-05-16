@@ -351,6 +351,9 @@ export default function Play({ hand, table = null }) {
         table?.timeoutUrl,
         turnTimer,
         handlePersonalizedState,
+        {
+            autoProcessBotTurns: Boolean(state?.botVsBotSimulation),
+        },
     );
 
     const botThinking = loading && Boolean(actionInFlight) && tableHasBot(realPlayers, state);
@@ -383,10 +386,7 @@ export default function Play({ hand, table = null }) {
             setRealPlayers(response.data.players ?? []);
             setSeatSlots(response.data.seatSlots ?? []);
             setJoinMessage(response.data.message ?? 'Jogador entrou na mesa com sucesso.');
-
-            if (response.data.state) {
-                setState(response.data.state);
-            }
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -417,6 +417,8 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
+
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -445,6 +447,8 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
+
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -455,7 +459,7 @@ export default function Play({ hand, table = null }) {
         }
     }
 
-    async function handleAddBot(profile, difficulty = 'normal') {
+    async function handleAddBot(profile, difficulty = 'normal', options = {}) {
         if (!table?.botUrl) {
             return;
         }
@@ -467,6 +471,7 @@ export default function Play({ hand, table = null }) {
             const response = await axios.post(table.botUrl, {
                 profile,
                 difficulty,
+                replace_bot: Boolean(options?.replaceBot),
             });
 
             setRealPlayers(response.data.players ?? []);
@@ -476,6 +481,8 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
+
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -504,6 +511,7 @@ export default function Play({ hand, table = null }) {
             setRealPlayers(response.data.players ?? []);
             setSeatSlots(response.data.seatSlots ?? []);
             setJoinMessage(response.data.message ?? 'Nova mão iniciada.');
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -527,6 +535,7 @@ export default function Play({ hand, table = null }) {
             });
 
             setState(response.data.state);
+            rehydrationStatus.rehydrate();
         } catch (error) {
             setActionError(
                 error?.response?.data?.message

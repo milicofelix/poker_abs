@@ -39,6 +39,8 @@ export default function PokerRealPlayersPanel({
     const currentPlayer = players.find((player) => Number(player.userId) === Number(currentUserId));
     const currentPlayerIsSeated = playerHasSeat(currentPlayer);
     const hasJoined = Boolean(currentPlayer);
+    const hasBot = players.some((player) => Boolean(player?.isBot) && playerHasSeat(player));
+    const canReplaceBot = hasBot && onAddBot;
     const normalizedSeatSlots = seatSlots.length > 0
         ? seatSlots
         : Array.from({ length: maxPlayers }, (_, index) => ({
@@ -164,12 +166,12 @@ export default function PokerRealPlayersPanel({
                 })}
             </div>
 
-            {onAddBot && botProfiles.length > 0 && normalizedSeatSlots.some((seat) => !seat.player) && (
+            {onAddBot && botProfiles.length > 0 && (normalizedSeatSlots.some((seat) => !seat.player) || canReplaceBot) && (
                 <div className="mt-4 rounded-2xl border border-purple-300/20 bg-purple-400/10 p-4">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
                             <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-200">Bots/IA</p>
-                            <p className="text-sm text-purple-100">Adicione um adversário automático para completar a mesa.</p>
+                            <p className="text-sm text-purple-100">Adicione bots para completar a mesa ou troque o adversário após uma mão finalizada.</p>
                         </div>
 
                         <div className="flex flex-col gap-2 md:items-end">
@@ -195,12 +197,12 @@ export default function PokerRealPlayersPanel({
                                     <button
                                         key={profile.key}
                                         type="button"
-                                        onClick={() => onAddBot(profile.key, selectedBotDifficulty)}
+                                        onClick={() => onAddBot(profile.key, selectedBotDifficulty, { replaceBot: !normalizedSeatSlots.some((seat) => !seat.player) && canReplaceBot })}
                                         disabled={loading}
                                         className="rounded-xl border border-purple-200/30 bg-purple-300/15 px-4 py-2 text-sm font-black text-purple-50 transition hover:bg-purple-300/25 disabled:cursor-not-allowed disabled:opacity-60"
                                         title={`${profile.description} Dificuldade: ${selectedBotDifficulty}.`}
                                     >
-                                        {addingBot ? 'Adicionando...' : `Adicionar bot ${profile.label}`}
+                                        {addingBot ? 'Adicionando...' : (!normalizedSeatSlots.some((seat) => !seat.player) && canReplaceBot ? `Trocar por ${profile.label}` : `Adicionar bot ${profile.label}`)}
                                     </button>
                                 ))}
                             </div>
@@ -211,7 +213,9 @@ export default function PokerRealPlayersPanel({
 
             {!hasJoined && (
                 <div className="mt-4 rounded-2xl border border-dashed border-white/15 bg-white/5 p-4 text-sm text-slate-400">
-                    Você ainda está assistindo. Entre na mesa para escolher um assento e participar da mão.
+                    {players.filter((player) => Boolean(player?.isBot) && playerHasSeat(player)).length >= 2
+                        ? 'Você está assistindo uma simulação entre bots. Entre na mesa se quiser participar de uma próxima mão.'
+                        : 'Você ainda está assistindo. Entre na mesa para escolher um assento e participar da mão.'}
                 </div>
             )}
         </section>

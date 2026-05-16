@@ -15,6 +15,7 @@ final class MultiplayerPokerPrivateStateService
      */
     public function forUser(PokerTable $table, array $state, ?User $user): array
     {
+        $state = $this->normalizeInterfaceFlags($state);
         $realPlayers = $this->realPlayers($table);
 
         if (! $user) {
@@ -55,6 +56,21 @@ final class MultiplayerPokerPrivateStateService
             : $this->asPlayerPerspective($state, $currentPlayer);
 
         return $this->withPlayersContext($state, $realPlayers, $currentPlayer, $position);
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function normalizeInterfaceFlags(array $state): array
+    {
+        $state['isWaitingForPlayers'] = (bool) ($state['isWaitingForPlayers'] ?? false);
+
+        if (! $state['isWaitingForPlayers']) {
+            unset($state['waitingForPlayers']);
+        }
+
+        return $state;
     }
 
     /**

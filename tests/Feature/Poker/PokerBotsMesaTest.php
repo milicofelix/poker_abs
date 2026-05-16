@@ -6,6 +6,7 @@ use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -240,6 +241,235 @@ final class PokerBotsMesaTest extends TestCase
         $this->assertIsArray($log->context);
         $this->assertArrayHasKey('probability', $log->context);
         $this->assertSame(0, $log->context['outs']);
+    }
+
+
+    public function test_mesa_pode_iniciar_simulacao_com_dois_bots_sem_jogador_humano_sentado(): void
+    {
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'conservative',
+                'difficulty' => 'normal',
+            ])
+            ->assertOk()
+            ->assertJsonPath('state.isWaitingForPlayers', true);
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'aggressive',
+                'difficulty' => 'hard',
+            ])
+            ->assertOk()
+            ->assertJsonPath('state.isWaitingForPlayers', false)
+            ->assertJsonPath('state.isFinished', false)
+            ->assertJsonPath('players.0.isBot', true)
+            ->assertJsonPath('players.1.isBot', true);
+
+        $this->assertDatabaseHas('poker_hands', [
+            'poker_table_id' => $table->id,
+            'status' => 'running',
+        ]);
+    }
+
+
+    public function test_timeout_de_simulacao_bot_vs_bot_executa_jogada_do_bot_em_vez_de_fold_automatico(): void
+    {
+        Carbon::setTestNow('2026-05-16 00:00:00');
+
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'conservative',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'tag',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        Carbon::setTestNow('2026-05-16 00:00:31');
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.timeout', $table))
+            ->assertOk()
+            ->assertJsonPath('processed', true)
+            ->assertJsonPath('action', 'bot')
+            ->assertJsonPath('state.turnTimeout.label', 'Jogada automática do bot')
+            ->assertJsonPath('state.lastAction.isBot', true);
+
+        $this->assertDatabaseHas('poker_hands', [
+            'poker_table_id' => $table->id,
+            'status' => 'running',
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+
+    public function test_simulacao_bot_vs_bot_usa_timer_de_dez_segundos(): void
+    {
+        Carbon::setTestNow('2026-05-16 00:00:00');
+
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'conservative',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'tag',
+                'difficulty' => 'normal',
+            ])
+            ->assertOk()
+            ->assertJsonPath('state.botVsBotSimulation', true)
+            ->assertJsonPath('state.turnTimer.secondsTotal', 10);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_simulacao_bot_vs_bot_nao_fica_em_loop_infinito_de_raise(): void
+    {
+        Carbon::setTestNow('2026-05-16 00:00:00');
+
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'aggressive',
+            'difficulty' => 'hard',
+        ])->assertOk();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'tag',
+            'difficulty' => 'hard',
+        ])->assertOk();
+
+        $hand = $table->hands()->where('status', 'running')->firstOrFail();
+        $state = $hand->state_payload;
+        $state['botVsBotSimulation'] = true;
+        $state['currentBet'] = 60;
+        $state['playerStreetBet'] = 60;
+        $state['opponentStreetBet'] = 20;
+        $state['amountToCall'] = 40;
+        $state['currentTurn'] = [
+            'actor' => 'opponent',
+            'actedThisStreet' => [
+                'player' => true,
+                'opponent' => false,
+            ],
+            'label' => 'Vez do oponente',
+        ];
+        $state['actionHistory'] = [
+            [
+                'street' => 'Pré-flop',
+                'action' => 'Raise',
+                'amount' => 50,
+                'message' => 'Bot agressivo aumentou.',
+                'pot' => 80,
+                'actor' => 'player',
+            ],
+        ];
+        $state['turnTimer'] = [
+            'secondsTotal' => 10,
+            'startedAt' => '2026-05-16T00:00:00-03:00',
+            'expiresAt' => '2026-05-16T00:00:10-03:00',
+            'serverNow' => '2026-05-16T00:00:00-03:00',
+            'isExpired' => false,
+            'label' => 'Tempo da jogada',
+        ];
+
+        $hand->forceFill(['state_payload' => $state])->save();
+
+        Carbon::setTestNow('2026-05-16 00:00:11');
+
+        $response = $this->actingAs($user)
+            ->postJson(route('poker.tables.timeout', $table));
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('processed', true)
+            ->assertJsonPath('action', 'bot')
+            ->assertJsonPath('state.botVsBotSimulation', true);
+
+        $lastActionType = $response->json('state.lastAction.type');
+
+        $this->assertContains($lastActionType, ['call', 'fold']);
+        $this->assertNotSame('raise', $lastActionType);
+
+        if ($response->json('state.isFinished') === true) {
+            $this->assertNull($response->json('state.turnTimer'));
+        } else {
+            $this->assertSame(10, $response->json('state.turnTimer.secondsTotal'));
+        }
+
+        Carbon::setTestNow();
+    }
+
+    public function test_usuario_pode_trocar_bot_adversario_apos_mao_finalizada(): void
+    {
+        [$table, $user] = $this->createTableWithHumanAndBot();
+
+        $table->hands()->firstOrFail()->forceFill([
+            'status' => 'finished',
+            'state_payload' => [
+                ...$table->hands()->firstOrFail()->state_payload,
+                'isFinished' => true,
+                'conclusion' => ['isFinished' => true],
+            ],
+            'finished_at' => now(),
+        ])->save();
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'maniac',
+                'difficulty' => 'hard',
+                'replace_bot' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Adversário trocado para Bot Maniac.')
+            ->assertJsonPath('bot.seatNumber', 2)
+            ->assertJsonPath('bot.botProfile', 'maniac')
+            ->assertJsonPath('bot.botDifficulty', 'hard');
+
+        $this->assertDatabaseHas('poker_table_players', [
+            'poker_table_id' => $table->id,
+            'nickname' => 'Bot Conservador',
+            'seat_number' => null,
+            'status' => 'offline',
+            'is_bot' => true,
+        ]);
+
+        $this->assertDatabaseHas('poker_table_players', [
+            'poker_table_id' => $table->id,
+            'nickname' => 'Bot Maniac',
+            'seat_number' => 2,
+            'status' => 'online',
+            'is_bot' => true,
+            'bot_profile' => 'maniac',
+            'bot_difficulty' => 'hard',
+        ]);
+    }
+
+    public function test_nao_troca_bot_adversario_com_mao_em_andamento(): void
+    {
+        [$table, $user] = $this->createTableWithHumanAndBot();
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.bots', $table), [
+                'profile' => 'maniac',
+                'difficulty' => 'hard',
+                'replace_bot' => true,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Só é possível trocar o adversário após a mão finalizar.');
     }
 
     private function createTable(): PokerTable

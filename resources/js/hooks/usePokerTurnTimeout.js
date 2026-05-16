@@ -1,13 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
-export default function usePokerTurnTimeout(timeoutUrl, timer, onTimeoutState) {
+function millisecondsUntil(expiresAt) {
+    if (!expiresAt) {
+        return 0;
+    }
+
+    const expiresAtMs = new Date(expiresAt).getTime();
+
+    if (Number.isNaN(expiresAtMs)) {
+        return 0;
+    }
+
+    return Math.max(0, expiresAtMs - Date.now());
+}
+
+function timeoutKey(timer) {
+    return timer?.expiresAt ?? null;
+}
+
+export default function usePokerTurnTimeout(timeoutUrl, timer, onTimeoutState, options = {}) {
+    const { autoProcessBotTurns = false } = options;
     const processedTimerRef = useRef(null);
+    const inFlightRef = useRef(false);
+    const mountedRef = useRef(true);
     const [status, setStatus] = useState({
         enabled: Boolean(timeoutUrl),
         loading: false,
         label: timeoutUrl ? 'Timeout automático pronto' : 'Timeout automático indisponível',
     });
+
+    useEffect(() => {
+        mountedRef.current = true;
+
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     useEffect(() => {
         setStatus((current) => ({
@@ -18,60 +47,92 @@ export default function usePokerTurnTimeout(timeoutUrl, timer, onTimeoutState) {
     }, [timeoutUrl]);
 
     useEffect(() => {
-        if (!timeoutUrl || !timer?.isExpired) {
+        if (!timeoutUrl || !timer?.expiresAt) {
             return undefined;
         }
 
-        const timerKey = timer?.expiresAt ?? `${timer?.label ?? 'timer'}-${timer?.secondsRemaining ?? 0}`;
+        const currentTimerKey = timeoutKey(timer);
 
-        if (processedTimerRef.current === timerKey) {
+        if (!currentTimerKey || processedTimerRef.current === currentTimerKey) {
             return undefined;
         }
 
-        processedTimerRef.current = timerKey;
-        let cancelled = false;
+        let timeoutId = null;
 
         async function processTimeout() {
-            setStatus({
-                enabled: true,
-                loading: true,
-                label: 'Processando timeout automático...',
-            });
+            if (inFlightRef.current || processedTimerRef.current === currentTimerKey) {
+                return;
+            }
+
+            inFlightRef.current = true;
+            processedTimerRef.current = currentTimerKey;
+
+            if (mountedRef.current) {
+                setStatus({
+                    enabled: true,
+                    loading: true,
+                    label: autoProcessBotTurns
+                        ? 'Processando jogada automática dos bots...'
+                        : 'Processando timeout automático...',
+                });
+            }
 
             try {
                 const response = await axios.post(timeoutUrl);
                 const nextState = response.data?.state;
 
-                if (!cancelled && nextState) {
+                if (mountedRef.current && nextState) {
                     onTimeoutState(nextState);
                 }
 
-                if (!cancelled) {
+                if (mountedRef.current) {
                     setStatus({
                         enabled: true,
                         loading: false,
                         label: response.data?.processed
-                            ? 'Timeout automático aplicado'
+                            ? (response.data?.action === 'bot'
+                                ? 'Jogada do bot processada'
+                                : 'Timeout automático aplicado')
                             : 'Timer ainda ativo no servidor',
                     });
                 }
             } catch (error) {
-                if (!cancelled) {
+                const nextState = error?.response?.data?.state;
+                const statusCode = error?.response?.status;
+
+                if (mountedRef.current && nextState) {
+                    onTimeoutState(nextState);
+                }
+
+                if (mountedRef.current) {
                     setStatus({
                         enabled: true,
                         loading: false,
-                        label: 'Falha ao processar timeout',
+                        label: statusCode === 404
+                            ? 'Timeout automático sem mão ativa'
+                            : (error?.response?.data?.message ?? 'Falha ao processar timeout'),
                     });
                 }
+            } finally {
+                inFlightRef.current = false;
             }
         }
 
-        processTimeout();
+        const delay = millisecondsUntil(timer.expiresAt) + (autoProcessBotTurns ? 650 : 350);
+
+        timeoutId = window.setTimeout(processTimeout, delay);
 
         return () => {
-            cancelled = true;
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
         };
-    }, [timeoutUrl, timer?.isExpired, timer?.expiresAt, timer?.label, timer?.secondsRemaining, onTimeoutState]);
+    }, [
+        timeoutUrl,
+        timer?.expiresAt,
+        autoProcessBotTurns,
+        onTimeoutState,
+    ]);
 
     return status;
 }

@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 final class AddPokerBotToTableAction
 {
-    public function execute(PokerTable $table, string $profile, string $difficulty = 'normal'): PokerTablePlayer
+    public function execute(PokerTable $table, string $profile, string $difficulty = 'normal', bool $replaceExistingBot = false): PokerTablePlayer
     {
         if (! in_array($profile, PokerBotProfiles::keys(), true)) {
             throw new DomainException('Perfil de bot inválido.');
@@ -23,6 +23,10 @@ final class AddPokerBotToTableAction
         }
 
         $seatNumber = $this->firstAvailableSeat($table);
+
+        if ($seatNumber === null && $replaceExistingBot) {
+            $seatNumber = $this->releaseReplaceableBotSeat($table);
+        }
 
         if ($seatNumber === null) {
             throw new DomainException('Não existe assento livre para adicionar um bot nesta mesa.');
@@ -65,6 +69,35 @@ final class AddPokerBotToTableAction
         }
 
         return null;
+    }
+
+    private function releaseReplaceableBotSeat(PokerTable $table): ?int
+    {
+        /** @var PokerTablePlayer|null $bot */
+        $bot = $table->realPlayers()
+            ->where('is_bot', true)
+            ->whereNotNull('seat_number')
+            ->whereNull('left_at')
+            ->orderByDesc('seat_number')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $bot) {
+            return null;
+        }
+
+        $seatNumber = (int) $bot->seat_number;
+
+        $bot->forceFill([
+            'seat_number' => null,
+            'status' => 'offline',
+            'left_at' => now(),
+            'last_seen_at' => now(),
+        ])->save();
+
+        $table->unsetRelation('realPlayers');
+
+        return $seatNumber;
     }
 
     private function botUser(string $profile, string $difficulty): User

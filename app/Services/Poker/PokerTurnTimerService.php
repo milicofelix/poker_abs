@@ -66,6 +66,10 @@ final class PokerTurnTimerService
      */
     private function secondsFor(array $state): int
     {
+        if ((bool) data_get($state, 'botVsBotSimulation', false)) {
+            return 10;
+        }
+
         $configured = (int) data_get($state, 'turnTimer.secondsTotal', self::DEFAULT_SECONDS);
 
         return max(10, min(120, $configured));

@@ -8,9 +8,9 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
-use App\Services\Poker\PokerBotTurnProcessor;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
+use App\Services\Poker\PokerBotTurnProcessor;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,9 +26,9 @@ final class PokerTableNewHandController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $broadcaster,
-        PokerBotTurnProcessor $botTurnProcessor,
         PokerTablePresenceService $presence,
         PokerTableReadinessService $readiness,
+        PokerBotTurnProcessor $botTurnProcessor,
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 

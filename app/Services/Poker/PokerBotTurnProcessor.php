@@ -2,6 +2,8 @@
 
 namespace App\Services\Poker;
 
+use App\Domain\Poker\Game\OpponentDecision;
+use App\Domain\Poker\Game\PokerAction;
 use App\Domain\Poker\Game\RoundStreet;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
@@ -23,7 +25,31 @@ final readonly class PokerBotTurnProcessor
      */
     public function process(PokerTable $table, array $state): array
     {
-        for ($attempt = 0; $attempt < 4; $attempt++) {
+        return $this->processWithLimit($table, $state, $this->maxAttempts($table));
+    }
+
+    /**
+     * Processa apenas uma decisão de bot.
+     *
+     * Útil para simulação bot x bot dirigida pelo timer: cada expiração do
+     * relógio executa uma jogada e reinicia o timer, em vez de resolver a mão
+     * inteira no mesmo request.
+     *
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    public function processOne(PokerTable $table, array $state): array
+    {
+        return $this->processWithLimit($table, $state, 1);
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function processWithLimit(PokerTable $table, array $state, int $maxAttempts): array
+    {
+        for ($attempt = 0; $attempt < max(1, $maxAttempts); $attempt++) {
             if ((bool) ($state['isFinished'] ?? false)) {
                 break;
             }
@@ -35,7 +61,7 @@ final readonly class PokerBotTurnProcessor
                 break;
             }
 
-            $this->waitBeforeBotAction();
+            $this->waitBeforeBotAction($table);
 
             $street = RoundStreet::tryFrom((string) ($state['street'] ?? RoundStreet::PreFlop->value)) ?? RoundStreet::PreFlop;
             $amountToCall = (int) ($state['amountToCall'] ?? 0);
@@ -65,6 +91,11 @@ final readonly class PokerBotTurnProcessor
                 $strength,
             );
 
+            if ($this->isBotVsBotTable($table)) {
+                $decision = $this->normalizeBotVsBotDecision($decision, $state, $amountToCall, $botStack);
+                $state['botVsBotSimulation'] = true;
+            }
+
             $decisionContext = $state;
 
             $state = $this->turnAction->executeBot(
@@ -88,7 +119,7 @@ final readonly class PokerBotTurnProcessor
             $state['botDecision'] = [
                 'processed' => true,
                 'actor' => $actor,
-                'thinkingDelaySeconds' => $this->thinkingDelaySeconds(),
+                'thinkingDelaySeconds' => $this->thinkingDelaySeconds($table),
                 'profile' => $bot->bot_profile,
                 'difficulty' => $bot->bot_difficulty,
                 'action' => $decision->action->value,
@@ -115,6 +146,65 @@ final readonly class PokerBotTurnProcessor
         return $state;
     }
 
+
+
+    /**
+     * Evita guerra infinita de aumentos em simulações bot x bot.
+     *
+     * A IA continua podendo aplicar pressão, mas depois de um raise recente
+     * na mesma street ela precisa pagar ou controlar o pote. Isso mantém a
+     * simulação fluindo sem exigir refresh manual e sem transformar cada mão
+     * em um loop de re-raises.
+     *
+     * @param array<string, mixed> $state
+     */
+    private function normalizeBotVsBotDecision(OpponentDecision $decision, array $state, int $amountToCall, int $botStack): OpponentDecision
+    {
+        if ($decision->action !== PokerAction::Raise) {
+            return $decision;
+        }
+
+        $raisesThisStreet = $this->raisesThisStreet($state);
+
+        if ($amountToCall > 0 || $raisesThisStreet >= 1) {
+            if ($amountToCall <= 0) {
+                return new OpponentDecision(
+                    PokerAction::Check,
+                    0,
+                    'Bot controlou o pote após agressão recente.',
+                );
+            }
+
+            return new OpponentDecision(
+                PokerAction::Call,
+                min($amountToCall, $botStack),
+                'Bot pagou para encerrar a rodada de apostas.',
+            );
+        }
+
+        return $decision;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function raisesThisStreet(array $state): int
+    {
+        $streetLabel = (string) ($state['streetLabel'] ?? '');
+        $history = is_array($state['actionHistory'] ?? null) ? $state['actionHistory'] : [];
+
+        return count(array_filter($history, static function (mixed $entry) use ($streetLabel): bool {
+            if (! is_array($entry)) {
+                return false;
+            }
+
+            $action = mb_strtolower((string) ($entry['action'] ?? ''));
+            $entryStreet = (string) ($entry['street'] ?? '');
+
+            return $entryStreet === $streetLabel
+                && ($action === 'raise' || $action === 'aumentar');
+        }));
+    }
 
     /**
      * @param array<string, mixed> $state
@@ -149,9 +239,9 @@ final readonly class PokerBotTurnProcessor
     /**
      * @param array<string, mixed> $state
      */
-    private function waitBeforeBotAction(): void
+    private function waitBeforeBotAction(PokerTable $table): void
     {
-        $delay = $this->thinkingDelaySeconds();
+        $delay = $this->thinkingDelaySeconds($table);
 
         if ($delay <= 0) {
             return;
@@ -160,15 +250,40 @@ final readonly class PokerBotTurnProcessor
         sleep($delay);
     }
 
-    private function thinkingDelaySeconds(): int
+    private function thinkingDelaySeconds(?PokerTable $table = null): int
     {
-        if (app()->environment('testing')) {
+        if (app()->environment('testing') || ($table && $this->isBotVsBotTable($table))) {
             return 0;
         }
 
         return max(0, (int) config('poker.bot_thinking_seconds', env('POKER_BOT_THINKING_SECONDS', 5)));
     }
 
+    private function maxAttempts(PokerTable $table): int
+    {
+        return $this->isBotVsBotTable($table) ? 24 : 4;
+    }
+
+    public function isBotVsBotTable(PokerTable $table): bool
+    {
+        return $table->realPlayers()
+            ->whereNotNull('seat_number')
+            ->whereNull('left_at')
+            ->where('is_bot', true)
+            ->count() >= 2;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    public function currentTurnBelongsToBot(PokerTable $table, array $state): bool
+    {
+        return $this->botForActor($table, $this->currentActor($state)) !== null;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
     private function currentActor(array $state): string
     {
         $actor = (string) data_get($state, 'currentTurn.actor', 'player');
