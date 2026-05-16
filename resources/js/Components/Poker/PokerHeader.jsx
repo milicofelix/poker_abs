@@ -39,6 +39,29 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                 <div className="flex shrink-0 items-center gap-2">
                     {rightSlot}
 
+                    <nav className="hidden items-center gap-2 lg:flex" aria-label="Navegação do poker">
+                        <a
+                            href="/poker/hands"
+                            className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+                        >
+                            Histórico
+                        </a>
+
+                        <a
+                            href="/poker/ranking"
+                            className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/20"
+                        >
+                            Ranking
+                        </a>
+
+                        <a
+                            href="/poker/statistics"
+                            className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
+                        >
+                            Estatísticas
+                        </a>
+                    </nav>
+
                     {table?.lobbyUrl && (
                         <a
                             href={table.lobbyUrl}
@@ -47,6 +70,14 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                             Lobby
                         </a>
                     )}
+
+                    <a
+                        href="/poker/hands"
+                        className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20 lg:hidden"
+                        title="Abrir histórico de mãos"
+                    >
+                        Hist.
+                    </a>
 
                     {user ? (
                         <button

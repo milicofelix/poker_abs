@@ -65,13 +65,29 @@ export default function Lobby({ tables = [] }) {
                             </div>
                         )}
 
-                        <button
-                            type="button"
-                            onClick={createTable}
-                            className="rounded-2xl bg-emerald-400 px-5 py-3 font-black text-emerald-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
-                        >
-                            Criar nova mesa
-                        </button>
+                        <div className="flex flex-wrap gap-3 md:justify-end">
+                            <a
+                                href="/poker/hands"
+                                className="inline-flex rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20"
+                            >
+                                Histórico de mãos
+                            </a>
+
+                            <a
+                                href="/poker/ranking"
+                                className="inline-flex rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/20"
+                            >
+                                Ranking
+                            </a>
+
+                            <button
+                                type="button"
+                                onClick={createTable}
+                                className="rounded-2xl bg-emerald-400 px-5 py-3 font-black text-emerald-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
+                            >
+                                Criar nova mesa
+                            </button>
+                        </div>
                     </div>
                 </header>
 

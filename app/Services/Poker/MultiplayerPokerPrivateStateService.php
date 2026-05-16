@@ -180,7 +180,10 @@ final class MultiplayerPokerPrivateStateService
      */
     private function withoutPrivateOpponentData(array $state, string $role): array
     {
-        if (! (bool) ($state['isFinished'] ?? false)) {
+        $isFinished = (bool) ($state['isFinished'] ?? false);
+        $isBotVsBotSimulation = (bool) ($state['botVsBotSimulation'] ?? false);
+
+        if (! $isFinished && ! $isBotVsBotSimulation) {
             unset($state['opponentCards'], $state['opponentBestHand']);
         }
 

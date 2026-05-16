@@ -155,8 +155,10 @@ export default function PokerTable({ state }) {
         setPlayerCardsRevealed(false);
     }, [playerHandSignature]);
 
+    const isBotVsBotSimulation = Boolean(state.botVsBotSimulation);
     const hasPlayerCards = (state.playerCards ?? []).length > 0;
-    const shouldRevealPlayerCards = state.isFinished || playerCardsRevealed;
+    const shouldRevealPlayerCards = isBotVsBotSimulation || state.isFinished || playerCardsRevealed;
+    const shouldRevealOpponentCards = isBotVsBotSimulation || state.isFinished;
     const playerBestHandVisible = shouldRevealPlayerCards && state.bestHand?.name;
 
     return (
@@ -184,7 +186,7 @@ export default function PokerTable({ state }) {
                             </span>
                         )}
 
-                        {state.isFinished && state.opponentCards ? (
+                        {shouldRevealOpponentCards && state.opponentCards ? (
                             <CardRow
                                 title={opponentCardsTitle(state)}
                                 cards={state.opponentCards ?? []}
@@ -202,7 +204,7 @@ export default function PokerTable({ state }) {
                             />
                         )}
 
-                        {state.isFinished && state.opponentBestHand?.name && (
+                        {shouldRevealOpponentCards && state.opponentBestHand?.name && (
                             <p className="mt-2 rounded-xl border border-white/10 bg-white/10 px-2 py-1.5 text-center text-[0.7rem] font-bold text-slate-100">
                                 Melhor mão: {state.opponentBestHand.name}
                             </p>
@@ -248,9 +250,9 @@ export default function PokerTable({ state }) {
                 <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-end">
                     <button
                         type="button"
-                        disabled={!hasPlayerCards || state.isFinished}
-                        onClick={() => hasPlayerCards && !state.isFinished && setPlayerCardsRevealed((isRevealed) => !isRevealed)}
-                        className={`group relative block min-w-0 rounded-2xl text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 ${hasPlayerCards && !state.isFinished ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-amber-950/25' : 'cursor-default'}`}
+                        disabled={!hasPlayerCards || state.isFinished || isBotVsBotSimulation}
+                        onClick={() => hasPlayerCards && !state.isFinished && !isBotVsBotSimulation && setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                        className={`group relative block min-w-0 rounded-2xl text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 ${hasPlayerCards && !state.isFinished && !isBotVsBotSimulation ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-amber-950/25' : 'cursor-default'}`}
                         aria-label={hiddenPlayerHandTitle(shouldRevealPlayerCards)}
                     >
                         <CardRow
@@ -264,10 +266,12 @@ export default function PokerTable({ state }) {
                         {hasPlayerCards && (
                             <div className="mt-1.5 rounded-xl border border-amber-200/20 bg-black/30 px-2 py-1.5 text-center shadow-inner shadow-black/30 sm:mt-2">
                                 <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-100/90 sm:text-[0.65rem] sm:tracking-[0.24em]">
-                                    {hiddenPlayerHandTitle(shouldRevealPlayerCards)}
+                                    {isBotVsBotSimulation ? 'Modo espectador — cartas abertas' : hiddenPlayerHandTitle(shouldRevealPlayerCards)}
                                 </p>
                                 <p className="mt-0.5 text-[0.62rem] font-semibold text-emerald-100/75 sm:text-[0.7rem]">
-                                    {hiddenPlayerHandDescription(shouldRevealPlayerCards, state.isFinished)}
+                                    {isBotVsBotSimulation
+                                        ? 'Simulação Bot vs Bot: as duas mãos ficam visíveis para acompanhamento.'
+                                        : hiddenPlayerHandDescription(shouldRevealPlayerCards, state.isFinished)}
                                 </p>
                             </div>
                         )}

@@ -141,6 +141,57 @@ final class PokerCartasPrivadasPorJogadorTest extends TestCase
             ->assertJsonPath('state.actionHistory.1.actorLabel', 'Você');
     }
 
+
+    public function test_simulacao_bot_vs_bot_exibe_as_duas_maos_para_espectador(): void
+    {
+        $spectator = User::factory()->create();
+        $botOneUser = User::factory()->create(['name' => 'Bot Conservador']);
+        $botTwoUser = User::factory()->create(['name' => 'Bot TAG']);
+
+        $table = $this->createTableWithRunningHand();
+        $hand = $table->hands()->firstOrFail();
+        $hand->forceFill([
+            'state_payload' => [
+                ...$hand->state_payload,
+                'botVsBotSimulation' => true,
+            ],
+        ])->save();
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $botOneUser->id,
+            'nickname' => 'Bot Conservador',
+            'stack' => 1000,
+            'seat_number' => 1,
+            'status' => 'online',
+            'is_bot' => true,
+            'bot_profile' => 'conservative',
+            'bot_difficulty' => 'normal',
+            'joined_at' => now(),
+        ]);
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $botTwoUser->id,
+            'nickname' => 'Bot TAG',
+            'stack' => 1000,
+            'seat_number' => 2,
+            'status' => 'online',
+            'is_bot' => true,
+            'bot_profile' => 'tag',
+            'bot_difficulty' => 'hard',
+            'joined_at' => now()->addSecond(),
+        ]);
+
+        $this->actingAs($spectator)
+            ->getJson(route('poker.tables.state', $table))
+            ->assertOk()
+            ->assertJsonPath('state.botVsBotSimulation', true)
+            ->assertJsonPath('state.playerCards.0.label', 'A♠')
+            ->assertJsonPath('state.opponentCards.0.label', '7♦')
+            ->assertJsonPath('state.multiplayerPerspective.role', 'spectator');
+    }
+
     private function createTableWithRunningHand(bool $finished = false): PokerTable
     {
         $table = PokerTable::query()->create([

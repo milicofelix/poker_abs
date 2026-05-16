@@ -494,6 +494,11 @@ export default function Play({ hand, table = null }) {
     }
 
     async function handleStartNewHand() {
+        if (!table?.newHandActionUrl && table?.newHandUrl) {
+            window.location.assign(table.newHandUrl);
+            return;
+        }
+
         if (!table?.newHandActionUrl) {
             return;
         }
@@ -586,6 +591,12 @@ export default function Play({ hand, table = null }) {
                     </div>
                 )}
 
+                {table?.isLocalMode && (
+                    <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-50 shadow-xl shadow-black/35">
+                        Mesa local clássica: visual e ações alinhados com as mesas do lobby, mas sem assentos, presença em tempo real ou troca de adversário. Para validar o fluxo completo da FASE 7.9, use o Lobby multiplayer.
+                    </div>
+                )}
+
                 <PokerInterfaceStateBanner state={interfaceState} />
                 <HandConclusionBanner conclusion={state.conclusion} />
                 <LastActionAlert action={state.lastAction} />
@@ -648,27 +659,43 @@ export default function Play({ hand, table = null }) {
                                 <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
                             </div>
 
-                            <div className="mt-3">
-                                <PokerRealPlayersPanel
-                                    players={realPlayers}
-                                    seatSlots={seatSlots}
-                                    currentUserId={table?.currentUserId}
-                                    maxPlayers={table?.maxPlayers}
-                                    loading={joiningTable || seatingTable || leavingTable || addingBot}
-                                    joining={joiningTable}
-                                    seating={seatingTable}
-                                    leaving={leavingTable}
-                                    addingBot={addingBot}
-                                    message={joinMessage}
-                                    onJoin={table?.joinUrl ? handleJoinTable : null}
-                                    onSeat={table?.seatUrl ? handleSeatTable : null}
-                                    onLeave={table?.leaveUrl ? handleLeaveTable : null}
-                                    onAddBot={table?.botUrl ? handleAddBot : null}
-                                    botProfiles={table?.botProfiles ?? []}
-                                    botDifficulties={table?.botDifficulties ?? []}
-                                    botDifficultyOptions={table?.botDifficultyOptions ?? []}
-                                />
-                            </div>
+                            {!table?.isLocalMode ? (
+                                <div className="mt-3">
+                                    <PokerRealPlayersPanel
+                                        players={realPlayers}
+                                        seatSlots={seatSlots}
+                                        currentUserId={table?.currentUserId}
+                                        maxPlayers={table?.maxPlayers}
+                                        loading={joiningTable || seatingTable || leavingTable || addingBot}
+                                        joining={joiningTable}
+                                        seating={seatingTable}
+                                        leaving={leavingTable}
+                                        addingBot={addingBot}
+                                        message={joinMessage}
+                                        onJoin={table?.joinUrl ? handleJoinTable : null}
+                                        onSeat={table?.seatUrl ? handleSeatTable : null}
+                                        onLeave={table?.leaveUrl ? handleLeaveTable : null}
+                                        onAddBot={table?.botUrl ? handleAddBot : null}
+                                        botProfiles={table?.botProfiles ?? []}
+                                        botDifficulties={table?.botDifficulties ?? []}
+                                        botDifficultyOptions={table?.botDifficultyOptions ?? []}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="mt-3 rounded-3xl border border-cyan-200/20 bg-cyan-300/10 p-5 text-sm text-cyan-50">
+                                    <p className="font-black uppercase tracking-[0.2em] text-cyan-200">Modo local</p>
+                                    <p className="mt-2 text-cyan-50/90">
+                                        Esta mesa usa a engine local e mantém a compatibilidade com histórico, ranking e estatísticas.
+                                        Recursos de lobby, presença, assentos, bots trocáveis e timeout automático ficam concentrados nas mesas multiplayer.
+                                    </p>
+                                    <a
+                                        href={table?.lobbyUrl ?? '/poker/lobby'}
+                                        className="mt-4 inline-flex rounded-2xl bg-cyan-200 px-4 py-2 font-black text-cyan-950 transition hover:bg-cyan-100"
+                                    >
+                                        Ir para o Lobby multiplayer
+                                    </a>
+                                </div>
+                            )}
                         </details>
                     </section>
 
@@ -697,7 +724,7 @@ export default function Play({ hand, table = null }) {
 
                         <PokerStreetProgress currentStreet={state.street} compact />
 
-                        {state.isFinished && table?.newHandActionUrl && (
+                        {state.isFinished && (table?.newHandActionUrl || table?.newHandUrl) && (
                             <button
                                 type="button"
                                 onClick={handleStartNewHand}

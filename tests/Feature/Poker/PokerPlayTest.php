@@ -29,4 +29,21 @@ final class PokerPlayTest extends TestCase
         $this->assertArrayHasKey('communityCards', $page['props']['hand']);
         $this->assertArrayHasKey('bestHand', $page['props']['hand']);
     }
+
+    public function test_mesa_local_recebe_metadados_para_alinhar_com_lobby(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('Poker/Play', $page['component']);
+        $this->assertArrayHasKey('table', $page['props']);
+        $this->assertTrue($page['props']['table']['isLocalMode']);
+        $this->assertSame('Mesa local', $page['props']['table']['name']);
+        $this->assertSame(route('poker.actions'), $page['props']['table']['actionUrl']);
+        $this->assertSame(route('poker.play', ['new' => 1]), $page['props']['table']['newHandUrl']);
+        $this->assertSame(route('poker.lobby'), $page['props']['table']['lobbyUrl']);
+    }
 }
