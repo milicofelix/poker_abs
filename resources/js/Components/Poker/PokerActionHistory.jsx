@@ -16,8 +16,16 @@ export default function PokerActionHistory({ history, compact = false }) {
     if (!history || history.length === 0) {
         return (
             <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300 shadow-xl backdrop-blur">
-                <h2 className="text-xs font-black uppercase tracking-[0.24em] text-white">Histórico da mão</h2>
-                <p className="mt-2">Nenhuma ação realizada ainda.</p>
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xs font-black uppercase tracking-[0.24em] text-white">Histórico da mão</h2>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-slate-400">
+                        vazio
+                    </span>
+                </div>
+                <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.035] px-3 py-4 text-center">
+                    <p className="font-bold text-slate-200">Nenhuma ação realizada ainda.</p>
+                    <p className="mt-1 text-xs leading-snug text-slate-400">As jogadas aparecerão aqui em ordem, sem ocupar espaço da mesa.</p>
+                </div>
             </section>
         );
     }

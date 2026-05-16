@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Poker;
 
 use App\Actions\Poker\AddPokerBotToTableAction;
+use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
 use App\Services\Poker\PokerBotTurnProcessor;
+use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\PokerBotProfiles;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use DomainException;
@@ -28,6 +30,8 @@ final class PokerTableBotController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
         PokerBotTurnProcessor $botTurnProcessor,
+        PokerTableReadinessService $readiness,
+        StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         abort_if(! $request->user(), 401, 'É necessário estar autenticado para adicionar bots.');
 
@@ -46,9 +50,9 @@ final class PokerTableBotController extends Controller
             return response()->json(['message' => $exception->getMessage()], 422);
         }
 
-        $state = $pokerPersistence->currentStateForTable($table);
+        $state = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
 
-        if ($state) {
+        if (! (bool) ($state['isWaitingForPlayers'] ?? false)) {
             $state = $botTurnProcessor->process($table, $state);
             $state = $pokerPersistence->persist($state);
 

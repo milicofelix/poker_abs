@@ -10,12 +10,11 @@ use Tests\TestCase;
 final class PokerReconexaoMesaTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_pode_buscar_o_estado_atual_da_mesa_para_reconectar_a_aba(): void
     {
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
         $state = $hand->state_payload;
 
@@ -27,7 +26,7 @@ final class PokerReconexaoMesaTest extends TestCase
         $response->assertJsonPath('state.persistence.syncVersion', $state['persistence']['syncVersion']);
     }
 
-    public function test_busca_de_estado_retorna_404_quando_a_mesa_nao_tem_mao_ativa(): void
+    public function test_busca_de_estado_retorna_estado_de_espera_quando_a_mesa_nao_tem_mao_ativa(): void
     {
         $table = PokerTable::query()->create([
             'name' => 'Mesa aguardando jogadores',
@@ -37,14 +36,16 @@ final class PokerReconexaoMesaTest extends TestCase
             'max_players' => 2,
         ]);
 
-        $this->getJson(route('poker.tables.state', $table))->assertNotFound();
+        $this->getJson(route('poker.tables.state', $table))
+            ->assertOk()
+            ->assertJsonPath('state.isWaitingForPlayers', true)
+            ->assertJsonPath('state.turnTimer', null)
+            ->assertJsonPath('state.canAct', false);
     }
 
     public function test_tela_da_mesa_envia_url_de_reidratacao_para_o_frontend(): void
     {
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         $this->get(route('poker.tables.show', $table))
             ->assertOk()

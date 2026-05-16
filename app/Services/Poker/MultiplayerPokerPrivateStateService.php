@@ -216,6 +216,37 @@ final class MultiplayerPokerPrivateStateService
      */
     private function withTurnContext(array $state, string $role, array $canonicalPlayers): array
     {
+        if ((bool) ($state['isWaitingForPlayers'] ?? false)) {
+            $message = $role === 'waiting_seat'
+                ? 'Escolha um assento livre para participar da mão.'
+                : (string) data_get($state, 'waitingForPlayers.message', 'Aguardando jogadores suficientes para iniciar.');
+
+            $state['currentTurn'] = [
+                ...(is_array($state['currentTurn'] ?? null) ? $state['currentTurn'] : []),
+                'canonicalActor' => 'waiting',
+                'actor' => 'waiting',
+                'actorLabel' => 'Aguardando jogadores',
+                'isCurrentUserTurn' => false,
+                'message' => $message,
+            ];
+
+            $state['amountToCall'] = 0;
+            $state['minimumRaiseTo'] = 0;
+            $state['maximumRaiseTo'] = 0;
+            $state['canCheck'] = false;
+            $state['canCall'] = false;
+            $state['canRaise'] = false;
+            $state['canAct'] = false;
+            $state['turnTimer'] = null;
+
+            if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
+                $state['bettingSummary']['amountToCall'] = 0;
+                $state['bettingSummary']['currentActor'] = 'waiting';
+            }
+
+            return $state;
+        }
+
         $canonicalActor = (string) data_get($state, 'currentTurn.actor', 'player');
         $canonicalActor = $canonicalActor === 'opponent' ? 'opponent' : 'player';
         $visibleActor = $this->visibleActor($canonicalActor, $role);

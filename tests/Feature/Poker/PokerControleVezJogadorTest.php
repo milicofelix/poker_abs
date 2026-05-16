@@ -4,6 +4,8 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
+use App\Application\Poker\StartPokerHandAction;
+use App\Services\Poker\LocalPokerPersistenceService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -62,6 +64,11 @@ final class PokerControleVezJogadorTest extends TestCase
             'big_blind' => 20,
             'max_players' => 2,
         ]);
+
+        app(LocalPokerPersistenceService::class)->startOnTable(
+            $table,
+            app(StartPokerHandAction::class)->execute(),
+        );
 
         $this->actingAs($user)
             ->postJson(route('poker.tables.join', $table))

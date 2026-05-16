@@ -11,6 +11,7 @@ use Tests\TestCase;
 final class PokerLobbyMesasTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_pode_abrir_o_lobby_de_mesas(): void
     {
@@ -38,7 +39,8 @@ final class PokerLobbyMesasTest extends TestCase
 
         $response->assertRedirect(route('poker.tables.show', $table));
 
-        $this->assertDatabaseHas('poker_hands', [
+        $this->assertSame('waiting', $table->status);
+        $this->assertDatabaseMissing('poker_hands', [
             'poker_table_id' => $table->id,
             'status' => 'running',
         ]);
@@ -46,9 +48,7 @@ final class PokerLobbyMesasTest extends TestCase
 
     public function test_duas_abas_da_mesma_url_carregam_o_mesmo_estado_da_mao(): void
     {
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
 
         $firstResponse = $this->get(route('poker.tables.show', $table));

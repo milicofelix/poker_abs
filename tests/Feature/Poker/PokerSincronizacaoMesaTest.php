@@ -12,12 +12,11 @@ use Tests\TestCase;
 final class PokerSincronizacaoMesaTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_acao_da_mesa_usa_o_estado_salvo_no_banco_e_nao_um_estado_local_da_aba(): void
     {
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
         $originalState = $hand->state_payload;
 
@@ -44,9 +43,7 @@ final class PokerSincronizacaoMesaTest extends TestCase
     {
         Event::fake([PokerTableStateUpdated::class]);
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         $response = $this->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',

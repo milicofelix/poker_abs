@@ -8,6 +8,7 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerTablePresenceService;
+use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\PokerBotProfiles;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ final class PokerTablePlayController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
+        PokerTableReadinessService $readiness,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -33,7 +35,7 @@ final class PokerTablePlayController extends Controller
             : $pokerPersistence->currentStateForTable($table);
 
         if (! $hand) {
-            $hand = $pokerPersistence->startOnTable($table, $startPokerHand->execute());
+            $hand = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
         }
 
         $hand = $privateState->forUser($table, $hand, $request->user());

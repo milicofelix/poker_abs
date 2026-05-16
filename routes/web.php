@@ -43,6 +43,7 @@ Route::get('/poker/ranking', PokerRankingController::class)->name('poker.ranking
 Route::get('/poker/hands/{hand}', PokerHandShowController::class)->name('poker.hands.show');
 Route::get('/poker/hands/{hand}/replay', PokerHandReplayController::class)->name('poker.hands.replay');
 Route::get('/poker/statistics', PokerStatisticsController::class)->name('poker.statistics.index');
+Route::get('/poker/tables', fn () => redirect()->route('poker.lobby'))->name('poker.tables.index');
 Route::get('/poker/tables/{table}', PokerTablePlayController::class)->name('poker.tables.show');
 Route::post('/poker/tables', PokerTableCreateController::class)->name('poker.tables.store');
 Route::get('/poker/lobby', PokerLobbyController::class)->name('poker.lobby');

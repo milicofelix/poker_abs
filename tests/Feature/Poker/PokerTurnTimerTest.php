@@ -11,12 +11,13 @@ use Tests\TestCase;
 final class PokerTurnTimerTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_nova_mesa_inicia_mao_com_turn_timer_sincronizado(): void
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
+        $this->createActivePokerTable();
 
         $state = PokerHand::query()->firstOrFail()->state_payload;
 
@@ -30,9 +31,7 @@ final class PokerTurnTimerTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:35');
 
@@ -47,9 +46,7 @@ final class PokerTurnTimerTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 

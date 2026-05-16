@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Poker;
 
 use App\Actions\Poker\SitPokerTablePlayerAction;
+use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
+use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +26,8 @@ final class PokerTableSeatController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
+        PokerTableReadinessService $readiness,
+        StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         $user = $request->user();
 
@@ -49,9 +53,9 @@ final class PokerTableSeatController extends Controller
             ], 422);
         }
 
-        $state = $pokerPersistence->currentStateForTable($table);
+        $state = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
 
-        if ($state) {
+        if (! (bool) ($state['isWaitingForPlayers'] ?? false)) {
             $tableBroadcaster->broadcast($state);
         }
 

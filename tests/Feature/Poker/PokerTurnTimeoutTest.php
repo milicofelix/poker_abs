@@ -14,15 +14,14 @@ use Tests\TestCase;
 final class PokerTurnTimeoutTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_timeout_expirado_executa_fold_automatico_quando_existe_aposta_pendente(): void
     {
         Event::fake([PokerTableStateUpdated::class]);
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:31');
 
@@ -55,9 +54,7 @@ final class PokerTurnTimeoutTest extends TestCase
         Event::fake([PokerTableStateUpdated::class]);
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 
@@ -76,9 +73,7 @@ final class PokerTurnTimeoutTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
         $state = $hand->state_payload;
         $state['street'] = 'flop';

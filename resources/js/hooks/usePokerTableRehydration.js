@@ -13,6 +13,8 @@ export default function usePokerTableRehydration(stateUrl, onStateRehydrated) {
     });
 
     const latestSyncVersionRef = useRef(0);
+    const inFlightRef = useRef(false);
+    const queuedRef = useRef(false);
 
     const rehydrate = useCallback(async () => {
         if (!stateUrl) {
@@ -24,6 +26,14 @@ export default function usePokerTableRehydration(stateUrl, onStateRehydrated) {
 
             return null;
         }
+
+        if (inFlightRef.current) {
+            queuedRef.current = true;
+
+            return null;
+        }
+
+        inFlightRef.current = true;
 
         setStatus({
             enabled: true,
@@ -67,6 +77,15 @@ export default function usePokerTableRehydration(stateUrl, onStateRehydrated) {
             });
 
             return null;
+        } finally {
+            inFlightRef.current = false;
+
+            if (queuedRef.current) {
+                queuedRef.current = false;
+                window.setTimeout(() => {
+                    rehydrate();
+                }, 150);
+            }
         }
     }, [stateUrl, onStateRehydrated]);
 

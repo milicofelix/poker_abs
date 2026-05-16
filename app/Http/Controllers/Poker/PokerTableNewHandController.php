@@ -8,7 +8,9 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
+use App\Services\Poker\PokerBotTurnProcessor;
 use App\Services\Poker\PokerTablePresenceService;
+use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,18 +26,39 @@ final class PokerTableNewHandController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $broadcaster,
+        PokerBotTurnProcessor $botTurnProcessor,
         PokerTablePresenceService $presence,
+        PokerTableReadinessService $readiness,
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 
         abort_if(! $request->user(), 403, 'Você precisa estar autenticado para iniciar uma nova mão.');
-        abort_if($table->realPlayers()->whereNotNull('seat_number')->count() < 2, 422, 'A mesa precisa de dois jogadores sentados para iniciar uma nova mão.');
+
+        if (! $readiness->canStartHand($table)) {
+            $waitingState = $readiness->waitingState($table);
+
+            return response()->json([
+                'state' => $privateState->forUser($table, $waitingState, $request->user()),
+                'players' => $this->serializeRealPlayers($table),
+                'seatSlots' => $this->serializeSeatSlots($table),
+                'message' => $waitingState['waitingForPlayers']['message'] ?? 'A mesa ainda está aguardando jogadores.',
+            ]);
+        }
 
         $state = $pokerPersistence->currentStateForTable($table);
 
-        abort_if($state && ! (bool) ($state['isFinished'] ?? false), 422, 'A mão atual ainda está em andamento.');
+        if ($state && ! (bool) ($state['isFinished'] ?? false)) {
+            return response()->json([
+                'state' => $privateState->forUser($table, $state, $request->user()),
+                'players' => $this->serializeRealPlayers($table),
+                'seatSlots' => $this->serializeSeatSlots($table),
+                'message' => 'Já existe uma mão em andamento nesta mesa.',
+            ]);
+        }
 
         $nextState = $pokerPersistence->startOnTable($table, $startPokerHand->execute());
+        $nextState = $botTurnProcessor->process($table, $nextState);
+        $nextState = $pokerPersistence->persist($nextState);
 
         $broadcaster->broadcast($nextState);
 

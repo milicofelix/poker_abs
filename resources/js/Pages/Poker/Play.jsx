@@ -6,6 +6,7 @@ import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
 import PokerBotThinkingIndicator from '../../Components/Poker/PokerBotThinkingIndicator';
 import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
+import PokerInterfaceStateBanner from '../../Components/Poker/PokerInterfaceStateBanner';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
@@ -26,6 +27,140 @@ function tableHasBot(players = [], state = null) {
     return players.some((player) => Boolean(player?.isBot))
         || Boolean(state?.lastAction?.isBot)
         || Boolean(state?.botDecision?.processed);
+}
+
+
+function hasStatusFailure(status = null) {
+    const label = String(status?.label ?? '').toLowerCase();
+
+    return label.includes('falha') || label.includes('erro') || label.includes('indisponível');
+}
+
+function realPlayerCount(players = []) {
+    return players.filter((player) => !player?.isBot).length;
+}
+
+function resolveInterfaceState({
+    actionError,
+    actionInFlight,
+    loading,
+    state,
+    table,
+    realPlayers,
+    rehydrationStatus,
+    realtimeStatus,
+    timeoutStatus,
+    botThinking,
+}) {
+    if (actionError) {
+        return {
+            visible: true,
+            tone: 'error',
+            title: 'Ação não executada',
+            description: actionError,
+            badge: 'erro',
+        };
+    }
+
+    if (timeoutStatus?.enabled && hasStatusFailure(timeoutStatus)) {
+        return {
+            visible: true,
+            tone: 'warning',
+            title: 'Timeout automático precisa de atenção',
+            description: timeoutStatus.label,
+            badge: 'timer',
+        };
+    }
+
+    if (rehydrationStatus?.enabled && hasStatusFailure(rehydrationStatus)) {
+        return {
+            visible: true,
+            tone: 'warning',
+            title: 'Reconectando estado da mesa',
+            description: 'Estamos tentando sincronizar a mão novamente com o servidor.',
+            badge: 'sync',
+        };
+    }
+
+    if (rehydrationStatus?.enabled && rehydrationStatus?.loading) {
+        return {
+            visible: true,
+            tone: 'info',
+            title: 'Sincronizando mesa',
+            description: 'Atualizando cartas, pote, stacks e vez atual.',
+            badge: 'loading',
+        };
+    }
+
+    if (loading && actionInFlight) {
+        return {
+            visible: true,
+            tone: botThinking ? 'warning' : 'info',
+            title: botThinking ? 'Oponente pensando' : 'Processando jogada',
+            description: botThinking
+                ? 'A jogada do bot está sendo processada com delay humanizado.'
+                : 'Aguarde enquanto sua ação é confirmada na mesa.',
+            badge: actionInFlight,
+        };
+    }
+
+    if (state?.isWaitingForPlayers) {
+        return {
+            visible: true,
+            tone: 'neutral',
+            title: 'Mesa aguardando jogadores',
+            description: state?.waitingForPlayers?.message ?? 'Sente em um assento e adicione um bot ou convide outro jogador para iniciar.',
+            badge: `${state?.waitingForPlayers?.playersSeated ?? realPlayerCount(realPlayers)}/2`,
+        };
+    }
+
+    if (state?.isFinished) {
+        return {
+            visible: true,
+            tone: 'success',
+            title: 'Mão finalizada',
+            description: state?.conclusion?.message ?? 'Confira o resultado e inicie uma nova mão quando estiver pronto.',
+            badge: 'showdown',
+        };
+    }
+
+    if (table && !tableHasBot(realPlayers, state) && realPlayerCount(realPlayers) < 2) {
+        return {
+            visible: true,
+            tone: 'neutral',
+            title: 'Mesa aguardando jogador',
+            description: 'Convide outro jogador, escolha um assento ou adicione um bot para continuar a partida.',
+            badge: `${realPlayerCount(realPlayers)}/2`,
+        };
+    }
+
+    if (state && !state.canAct) {
+        return {
+            visible: true,
+            tone: 'neutral',
+            title: 'Aguardando sua vez',
+            description: state?.currentTurn?.message ?? 'A mesa está aguardando a próxima ação válida.',
+            badge: state?.currentTurn?.actorLabel ?? 'turno',
+        };
+    }
+
+    if (realtimeStatus && !realtimeStatus.enabled) {
+        return {
+            visible: true,
+            tone: 'warning',
+            title: 'Tempo real em standby',
+            description: 'A mesa continua funcionando, mas talvez seja necessário atualizar se outra pessoa agir.',
+            badge: 'reverb',
+        };
+    }
+
+    return {
+        visible: true,
+        tone: 'success',
+        title: 'Sua vez de agir',
+        description: 'Escolha uma ação no painel da mesa.',
+        badge: 'ativo',
+    };
 }
 
 function botThinkingLabel(players = []) {
@@ -220,6 +355,18 @@ export default function Play({ hand, table = null }) {
 
     const botThinking = loading && Boolean(actionInFlight) && tableHasBot(realPlayers, state);
     const currentBotThinkingLabel = botThinkingLabel(realPlayers);
+    const interfaceState = resolveInterfaceState({
+        actionError,
+        actionInFlight,
+        loading,
+        state,
+        table,
+        realPlayers,
+        rehydrationStatus,
+        realtimeStatus,
+        timeoutStatus,
+        botThinking,
+    });
 
 
     async function handleJoinTable() {
@@ -236,7 +383,10 @@ export default function Play({ hand, table = null }) {
             setRealPlayers(response.data.players ?? []);
             setSeatSlots(response.data.seatSlots ?? []);
             setJoinMessage(response.data.message ?? 'Jogador entrou na mesa com sucesso.');
-            rehydrationStatus.rehydrate();
+
+            if (response.data.state) {
+                setState(response.data.state);
+            }
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -267,8 +417,6 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
-
-            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -297,8 +445,6 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
-
-            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -330,8 +476,6 @@ export default function Play({ hand, table = null }) {
             if (response.data.state) {
                 setState(response.data.state);
             }
-
-            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -360,7 +504,6 @@ export default function Play({ hand, table = null }) {
             setRealPlayers(response.data.players ?? []);
             setSeatSlots(response.data.seatSlots ?? []);
             setJoinMessage(response.data.message ?? 'Nova mão iniciada.');
-            rehydrationStatus.rehydrate();
         } catch (error) {
             setJoinMessage(
                 error?.response?.data?.message
@@ -384,7 +527,6 @@ export default function Play({ hand, table = null }) {
             });
 
             setState(response.data.state);
-            rehydrationStatus.rehydrate();
         } catch (error) {
             setActionError(
                 error?.response?.data?.message
@@ -429,12 +571,13 @@ export default function Play({ hand, table = null }) {
                     onClose={() => setHandRankHelpOpen(false)}
                 />
 
-                {(joinMessage || actionError) && (
+                {joinMessage && (
                     <div className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50 shadow-xl shadow-black/35">
-                        {actionError ?? joinMessage}
+                        {joinMessage}
                     </div>
                 )}
 
+                <PokerInterfaceStateBanner state={interfaceState} />
                 <HandConclusionBanner conclusion={state.conclusion} />
                 <LastActionAlert action={state.lastAction} />
                 <PokerBotThinkingIndicator active={botThinking} label={currentBotThinkingLabel} />
