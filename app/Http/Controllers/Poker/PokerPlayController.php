@@ -68,6 +68,16 @@ final class PokerPlayController extends Controller
             'bigBlind' => $table->big_blind,
             'lobbyUrl' => route('poker.lobby'),
             'isLocalMode' => true,
+            'modeLabel' => 'Mesa local',
+            'modeDescription' => 'Engine local clássica para testes rápidos, histórico, ranking e estatísticas.',
+            'reviewChecklist' => [
+                ['label' => 'Fluxo de nova mão local', 'status' => 'ok'],
+                ['label' => 'Histórico, ranking e estatísticas', 'status' => 'ok'],
+                ['label' => 'Layout alinhado com mesa do lobby', 'status' => 'ok'],
+                ['label' => 'Showdown e hierarquia de mãos blindados', 'status' => 'ok'],
+                ['label' => 'Assentos e presença em tempo real', 'status' => 'lobby'],
+                ['label' => 'Bots trocáveis e timeout automático', 'status' => 'lobby'],
+            ],
         ];
     }
 }

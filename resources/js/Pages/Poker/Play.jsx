@@ -5,6 +5,7 @@ import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
 import PokerBotThinkingIndicator from '../../Components/Poker/PokerBotThinkingIndicator';
+import PokerFinalReviewChecklist from '../../Components/Poker/PokerFinalReviewChecklist';
 import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
 import PokerInterfaceStateBanner from '../../Components/Poker/PokerInterfaceStateBanner';
 import PokerHeader from '../../Components/Poker/PokerHeader';
@@ -144,7 +145,7 @@ function resolveInterfaceState({
         };
     }
 
-    if (realtimeStatus && !realtimeStatus.enabled) {
+    if (!table?.isLocalMode && realtimeStatus && !realtimeStatus.enabled) {
         return {
             visible: true,
             tone: 'warning',
@@ -210,6 +211,76 @@ function resolveCurrentPlayerRole(players = [], currentUserId = null) {
     return currentPlayerIndex === 1 ? 'opponent' : 'player';
 }
 
+
+function canonicalActorLabel(canonicalActor, role, players = []) {
+    if (canonicalActor === 'tie') {
+        return 'Empate';
+    }
+
+    if (role !== 'spectator' && visibleActorForRole(canonicalActor, role) === 'player') {
+        return 'Você';
+    }
+
+    const seatNumber = canonicalActor === 'opponent' ? 2 : 1;
+    const canonicalPlayer = players.find((player) => Number(player?.seatNumber) === seatNumber);
+
+    return canonicalPlayer?.nickname
+        ?? canonicalPlayer?.name
+        ?? canonicalPlayer?.displayName
+        ?? (canonicalActor === 'opponent' ? 'Oponente' : 'Jogador');
+}
+
+function visibleActorForRole(canonicalActor, role) {
+    if (canonicalActor === 'tie') {
+        return 'tie';
+    }
+
+    if (role === 'opponent') {
+        return canonicalActor === 'opponent' ? 'player' : 'opponent';
+    }
+
+    return canonicalActor === 'opponent' ? 'opponent' : 'player';
+}
+
+function personalizeConclusionMessage(message = '', role, players = []) {
+    if (!message || role !== 'opponent') {
+        return message;
+    }
+
+    const canonicalPlayerLabel = canonicalActorLabel('player', role, players);
+    const canonicalOpponentLabel = canonicalActorLabel('opponent', role, players);
+
+    return String(message)
+        .replaceAll('Você', '__CANONICAL_PLAYER__')
+        .replaceAll('Oponente', '__CANONICAL_OPPONENT__')
+        .replaceAll('__CANONICAL_PLAYER__', canonicalPlayerLabel)
+        .replaceAll('__CANONICAL_OPPONENT__', canonicalOpponentLabel);
+}
+
+function personalizeConclusionForRole(conclusion, role, players = []) {
+    if (!conclusion?.winner || conclusion.winner.player === 'tie') {
+        return conclusion
+            ? {
+                ...conclusion,
+                message: personalizeConclusionMessage(conclusion.message, role, players),
+            }
+            : conclusion;
+    }
+
+    const canonicalWinner = conclusion.winner.canonicalPlayer ?? conclusion.winner.player;
+
+    return {
+        ...conclusion,
+        message: personalizeConclusionMessage(conclusion.message, role, players),
+        winner: {
+            ...conclusion.winner,
+            canonicalPlayer: canonicalWinner,
+            player: visibleActorForRole(canonicalWinner, role),
+            label: canonicalActorLabel(canonicalWinner, role, players),
+        },
+    };
+}
+
 function personalizeCanonicalStateForCurrentUser(nextState, players = [], currentUserId = null) {
     const role = resolveCurrentPlayerRole(players, currentUserId);
 
@@ -231,6 +302,7 @@ function personalizeCanonicalStateForCurrentUser(nextState, players = [], curren
 
         return {
             ...nextState,
+            conclusion: personalizeConclusionForRole(nextState.conclusion, role, players),
             multiplayerPerspective: {
                 ...(nextState.multiplayerPerspective ?? {}),
                 role,
@@ -247,6 +319,7 @@ function personalizeCanonicalStateForCurrentUser(nextState, players = [], curren
         ...nextState,
         playerCards: originalOpponentCards,
         bestHand: originalOpponentBestHand,
+        conclusion: personalizeConclusionForRole(nextState.conclusion, role, players),
         multiplayerPerspective: {
             ...(nextState.multiplayerPerspective ?? {}),
             role: 'opponent',
@@ -593,7 +666,7 @@ export default function Play({ hand, table = null }) {
 
                 {table?.isLocalMode && (
                     <div className="rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-50 shadow-xl shadow-black/35">
-                        Mesa local clássica: visual e ações alinhados com as mesas do lobby, mas sem assentos, presença em tempo real ou troca de adversário. Para validar o fluxo completo da FASE 7.9, use o Lobby multiplayer.
+                        Mesa local clássica: mesma base visual da mesa do lobby, porém com engine local. Assentos, presença em tempo real, bots trocáveis e timeout automático continuam concentrados no Lobby multiplayer.
                     </div>
                 )}
 
@@ -648,16 +721,28 @@ export default function Play({ hand, table = null }) {
 
                         <PokerActionHistory history={state.actionHistory} compact />
 
+                        <PokerFinalReviewChecklist table={table} />
+
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">
                                 Detalhes da mesa
                             </summary>
 
-                            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                                <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
-                                <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
-                                <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
-                            </div>
+                            {!table?.isLocalMode ? (
+                                <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                                    <PokerRealtimeStatus status={realtimeStatus} title="Tempo real" />
+                                    <PokerRealtimeStatus status={rehydrationStatus} title="Reconexão" />
+                                    <PokerRealtimeStatus status={timeoutStatus} title="Timeout automático" />
+                                </div>
+                            ) : (
+                                <div className="mt-3 rounded-3xl border border-emerald-200/20 bg-emerald-300/10 p-5 text-sm text-emerald-50">
+                                    <p className="font-black uppercase tracking-[0.2em] text-emerald-200">Fluxo local estável</p>
+                                    <p className="mt-2 text-emerald-50/90">
+                                        As ações locais persistem na sessão e no histórico sem depender de Reverb, reidratação periódica ou timeout automático.
+                                        Por isso, esses indicadores ficam reservados para mesas do lobby.
+                                    </p>
+                                </div>
+                            )}
 
                             {!table?.isLocalMode ? (
                                 <div className="mt-3">

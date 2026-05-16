@@ -146,6 +146,34 @@ class HandEvaluatorTest extends TestCase
         $this->assertSame([9], $hand->kickers);
     }
 
+
+    public function test_trinca_do_board_com_carta_da_mao_vence_dois_pares(): void
+    {
+        $botHand = $this->evaluator()->evaluate([
+            $this->card(Suit::Clubs, Rank::Five),
+            $this->card(Suit::Diamonds, Rank::Nine),
+            $this->card(Suit::Clubs, Rank::Nine),
+            $this->card(Suit::Spades, Rank::Nine),
+            $this->card(Suit::Diamonds, Rank::Ten),
+            $this->card(Suit::Diamonds, Rank::Eight),
+            $this->card(Suit::Spades, Rank::Three),
+        ]);
+
+        $playerHand = $this->evaluator()->evaluate([
+            $this->card(Suit::Hearts, Rank::Five),
+            $this->card(Suit::Hearts, Rank::Eight),
+            $this->card(Suit::Clubs, Rank::Nine),
+            $this->card(Suit::Spades, Rank::Nine),
+            $this->card(Suit::Diamonds, Rank::Ten),
+            $this->card(Suit::Diamonds, Rank::Eight),
+            $this->card(Suit::Spades, Rank::Three),
+        ]);
+
+        $this->assertSame(HandRank::ThreeOfAKind, $botHand->rank);
+        $this->assertSame(HandRank::TwoPair, $playerHand->rank);
+        $this->assertGreaterThan($playerHand->rank->value, $botHand->rank->value);
+    }
+
     public function test_requires_at_least_five_cards(): void
     {
         $this->expectException(InvalidArgumentException::class);

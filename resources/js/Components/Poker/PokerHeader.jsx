@@ -29,6 +29,11 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                             Blinds {table?.smallBlind ?? 10} / {table.bigBlind}
                         </span>
                     )}
+                    {table?.modeLabel && (
+                        <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-4 py-2 text-xs font-bold text-cyan-100">
+                            {table.modeLabel}
+                        </span>
+                    )}
                     {table?.id && (
                         <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-200">
                             ID da mesa: {table.id}
@@ -39,29 +44,6 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                 <div className="flex shrink-0 items-center gap-2">
                     {rightSlot}
 
-                    <nav className="hidden items-center gap-2 lg:flex" aria-label="Navegação do poker">
-                        <a
-                            href="/poker/hands"
-                            className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
-                        >
-                            Histórico
-                        </a>
-
-                        <a
-                            href="/poker/ranking"
-                            className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/20"
-                        >
-                            Ranking
-                        </a>
-
-                        <a
-                            href="/poker/statistics"
-                            className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
-                        >
-                            Estatísticas
-                        </a>
-                    </nav>
-
                     {table?.lobbyUrl && (
                         <a
                             href={table.lobbyUrl}
@@ -70,14 +52,6 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                             Lobby
                         </a>
                     )}
-
-                    <a
-                        href="/poker/hands"
-                        className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20 lg:hidden"
-                        title="Abrir histórico de mãos"
-                    >
-                        Hist.
-                    </a>
 
                     {user ? (
                         <button
@@ -110,7 +84,7 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                 </h1>
 
                 <p className="mt-3 max-w-3xl text-slate-300">
-                    Fase 5: mesa com visual poker room, destaque de turno, pote central e experiência mais próxima de cassino.
+                    Fase 7.9: revisão final da mesa, alinhamento entre modo local e lobby, estabilidade de fluxo e preparação para lobby/salas.
                 </p>
             </div>
 

@@ -42,8 +42,13 @@ final class PokerPlayTest extends TestCase
         $this->assertArrayHasKey('table', $page['props']);
         $this->assertTrue($page['props']['table']['isLocalMode']);
         $this->assertSame('Mesa local', $page['props']['table']['name']);
+        $this->assertSame('Mesa local', $page['props']['table']['modeLabel']);
         $this->assertSame(route('poker.actions'), $page['props']['table']['actionUrl']);
         $this->assertSame(route('poker.play', ['new' => 1]), $page['props']['table']['newHandUrl']);
         $this->assertSame(route('poker.lobby'), $page['props']['table']['lobbyUrl']);
+        $this->assertCount(6, $page['props']['table']['reviewChecklist']);
+        $this->assertSame('Fluxo de nova mão local', $page['props']['table']['reviewChecklist'][0]['label']);
+        $this->assertSame('Showdown e hierarquia de mãos blindados', $page['props']['table']['reviewChecklist'][3]['label']);
+        $this->assertSame('lobby', $page['props']['table']['reviewChecklist'][4]['status']);
     }
 }
