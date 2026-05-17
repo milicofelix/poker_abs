@@ -8,6 +8,7 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\LocalPokerSessionService;
 use App\Services\Poker\PokerPhaseEightClosureService;
+use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +21,7 @@ final class PokerPlayController extends Controller
         LocalPokerSessionService $pokerSession,
         LocalPokerPersistenceService $pokerPersistence,
         PokerPhaseEightClosureService $phaseEightClosure,
+        PokerPhaseNineVisualAuditService $visualAudit,
     ): Response {
         if ($request->boolean('new')) {
             $pokerSession->forget();
@@ -32,7 +34,7 @@ final class PokerPlayController extends Controller
             $pokerSession->store($hand);
         }
 
-        $table = $this->localTablePayload($hand, $phaseEightClosure);
+        $table = $this->localTablePayload($hand, $phaseEightClosure, $visualAudit);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -44,7 +46,7 @@ final class PokerPlayController extends Controller
      * @param array<string, mixed> $hand
      * @return array<string, mixed>|null
      */
-    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure): ?array
+    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure, PokerPhaseNineVisualAuditService $visualAudit): ?array
     {
         $tableId = $hand['persistence']['tableId'] ?? null;
 
@@ -76,6 +78,7 @@ final class PokerPlayController extends Controller
             'modeDescription' => 'Engine local clássica para testes rápidos, histórico, ranking e estatísticas.',
             'reviewChecklist' => $phaseClosure['checklist'],
             'phaseClosure' => $phaseClosure,
+            'visualAudit' => $visualAudit->forTable($table, true),
         ];
     }
 }

@@ -14,6 +14,7 @@ import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
 import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
+import PokerVisualAuditPanel from '../../Components/Poker/PokerVisualAuditPanel';
 import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
 import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
 import PokerPresenceMiniPanel from '../../Components/Poker/PokerPresenceMiniPanel';
@@ -756,6 +757,7 @@ export default function Play({ hand, table = null }) {
                         <PokerActionHistory history={state.actionHistory} compact />
 
                         <PokerFinalReviewChecklist table={table} />
+                        <PokerVisualAuditPanel audit={table?.visualAudit} />
 
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">

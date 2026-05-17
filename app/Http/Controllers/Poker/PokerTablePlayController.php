@@ -8,6 +8,7 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerPhaseEightClosureService;
+use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\PokerBotProfiles;
@@ -29,6 +30,7 @@ final class PokerTablePlayController extends Controller
         PokerTablePresenceService $presence,
         PokerTableReadinessService $readiness,
         PokerPhaseEightClosureService $phaseEightClosure,
+        PokerPhaseNineVisualAuditService $visualAudit,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -68,6 +70,7 @@ final class PokerTablePlayController extends Controller
                 'modeDescription' => 'Mesa multiplayer com assentos, presença, bots trocáveis, tempo real e timeout automático.',
                 'reviewChecklist' => $phaseClosure['checklist'],
                 'phaseClosure' => $phaseClosure,
+                'visualAudit' => $visualAudit->forTable($table, false),
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,

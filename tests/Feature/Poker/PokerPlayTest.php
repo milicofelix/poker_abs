@@ -51,4 +51,20 @@ final class PokerPlayTest extends TestCase
         $this->assertSame('Showdown e hierarquia de mãos blindados', $page['props']['table']['reviewChecklist'][3]['label']);
         $this->assertSame('lobby', $page['props']['table']['reviewChecklist'][4]['status']);
     }
+
+    public function test_mesa_local_recebe_auditoria_visual_da_fase_nove(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.1', $page['props']['table']['visualAudit']['phase']);
+        $this->assertSame('local', $page['props']['table']['visualAudit']['mode']);
+        $this->assertFalse($page['props']['table']['visualAudit']['safeToChangeGameplay']);
+        $this->assertCount(5, $page['props']['table']['visualAudit']['checklist']);
+        $this->assertSame('responsive', $page['props']['table']['visualAudit']['checklist'][3]['area']);
+    }
+
 }
