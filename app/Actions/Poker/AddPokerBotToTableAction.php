@@ -5,6 +5,7 @@ namespace App\Actions\Poker;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
 use App\Models\User;
+use App\Services\Poker\PokerTableSeatCapacityService;
 use App\Support\Poker\PokerBotProfiles;
 use DomainException;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,10 @@ use Illuminate\Support\Str;
 
 final class AddPokerBotToTableAction
 {
+    public function __construct(private readonly PokerTableSeatCapacityService $seatCapacity)
+    {
+    }
+
     public function execute(PokerTable $table, string $profile, string $difficulty = 'normal', bool $replaceExistingBot = false): PokerTablePlayer
     {
         if (! in_array($profile, PokerBotProfiles::keys(), true)) {
@@ -22,7 +27,7 @@ final class AddPokerBotToTableAction
             throw new DomainException('Dificuldade de bot inválida.');
         }
 
-        $seatNumber = $this->firstAvailableSeat($table);
+        $seatNumber = $this->seatCapacity->firstAvailableSeat($table);
 
         if ($seatNumber === null && $replaceExistingBot) {
             $seatNumber = $this->releaseReplaceableBotSeat($table);
@@ -52,23 +57,6 @@ final class AddPokerBotToTableAction
                 'joined_at' => now(),
             ],
         )->fresh();
-    }
-
-    private function firstAvailableSeat(PokerTable $table): ?int
-    {
-        $occupiedSeats = $table->realPlayers()
-            ->whereNotNull('seat_number')
-            ->pluck('seat_number')
-            ->map(static fn (mixed $seat): int => (int) $seat)
-            ->all();
-
-        for ($seat = 1; $seat <= (int) $table->max_players; $seat++) {
-            if (! in_array($seat, $occupiedSeats, true)) {
-                return $seat;
-            }
-        }
-
-        return null;
     }
 
     private function releaseReplaceableBotSeat(PokerTable $table): ?int

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\LocalPokerSessionService;
+use App\Services\Poker\PokerPhaseEightClosureService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,6 +19,7 @@ final class PokerPlayController extends Controller
         StartPokerHandAction $startPokerHand,
         LocalPokerSessionService $pokerSession,
         LocalPokerPersistenceService $pokerPersistence,
+        PokerPhaseEightClosureService $phaseEightClosure,
     ): Response {
         if ($request->boolean('new')) {
             $pokerSession->forget();
@@ -30,7 +32,7 @@ final class PokerPlayController extends Controller
             $pokerSession->store($hand);
         }
 
-        $table = $this->localTablePayload($hand);
+        $table = $this->localTablePayload($hand, $phaseEightClosure);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -42,7 +44,7 @@ final class PokerPlayController extends Controller
      * @param array<string, mixed> $hand
      * @return array<string, mixed>|null
      */
-    private function localTablePayload(array $hand): ?array
+    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure): ?array
     {
         $tableId = $hand['persistence']['tableId'] ?? null;
 
@@ -57,6 +59,8 @@ final class PokerPlayController extends Controller
             return null;
         }
 
+        $phaseClosure = $phaseEightClosure->forLocalTable($table);
+
         return [
             'id' => $table->id,
             'name' => $table->name,
@@ -70,14 +74,8 @@ final class PokerPlayController extends Controller
             'isLocalMode' => true,
             'modeLabel' => 'Mesa local',
             'modeDescription' => 'Engine local clássica para testes rápidos, histórico, ranking e estatísticas.',
-            'reviewChecklist' => [
-                ['label' => 'Fluxo de nova mão local', 'status' => 'ok'],
-                ['label' => 'Histórico, ranking e estatísticas', 'status' => 'ok'],
-                ['label' => 'Layout alinhado com mesa do lobby', 'status' => 'ok'],
-                ['label' => 'Showdown e hierarquia de mãos blindados', 'status' => 'ok'],
-                ['label' => 'Assentos e presença em tempo real', 'status' => 'lobby'],
-                ['label' => 'Bots trocáveis e timeout automático', 'status' => 'lobby'],
-            ],
+            'reviewChecklist' => $phaseClosure['checklist'],
+            'phaseClosure' => $phaseClosure,
         ];
     }
 }

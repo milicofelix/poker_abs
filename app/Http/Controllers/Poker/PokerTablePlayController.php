@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
+use App\Services\Poker\PokerPhaseEightClosureService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\PokerBotProfiles;
@@ -27,6 +28,7 @@ final class PokerTablePlayController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
         PokerTableReadinessService $readiness,
+        PokerPhaseEightClosureService $phaseEightClosure,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -39,6 +41,7 @@ final class PokerTablePlayController extends Controller
         }
 
         $hand = $privateState->forUser($table, $hand, $request->user());
+        $phaseClosure = $phaseEightClosure->forLobbyTable($table);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -63,14 +66,8 @@ final class PokerTablePlayController extends Controller
                 'isLocalMode' => false,
                 'modeLabel' => 'Mesa do lobby',
                 'modeDescription' => 'Mesa multiplayer com assentos, presença, bots trocáveis, tempo real e timeout automático.',
-                'reviewChecklist' => [
-                    ['label' => 'Assentos e presença dos jogadores', 'status' => 'ok'],
-                    ['label' => 'Bot vs Bot e troca de adversário', 'status' => 'ok'],
-                    ['label' => 'Timer e timeout automático', 'status' => 'ok'],
-                    ['label' => 'Nova mão sem refresh manual', 'status' => 'ok'],
-                    ['label' => 'Showdown e hierarquia de mãos blindados', 'status' => 'ok'],
-                    ['label' => 'Histórico, ranking e estatísticas', 'status' => 'ok'],
-                ],
+                'reviewChecklist' => $phaseClosure['checklist'],
+                'phaseClosure' => $phaseClosure,
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,

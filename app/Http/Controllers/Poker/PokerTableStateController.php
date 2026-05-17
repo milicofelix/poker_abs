@@ -8,7 +8,7 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerTablePresenceService;
-use App\Services\Poker\PokerTableReadinessService;
+use App\Services\Poker\PokerTableRuntimeStateService;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,25 +23,21 @@ final class PokerTableStateController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
-        PokerTableReadinessService $readiness,
+        PokerTableRuntimeStateService $runtimeState,
         StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 
-        $state = $pokerPersistence->currentStateForTable($table);
-
-        if (! $state) {
-            $latestState = $pokerPersistence->latestStateForTable($table);
-
-            $state = $latestState && (bool) ($latestState['isFinished'] ?? false)
-                ? $latestState
-                : $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
-        }
+        $runtime = $runtimeState->resolve($table, $pokerPersistence, $startPokerHand);
+        $state = $runtime['state'];
 
         return response()->json([
             'state' => $privateState->forUser($table, $state, $request->user()),
             'players' => $this->serializeRealPlayers($table),
             'seatSlots' => $this->serializeSeatSlots($table),
+            'stateContracts' => $runtime['stateContracts'],
+            'engineMode' => $runtime['engineMode'],
+            'multiSeatEnabled' => $runtime['multiSeatEnabled'],
         ]);
     }
 }

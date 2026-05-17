@@ -5,10 +5,15 @@ namespace App\Actions\Poker;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
 use App\Models\User;
+use App\Services\Poker\PokerTableSeatCapacityService;
 use DomainException;
 
 final class JoinPokerTableAction
 {
+    public function __construct(private readonly PokerTableSeatCapacityService $seatCapacity)
+    {
+    }
+
     public function execute(PokerTable $table, User $user): PokerTablePlayer
     {
         $existingPlayer = PokerTablePlayer::query()
@@ -16,7 +21,7 @@ final class JoinPokerTableAction
             ->where('user_id', $user->id)
             ->first();
 
-        if (! $existingPlayer && $this->isTableFull($table)) {
+        if (! $existingPlayer && ! $this->seatCapacity->hasRoomForAnotherPlayer($table)) {
             throw new DomainException('Mesa cheia. Escolha outra mesa no lobby.');
         }
 
@@ -35,12 +40,4 @@ final class JoinPokerTableAction
         );
     }
 
-    private function isTableFull(PokerTable $table): bool
-    {
-        $activePlayers = $table->realPlayers()
-            ->whereNull('left_at')
-            ->count();
-
-        return $activePlayers >= (int) $table->max_players;
-    }
 }

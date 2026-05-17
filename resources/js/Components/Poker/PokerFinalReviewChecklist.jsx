@@ -13,7 +13,8 @@ const statusLabels = {
 };
 
 export default function PokerFinalReviewChecklist({ table = null }) {
-    const items = table?.reviewChecklist ?? [];
+    const closure = table?.phaseClosure ?? null;
+    const items = table?.reviewChecklist ?? closure?.checklist ?? [];
 
     if (!items.length) {
         return null;
@@ -24,15 +25,15 @@ export default function PokerFinalReviewChecklist({ table = null }) {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <p className="text-[0.64rem] font-black uppercase tracking-[0.24em] text-amber-200">
-                        Revisão final 7.9
+                        {closure?.phase ? `Fechamento ${closure.phase}` : 'Fechamento FASE 8'}
                     </p>
                     <h2 className="mt-1 text-base font-black text-white">
-                        Checklist manual da mesa
+                        {closure?.title ?? 'Checklist final da mesa'}
                     </h2>
                     <p className="mt-1 text-xs font-semibold text-slate-300">
-                        {table?.isLocalMode
+                        {closure?.summary ?? (table?.isLocalMode
                             ? 'Modo local validado como fluxo clássico, sem recursos multiplayer em tempo real.'
-                            : 'Mesa do lobby validada para fluxo multiplayer atual antes da FASE 8.'}
+                            : 'Mesa do lobby validada para fluxo multiplayer atual antes da próxima fase.')}
                     </p>
                 </div>
 
