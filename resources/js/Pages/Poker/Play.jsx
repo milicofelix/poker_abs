@@ -16,6 +16,7 @@ import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
 import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
 import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
 import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
+import PokerPresenceMiniPanel from '../../Components/Poker/PokerPresenceMiniPanel';
 import usePokerSoundEffects from '../../hooks/usePokerSoundEffects';
 import usePokerTableRealtime from '../../hooks/usePokerTableRealtime';
 import usePokerTableRehydration from '../../hooks/usePokerTableRehydration';
@@ -719,6 +720,18 @@ export default function Play({ hand, table = null }) {
 
                         <PokerTable state={state} />
 
+                        {!table?.isLocalMode && (
+                            <div className="xl:hidden">
+                                <PokerPresenceMiniPanel
+                                    players={realPlayers}
+                                    currentUserId={table?.currentUserId}
+                                    currentTurnLabel={state?.currentTurn?.actorLabel}
+                                    maxPlayers={table?.maxPlayers}
+                                    realtimeStatus={realtimeStatus}
+                                />
+                            </div>
+                        )}
+
                         <div className="xl:hidden">
                             <div className="sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
                                 <PokerActionPanel
@@ -806,6 +819,16 @@ export default function Play({ hand, table = null }) {
                     </section>
 
                     <aside className="space-y-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
+                        {!table?.isLocalMode && (
+                            <PokerPresenceMiniPanel
+                                players={realPlayers}
+                                currentUserId={table?.currentUserId}
+                                currentTurnLabel={state?.currentTurn?.actorLabel}
+                                maxPlayers={table?.maxPlayers}
+                                realtimeStatus={realtimeStatus}
+                            />
+                        )}
+
                         <PokerTableStatus state={state} compact />
                         <PokerTurnTimer timer={turnTimer} compact />
 

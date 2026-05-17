@@ -32,7 +32,7 @@ final class PokerTableCreateController extends Controller
             'status' => 'waiting',
             'small_blind' => 10,
             'big_blind' => 20,
-            'max_players' => 2,
+            'max_players' => PokerTable::DEFAULT_MAX_PLAYERS,
             'is_private' => $isPrivate,
             'invite_code' => $isPrivate ? $this->generateInviteCode() : null,
         ]);

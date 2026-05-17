@@ -29,7 +29,7 @@ final class LocalPokerPersistenceService
                 'status' => 'playing',
                 'small_blind' => 10,
                 'big_blind' => 20,
-                'max_players' => 2,
+                'max_players' => PokerTable::DEFAULT_MAX_PLAYERS,
             ]);
 
             return $this->startOnTable($table, $state);
@@ -151,9 +151,11 @@ final class LocalPokerPersistenceService
     }
 
     /**
-     * Retorna o estado mais recente da mesa, mesmo que a mão já tenha sido
-     * finalizada. Isso evita que consultas de reidratação criem uma nova mão
-     * automaticamente logo após o showdown/fold.
+     * Retorna o último estado gravado da mesa, mesmo quando a mão já foi finalizada.
+     *
+     * Diferente de currentStateForTable(), este método é usado na reidratação
+     * da mesa para evitar que uma mão finalizada seja substituída automaticamente
+     * por uma nova mão durante polling/refresh do estado.
      *
      * @return array<string, mixed>|null
      */
@@ -168,12 +170,11 @@ final class LocalPokerPersistenceService
             return null;
         }
 
-        return $this->turnTimer->refresh($hand->state_payload);
-    }
+        if ($hand->status === 'running' && ! (bool) ($hand->state_payload['isFinished'] ?? false)) {
+            return $this->turnTimer->refresh($hand->state_payload);
+        }
 
-    public function hasAnyHand(PokerTable $table): bool
-    {
-        return $table->hands()->exists();
+        return $hand->state_payload;
     }
 
     /**

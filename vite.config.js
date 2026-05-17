@@ -8,12 +8,12 @@ export default defineConfig({
         host: '0.0.0.0',
         port: 5173,
         strictPort: true,
-        origin: 'http://localhost:5175',
+        origin: 'http://192.168.1.4:5175',
         cors: {
-            origin: 'http://localhost:8085',
+            origin: 'http://192.168.1.4:8085',
         },
         hmr: {
-            host: 'localhost',
+            host: '192.168.1.4',
             port: 5175,
         },
     },

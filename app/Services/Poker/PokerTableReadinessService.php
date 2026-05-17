@@ -28,7 +28,7 @@ final class PokerTableReadinessService
 
     public function canStartHand(PokerTable $table): bool
     {
-        return $this->seatedPlayers($table)->count() >= min(2, (int) $table->max_players);
+        return $this->seatedPlayers($table)->count() >= $table->minimumPlayersToStartCurrentEngine();
     }
 
     /**
@@ -59,7 +59,8 @@ final class PokerTableReadinessService
     {
         $seatedPlayers = $this->seatedPlayers($table);
         $playersSeated = $seatedPlayers->count();
-        $playersNeeded = max(0, min(2, (int) $table->max_players) - $playersSeated);
+        $minimumPlayers = $table->minimumPlayersToStartCurrentEngine();
+        $playersNeeded = max(0, $minimumPlayers - $playersSeated);
 
         return [
             'street' => 'waiting',
@@ -94,10 +95,11 @@ final class PokerTableReadinessService
             'turnTimer' => null,
             'isFinished' => false,
             'isWaitingForPlayers' => true,
+            'tableCapacity' => $table->capacityPayload(),
             'waitingForPlayers' => [
                 'playersSeated' => $playersSeated,
                 'playersNeeded' => $playersNeeded,
-                'minimumPlayers' => min(2, (int) $table->max_players),
+                'minimumPlayers' => $minimumPlayers,
                 'message' => $playersNeeded > 0
                     ? 'A mesa precisa de mais jogador sentado para iniciar a mão.'
                     : 'Mesa pronta para iniciar a mão.',
@@ -125,7 +127,7 @@ final class PokerTableReadinessService
         $playersBySeat = $this->seatedPlayers($table)->keyBy('seat_number');
         $seats = [];
 
-        for ($seatNumber = 1; $seatNumber <= (int) $table->max_players; $seatNumber++) {
+        for ($seatNumber = 1; $seatNumber <= $table->declaredMaxPlayers(); $seatNumber++) {
             $player = $playersBySeat->get($seatNumber);
 
             $seats[] = [

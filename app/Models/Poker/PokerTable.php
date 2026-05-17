@@ -10,6 +10,10 @@ final class PokerTable extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_MAX_PLAYERS = 2;
+    public const CURRENT_ENGINE_MAX_PLAYERS = 2;
+    public const FUTURE_MULTI_SEAT_TARGET = 6;
+
     protected $fillable = [
         'name',
         'status',
@@ -26,6 +30,55 @@ final class PokerTable extends Model
         'max_players' => 'integer',
         'is_private' => 'boolean',
     ];
+
+
+    public function declaredMaxPlayers(): int
+    {
+        return max(1, (int) ($this->max_players ?: self::DEFAULT_MAX_PLAYERS));
+    }
+
+    public function currentEngineMaxPlayers(): int
+    {
+        return min(self::CURRENT_ENGINE_MAX_PLAYERS, $this->declaredMaxPlayers());
+    }
+
+    public function minimumPlayersToStartCurrentEngine(): int
+    {
+        return min(self::CURRENT_ENGINE_MAX_PLAYERS, $this->declaredMaxPlayers());
+    }
+
+    public function isMultiSeatCandidate(): bool
+    {
+        return $this->declaredMaxPlayers() > self::CURRENT_ENGINE_MAX_PLAYERS;
+    }
+
+    public function engineMode(): string
+    {
+        return $this->isMultiSeatCandidate() ? 'multi_seat_preparation' : 'heads_up';
+    }
+
+    public function engineModeLabel(): string
+    {
+        return $this->isMultiSeatCandidate()
+            ? 'Preparada para multi-seat; motor atual ainda heads-up'
+            : 'Motor heads-up atual';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function capacityPayload(): array
+    {
+        return [
+            'maxPlayers' => $this->declaredMaxPlayers(),
+            'currentEngineMaxPlayers' => $this->currentEngineMaxPlayers(),
+            'minimumPlayersToStart' => $this->minimumPlayersToStartCurrentEngine(),
+            'isMultiSeatCandidate' => $this->isMultiSeatCandidate(),
+            'engineMode' => $this->engineMode(),
+            'engineModeLabel' => $this->engineModeLabel(),
+            'futureMultiSeatTarget' => self::FUTURE_MULTI_SEAT_TARGET,
+        ];
+    }
 
     /**
      * @return HasMany<PokerPlayer, $this>

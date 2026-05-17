@@ -54,6 +54,31 @@ final class PokerMesaAguardandoJogadoresTest extends TestCase
         $this->assertSame(0, PokerHand::query()->where('poker_table_id', $table->id)->count());
     }
 
+
+    public function test_mesa_multi_seat_ainda_nao_forca_inicio_com_tres_ou_mais_jogadores_na_engine_atual(): void
+    {
+        $user = User::factory()->create(['name' => 'Adriano']);
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa futura 6-max',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 6,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('poker.tables.show', $table))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Poker/Play')
+                ->where('hand.isWaitingForPlayers', true)
+                ->where('hand.waitingForPlayers.minimumPlayers', 2)
+                ->where('hand.tableCapacity.maxPlayers', 6)
+                ->where('hand.tableCapacity.currentEngineMaxPlayers', 2)
+                ->where('hand.tableCapacity.isMultiSeatCandidate', true)
+                ->where('hand.tableCapacity.engineMode', 'multi_seat_preparation'));
+    }
+
     public function test_primeira_mao_inicia_quando_jogador_sentado_adiciona_um_bot(): void
     {
         $user = User::factory()->create(['name' => 'Adriano']);
