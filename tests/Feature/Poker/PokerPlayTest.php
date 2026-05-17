@@ -67,4 +67,37 @@ final class PokerPlayTest extends TestCase
         $this->assertSame('responsive', $page['props']['table']['visualAudit']['checklist'][3]['area']);
     }
 
+
+    public function test_mesa_local_recebe_melhorias_visuais_dos_botoes_de_acao(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.2', $page['props']['table']['actionButtonUx']['phase']);
+        $this->assertSame('local', $page['props']['table']['actionButtonUx']['mode']);
+        $this->assertFalse($page['props']['table']['actionButtonUx']['safeToChangeGameplay']);
+        $this->assertCount(5, $page['props']['table']['actionButtonUx']['checklist']);
+        $this->assertSame('raise-control', $page['props']['table']['actionButtonUx']['checklist'][2]['area']);
+    }
+
+
+    public function test_mesa_local_recebe_feedback_visual_de_turno_showdown_e_vencedor(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.3', $page['props']['table']['stateFeedback']['phase']);
+        $this->assertSame('local', $page['props']['table']['stateFeedback']['mode']);
+        $this->assertFalse($page['props']['table']['stateFeedback']['safeToChangeGameplay']);
+        $this->assertCount(5, $page['props']['table']['stateFeedback']['checklist']);
+        $this->assertSame('showdown-state', $page['props']['table']['stateFeedback']['checklist'][2]['area']);
+        $this->assertSame('winner-feedback', $page['props']['table']['stateFeedback']['checklist'][3]['area']);
+    }
+
 }

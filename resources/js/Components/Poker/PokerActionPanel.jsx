@@ -23,7 +23,7 @@ function actionButtonClass(tone, isPrimary = false) {
     };
 
     return [
-        'group relative min-h-[44px] overflow-hidden rounded-xl border px-2 py-2 text-center shadow-lg transition duration-200 sm:min-h-[52px] sm:px-3 sm:py-2.5 sm:text-left',
+        'group relative min-h-[48px] overflow-hidden rounded-xl border px-2 py-2 text-center shadow-lg transition duration-200 sm:min-h-[58px] sm:px-3 sm:py-3 sm:text-left',
         'focus:outline-none focus:ring-2 focus:ring-amber-200/80 focus:ring-offset-2 focus:ring-offset-slate-950',
         'disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45',
         isPrimary ? 'scale-[1.01] shadow-amber-950/30 hover:-translate-y-1' : 'hover:-translate-y-0.5',
@@ -31,7 +31,7 @@ function actionButtonClass(tone, isPrimary = false) {
     ].join(' ');
 }
 
-function ActionButton({ title, description, shortcut, disabled, active, tone, onClick }) {
+function ActionButton({ title, description, shortcut, disabled, active, tone, helper, onClick }) {
     return (
         <button
             type="button"
@@ -47,6 +47,11 @@ function ActionButton({ title, description, shortcut, disabled, active, tone, on
                 <span>
                     <span className="block text-center text-[0.58rem] font-black uppercase leading-tight tracking-[0.06em] sm:text-left sm:text-sm sm:tracking-[0.12em]">{title}</span>
                     <span className="mt-0.5 hidden text-[0.68rem] font-bold opacity-75 sm:block">{description}</span>
+                    {helper && (
+                        <span className="mt-1 hidden rounded-full border border-current/15 bg-black/10 px-2 py-0.5 text-[0.55rem] font-black uppercase tracking-[0.12em] opacity-80 sm:inline-flex">
+                            {helper}
+                        </span>
+                    )}
                 </span>
 
                 {shortcut && (
@@ -73,6 +78,7 @@ export default function PokerActionPanel({
     thinking = false,
     thinkingLabel = 'Oponente pensando...',
     errorMessage = null,
+    actionUx = null,
     onAction,
 }) {
     const minRaiseTo = Math.max(Number(minimumRaiseTo ?? 0), 0);
@@ -108,6 +114,10 @@ export default function PokerActionPanel({
     const panelLocked = disabled || Boolean(actingAction);
     const canSubmitRaise = !panelLocked && canRaise && !raiseIsInvalid;
     const primaryAction = canCheck ? 'check' : 'call';
+    const lockLabel = thinking
+        ? thinkingLabel
+        : (panelLocked ? (actingAction ? `Executando ${actingAction}...` : 'Aguarde sua vez.') : 'Sua vez: escolha uma ação.');
+    const actionUxChecklist = actionUx?.checklist ?? [];
 
     function handleRaiseChange(value) {
         const nextAmount = normalizeAmount(value, minRaiseTo);
@@ -130,11 +140,7 @@ export default function PokerActionPanel({
                         <p className="text-[0.56rem] font-black uppercase tracking-[0.14em] text-amber-200 sm:text-[0.65rem]">Ações</p>
                         <h2 className="hidden text-base font-black text-white sm:mt-0.5 sm:block sm:text-lg">Escolha sua jogada</h2>
                         <p className="truncate text-[0.6rem] font-semibold text-slate-400 sm:mt-0.5 sm:text-xs">
-                            {thinking
-                                ? thinkingLabel
-                                : (panelLocked
-                                    ? (actingAction ? `Executando ${actingAction}...` : 'Aguarde sua vez.')
-                                    : 'Sua vez: escolha uma ação.')}
+                            {lockLabel}
                         </p>
                     </div>
 
@@ -174,6 +180,7 @@ export default function PokerActionPanel({
                         disabled={panelLocked}
                         active={false}
                         tone="danger"
+                        helper={panelLocked ? 'bloqueado' : 'seguro'}
                         onClick={() => onAction('fold')}
                     />
                     <ActionButton
@@ -183,6 +190,7 @@ export default function PokerActionPanel({
                         disabled={panelLocked || !canCheck}
                         active={primaryAction === 'check'}
                         tone="neutral"
+                        helper={canCheck ? 'disponível' : 'indisponível'}
                         onClick={() => onAction('check')}
                     />
                     <ActionButton
@@ -192,6 +200,7 @@ export default function PokerActionPanel({
                         disabled={panelLocked || !canCall}
                         active={primaryAction === 'call'}
                         tone="call"
+                        helper={canCall ? 'ação principal' : 'sem aposta'}
                         onClick={() => onAction('call')}
                     />
                     <ActionButton
@@ -201,11 +210,12 @@ export default function PokerActionPanel({
                         disabled={!canSubmitRaise}
                         active={false}
                         tone="raise"
+                        helper={raiseIsInvalid ? 'ajuste valor' : 'pressão'}
                         onClick={() => onAction('raise', normalizedRaiseAmount)}
                     />
                 </div>
 
-                <div className="mt-1 rounded-xl border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/40 sm:mt-2 sm:p-2.5">
+                <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-1.5 shadow-inner shadow-black/40 sm:p-2.5">
                     <div className="flex items-center gap-1.5 sm:gap-2">
                         <label className="block flex-1 text-[0.56rem] font-semibold text-slate-300 sm:text-[0.7rem]">
                             Controle do raise
@@ -234,7 +244,7 @@ export default function PokerActionPanel({
                     </div>
 
                     {quickRaises.length > 0 && (
-                        <div className="mt-2 hidden flex-wrap gap-1.5 sm:flex">
+                        <div className="mt-2 flex flex-wrap gap-1.5">
                             {quickRaises.map((value, index) => (
                                 <button
                                     key={`${value}-${index}`}
@@ -249,6 +259,18 @@ export default function PokerActionPanel({
                         </div>
                     )}
                 </div>
+
+                {actionUxChecklist.length > 0 && (
+                    <div className="mt-2 rounded-xl border border-emerald-200/15 bg-emerald-300/10 px-3 py-2 text-[0.65rem] font-bold text-emerald-50 sm:text-xs">
+                        <div className="flex items-start gap-2">
+                            <span className="mt-0.5">✓</span>
+                            <p>
+                                <strong className="text-emerald-100">{actionUx?.title ?? 'UX das ações revisada'}:</strong>{' '}
+                                {actionUx?.summary ?? 'Botões mais claros sem alterar as regras da mão.'}
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
         </section>
     );

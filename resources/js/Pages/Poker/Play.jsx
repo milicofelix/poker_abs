@@ -339,8 +339,40 @@ function personalizeCanonicalStateForCurrentUser(nextState, players = [], curren
     return personalized;
 }
 
-function buildInitialState(hand) {
+function isTerminalPokerState(nextState = null) {
+    return Boolean(nextState?.isFinished)
+        || Boolean(nextState?.conclusion)
+        || String(nextState?.street ?? '').toLowerCase() === 'showdown';
+}
+
+function normalizePlayableState(nextState = null) {
+    if (!nextState) {
+        return nextState;
+    }
+
+    if (!isTerminalPokerState(nextState)) {
+        return nextState;
+    }
+
     return {
+        ...nextState,
+        isFinished: true,
+        canAct: false,
+        canCheck: false,
+        canCall: false,
+        canRaise: false,
+        amountToCall: 0,
+        turnTimer: null,
+        currentTurn: {
+            ...(nextState.currentTurn ?? {}),
+            actorLabel: 'Mão finalizada',
+            message: 'Showdown concluído. Inicie uma nova mão para liberar novas ações.',
+        },
+    };
+}
+
+function buildInitialState(hand) {
+    return normalizePlayableState({
         street: 'pre_flop',
         streetLabel: 'Pré-flop',
         pot: 30,
@@ -372,7 +404,7 @@ function buildInitialState(hand) {
         turnTimer: null,
         isFinished: false,
         ...hand,
-    };
+    });
 }
 
 export default function Play({ hand, table = null }) {
@@ -393,7 +425,7 @@ export default function Play({ hand, table = null }) {
     const soundEffects = usePokerSoundEffects(state);
 
     const handlePersonalizedState = useCallback((nextState, payload = null) => {
-        setState(nextState);
+        setState(normalizePlayableState(nextState));
 
         if (Array.isArray(payload?.players)) {
             setRealPlayers(payload.players);
@@ -431,6 +463,7 @@ export default function Play({ hand, table = null }) {
         },
     );
 
+    const actionPanelLocked = isTerminalPokerState(state) || loading || !state?.canAct;
     const botThinking = loading && Boolean(actionInFlight) && tableHasBot(realPlayers, state);
     const currentBotThinkingLabel = botThinkingLabel(realPlayers);
     const interfaceState = resolveInterfaceState({
@@ -490,7 +523,7 @@ export default function Play({ hand, table = null }) {
             setJoinMessage(response.data.message ?? 'Assento escolhido com sucesso.');
 
             if (response.data.state) {
-                setState(response.data.state);
+                setState(normalizePlayableState(response.data.state));
             }
 
             rehydrationStatus.rehydrate();
@@ -520,7 +553,7 @@ export default function Play({ hand, table = null }) {
             setJoinMessage(response.data.message ?? 'Você saiu da mesa.');
 
             if (response.data.state) {
-                setState(response.data.state);
+                setState(normalizePlayableState(response.data.state));
             }
 
             rehydrationStatus.rehydrate();
@@ -554,7 +587,7 @@ export default function Play({ hand, table = null }) {
             setJoinMessage(response.data.message ?? 'Bot adicionado à mesa.');
 
             if (response.data.state) {
-                setState(response.data.state);
+                setState(normalizePlayableState(response.data.state));
             }
 
             rehydrationStatus.rehydrate();
@@ -585,7 +618,7 @@ export default function Play({ hand, table = null }) {
             const response = await axios.post(table.newHandActionUrl);
 
             if (response.data.state) {
-                setState(response.data.state);
+                setState(normalizePlayableState(response.data.state));
             }
 
             setRealPlayers(response.data.players ?? []);
@@ -603,6 +636,12 @@ export default function Play({ hand, table = null }) {
     }
 
     async function handleAction(action, raiseAmount = 0) {
+        if (isTerminalPokerState(state) || !state?.canAct) {
+            setActionError(null);
+            setState(normalizePlayableState(state));
+            return;
+        }
+
         setLoading(true);
         setActionInFlight(action);
         setActionError(null);
@@ -614,7 +653,7 @@ export default function Play({ hand, table = null }) {
                 raiseAmount,
             });
 
-            setState(response.data.state);
+            setState(normalizePlayableState(response.data.state));
             rehydrationStatus.rehydrate();
         } catch (error) {
             setActionError(
@@ -736,7 +775,7 @@ export default function Play({ hand, table = null }) {
                         <div className="xl:hidden">
                             <div className="sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
                                 <PokerActionPanel
-                                    disabled={loading || state.isFinished || !state.canAct}
+                                    disabled={actionPanelLocked}
                                     currentBet={state.currentBet}
                                     amountToCall={state.amountToCall}
                                     minimumRaise={state.minimumRaise}
@@ -749,6 +788,7 @@ export default function Play({ hand, table = null }) {
                                     thinking={botThinking}
                                     thinkingLabel={currentBotThinkingLabel}
                                     errorMessage={actionError}
+                                    actionUx={table?.actionButtonUx}
                                     onAction={handleAction}
                                 />
                             </div>
@@ -836,7 +876,7 @@ export default function Play({ hand, table = null }) {
 
                         <div className="hidden xl:block">
                             <PokerActionPanel
-                                disabled={loading || state.isFinished || !state.canAct}
+                                disabled={actionPanelLocked}
                                 currentBet={state.currentBet}
                                 amountToCall={state.amountToCall}
                                 minimumRaise={state.minimumRaise}
@@ -849,6 +889,7 @@ export default function Play({ hand, table = null }) {
                                 thinking={botThinking}
                                 thinkingLabel={currentBotThinkingLabel}
                                 errorMessage={actionError}
+                                actionUx={table?.actionButtonUx}
                                 onAction={handleAction}
                             />
                         </div>

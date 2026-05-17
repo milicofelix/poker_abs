@@ -8,6 +8,8 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerPhaseEightClosureService;
+use App\Services\Poker\PokerPhaseNineActionButtonUxService;
+use App\Services\Poker\PokerPhaseNineStateFeedbackService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
@@ -31,6 +33,8 @@ final class PokerTablePlayController extends Controller
         PokerTableReadinessService $readiness,
         PokerPhaseEightClosureService $phaseEightClosure,
         PokerPhaseNineVisualAuditService $visualAudit,
+        PokerPhaseNineActionButtonUxService $actionButtonUx,
+        PokerPhaseNineStateFeedbackService $stateFeedback,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -71,6 +75,8 @@ final class PokerTablePlayController extends Controller
                 'reviewChecklist' => $phaseClosure['checklist'],
                 'phaseClosure' => $phaseClosure,
                 'visualAudit' => $visualAudit->forTable($table, false),
+                'actionButtonUx' => $actionButtonUx->forTable($table, false),
+                'stateFeedback' => $stateFeedback->forTable($table, false),
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,

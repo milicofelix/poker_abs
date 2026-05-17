@@ -8,6 +8,8 @@ use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\LocalPokerSessionService;
 use App\Services\Poker\PokerPhaseEightClosureService;
+use App\Services\Poker\PokerPhaseNineActionButtonUxService;
+use App\Services\Poker\PokerPhaseNineStateFeedbackService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,6 +24,8 @@ final class PokerPlayController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         PokerPhaseEightClosureService $phaseEightClosure,
         PokerPhaseNineVisualAuditService $visualAudit,
+        PokerPhaseNineActionButtonUxService $actionButtonUx,
+        PokerPhaseNineStateFeedbackService $stateFeedback,
     ): Response {
         if ($request->boolean('new')) {
             $pokerSession->forget();
@@ -34,7 +38,7 @@ final class PokerPlayController extends Controller
             $pokerSession->store($hand);
         }
 
-        $table = $this->localTablePayload($hand, $phaseEightClosure, $visualAudit);
+        $table = $this->localTablePayload($hand, $phaseEightClosure, $visualAudit, $actionButtonUx, $stateFeedback);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -46,7 +50,7 @@ final class PokerPlayController extends Controller
      * @param array<string, mixed> $hand
      * @return array<string, mixed>|null
      */
-    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure, PokerPhaseNineVisualAuditService $visualAudit): ?array
+    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure, PokerPhaseNineVisualAuditService $visualAudit, PokerPhaseNineActionButtonUxService $actionButtonUx, PokerPhaseNineStateFeedbackService $stateFeedback): ?array
     {
         $tableId = $hand['persistence']['tableId'] ?? null;
 
@@ -79,6 +83,8 @@ final class PokerPlayController extends Controller
             'reviewChecklist' => $phaseClosure['checklist'],
             'phaseClosure' => $phaseClosure,
             'visualAudit' => $visualAudit->forTable($table, true),
+            'actionButtonUx' => $actionButtonUx->forTable($table, true),
+            'stateFeedback' => $stateFeedback->forTable($table, true),
         ];
     }
 }
