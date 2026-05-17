@@ -113,4 +113,17 @@ final class PokerMesaPrivadaTest extends TestCase
             ->assertRedirect('/poker/lobby')
             ->assertSessionHas('error', 'Código de mesa privada inválido ou expirado.');
     }
+
+    public function test_lobby_exibe_mensagem_de_erro_flash_ao_informar_codigo_privado_invalido(): void
+    {
+        $this
+            ->withSession(['error' => 'Código de mesa privada inválido ou expirado.'])
+            ->get('/poker/lobby')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Poker/Lobby')
+                ->where('flash.error', 'Código de mesa privada inválido ou expirado.')
+            );
+    }
+
 }
