@@ -4,6 +4,8 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\Poker\PokerTablePlayer;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -31,19 +33,38 @@ final class PokerLobbyMesasTest extends TestCase
                 ->where('tables.0.name', 'Mesa teste'));
     }
 
-    public function test_pode_criar_mesa_pelo_lobby_e_redirecionar_para_a_mesa(): void
+    public function test_usuario_logado_pode_criar_mesa_pelo_lobby_e_ja_entrar_como_jogador(): void
     {
-        $response = $this->post('/poker/tables');
+        $user = User::factory()->create(['name' => 'Adriano']);
+
+        $response = $this
+            ->actingAs($user)
+            ->post('/poker/tables', ['name' => 'Mesa do Adriano']);
 
         $table = PokerTable::query()->firstOrFail();
 
         $response->assertRedirect(route('poker.tables.show', $table));
 
+        $this->assertSame('Mesa do Adriano', $table->name);
         $this->assertSame('waiting', $table->status);
+        $this->assertDatabaseHas('poker_table_players', [
+            'poker_table_id' => $table->id,
+            'user_id' => $user->id,
+            'nickname' => 'Adriano',
+            'status' => 'online',
+        ]);
         $this->assertDatabaseMissing('poker_hands', [
             'poker_table_id' => $table->id,
             'status' => 'running',
         ]);
+    }
+
+    public function test_visitante_nao_pode_criar_mesa_real(): void
+    {
+        $this->post('/poker/tables')
+            ->assertUnauthorized();
+
+        $this->assertSame(0, PokerTable::query()->count());
     }
 
     public function test_duas_abas_da_mesma_url_carregam_o_mesmo_estado_da_mao(): void

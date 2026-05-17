@@ -21,6 +21,8 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Poker\PokerTableLeaveController;
 use App\Http\Controllers\Poker\PokerTableNewHandController;
 use App\Http\Controllers\Poker\PokerTableBotController;
+use App\Http\Controllers\Poker\PokerPrivateTableJoinController;
+use App\Http\Controllers\Poker\PokerPrivateTableInviteController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -55,3 +57,5 @@ Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name
 Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
 Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
 Route::post('/poker/tables/{table}/bots', PokerTableBotController::class)->name('poker.tables.bots');
+Route::post('/poker/private-tables/join', PokerPrivateTableJoinController::class)->name('poker.private-tables.join');
+Route::get('/poker/invite/{inviteCode}', PokerPrivateTableInviteController::class)->name('poker.private-tables.invite');

@@ -151,6 +151,32 @@ final class LocalPokerPersistenceService
     }
 
     /**
+     * Retorna o estado mais recente da mesa, mesmo que a mão já tenha sido
+     * finalizada. Isso evita que consultas de reidratação criem uma nova mão
+     * automaticamente logo após o showdown/fold.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestStateForTable(PokerTable $table): ?array
+    {
+        /** @var PokerHand|null $hand */
+        $hand = $table->hands()
+            ->latest('id')
+            ->first();
+
+        if (! $hand || ! is_array($hand->state_payload)) {
+            return null;
+        }
+
+        return $this->turnTimer->refresh($hand->state_payload);
+    }
+
+    public function hasAnyHand(PokerTable $table): bool
+    {
+        return $table->hands()->exists();
+    }
+
+    /**
      * @param array<string, mixed> $state
      * @return array<string, mixed>
      */

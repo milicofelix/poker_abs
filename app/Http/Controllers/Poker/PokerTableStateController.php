@@ -28,8 +28,15 @@ final class PokerTableStateController extends Controller
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 
-        $state = $pokerPersistence->currentStateForTable($table)
-            ?? $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
+        $state = $pokerPersistence->currentStateForTable($table);
+
+        if (! $state) {
+            $latestState = $pokerPersistence->latestStateForTable($table);
+
+            $state = $latestState && (bool) ($latestState['isFinished'] ?? false)
+                ? $latestState
+                : $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
+        }
 
         return response()->json([
             'state' => $privateState->forUser($table, $state, $request->user()),

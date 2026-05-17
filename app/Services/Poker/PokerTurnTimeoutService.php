@@ -26,6 +26,10 @@ final readonly class PokerTurnTimeoutService
 
         $state = $this->turnTimer->refresh($state, $now);
 
+        if ($this->botTurnProcessor->isBotVsBotTable($table)) {
+            $state['botVsBotSimulation'] = true;
+        }
+
         if (! (bool) data_get($state, 'turnTimer.isExpired', false)) {
             return [
                 'state' => $state,

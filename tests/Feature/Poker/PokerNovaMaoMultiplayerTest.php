@@ -105,6 +105,87 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
             ->assertJsonPath('state.canAct', true);
     }
 
+
+    public function test_nova_mao_bot_vs_bot_nao_processa_a_mao_inteira_no_request_inicial(): void
+    {
+        $spectator = User::factory()->create(['name' => 'Espectador']);
+        $botOne = User::factory()->create(['name' => 'Bot 1']);
+        $botTwo = User::factory()->create(['name' => 'Bot 2']);
+        $table = $this->createTable();
+
+        $this->seatPlayer($table, $botOne, 1, true);
+        $this->seatPlayer($table, $botTwo, 2, true);
+
+        $this->actingAs($spectator)->get(route('poker.tables.show', $table))->assertOk();
+
+        PokerHand::query()->latest('id')->firstOrFail()->forceFill([
+            'status' => 'finished',
+            'state_payload' => [
+                ...PokerHand::query()->latest('id')->firstOrFail()->state_payload,
+                'isFinished' => true,
+                'conclusion' => ['isFinished' => true],
+            ],
+            'finished_at' => now(),
+        ])->save();
+
+        $this->actingAs($spectator)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.botVsBotSimulation', true)
+            ->assertJsonPath('state.street', 'pre_flop')
+            ->assertJsonPath('state.isFinished', false)
+            ->assertJsonPath('state.actionHistory', [])
+            ->assertJsonPath('state.currentTurn.canonicalActor', 'player')
+            ->assertJsonPath('state.turnTimer.secondsTotal', 10);
+
+        $this->assertSame(1, PokerHand::query()->where('status', 'running')->count());
+    }
+
+    public function test_reidratacao_nao_cria_nova_mao_automaticamente_apos_mao_finalizada(): void
+    {
+        $userOne = User::factory()->create(['name' => 'Jogador 1']);
+        $userTwo = User::factory()->create(['name' => 'Jogador 2']);
+        $table = $this->createTable();
+
+        $this->seatPlayer($table, $userOne, 1);
+        $this->seatPlayer($table, $userTwo, 2);
+
+        $this->actingAs($userOne)->get(route('poker.tables.show', $table))->assertOk();
+
+        $hand = PokerHand::query()->latest('id')->firstOrFail();
+        $state = $hand->state_payload;
+        $state['isFinished'] = true;
+        $state['street'] = 'showdown';
+        $state['streetLabel'] = 'Showdown';
+        $state['conclusion'] = [
+            'isFinished' => true,
+            'winner' => [
+                'player' => 'player',
+                'label' => 'Você',
+                'handName' => 'Par',
+            ],
+            'message' => 'Mão finalizada para teste.',
+        ];
+        unset($state['turnTimer']);
+
+        $hand->forceFill([
+            'status' => 'finished',
+            'street' => 'showdown',
+            'state_payload' => $state,
+            'finished_at' => now(),
+        ])->save();
+
+        $this->actingAs($userOne)
+            ->getJson(route('poker.tables.state', $table))
+            ->assertOk()
+            ->assertJsonPath('state.isFinished', true)
+            ->assertJsonPath('state.street', 'showdown')
+            ->assertJsonPath('state.conclusion.message', 'Mão finalizada para teste.');
+
+        $this->assertSame(1, PokerHand::query()->where('poker_table_id', $table->id)->count());
+        $this->assertSame(0, PokerHand::query()->where('poker_table_id', $table->id)->where('status', 'running')->count());
+    }
+
     public function test_nova_mao_nao_retorna_erro_quando_ja_existe_mao_em_andamento(): void
     {
         $userOne = User::factory()->create(['name' => 'Jogador 1']);

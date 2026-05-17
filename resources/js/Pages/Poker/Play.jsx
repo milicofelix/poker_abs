@@ -658,6 +658,27 @@ export default function Play({ hand, table = null }) {
                     onClose={() => setHandRankHelpOpen(false)}
                 />
 
+                {table?.isPrivate && table?.inviteCode && (
+                    <div className="rounded-2xl border border-violet-200/25 bg-violet-300/10 px-4 py-3 text-sm text-violet-50 shadow-xl shadow-black/35">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">Mesa privada</p>
+                                <p className="mt-1 font-bold">Código: <span className="rounded-lg bg-slate-950/60 px-2 py-1 font-black tracking-[0.18em] text-white">{table.inviteCode}</span></p>
+                                {table.inviteUrl && <p className="mt-1 text-xs text-violet-100/80">Compartilhe o link do convite pelo botão abaixo.</p>}
+                            </div>
+                            {table.inviteUrl && (
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard?.writeText(window.location.origin + table.inviteUrl)}
+                                    className="rounded-2xl bg-violet-200 px-4 py-2 font-black text-violet-950 transition hover:bg-violet-100"
+                                >
+                                    Copiar convite
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {joinMessage && (
                     <div className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-50 shadow-xl shadow-black/35">
                         {joinMessage}

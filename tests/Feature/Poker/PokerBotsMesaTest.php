@@ -472,6 +472,79 @@ final class PokerBotsMesaTest extends TestCase
             ->assertJsonPath('message', 'Só é possível trocar o adversário após a mão finalizar.');
     }
 
+
+    public function test_nova_mao_bot_vs_bot_nao_processa_a_mao_inteira_no_request_inicial(): void
+    {
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'aggressive',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'tag',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $table->hands()->update([
+            'status' => 'finished',
+            'finished_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.botVsBotSimulation', true)
+            ->assertJsonPath('state.isFinished', false)
+            ->assertJsonPath('state.street', 'pre_flop')
+            ->assertJsonPath('state.turnTimer.secondsTotal', 10);
+    }
+
+    public function test_timeout_em_bot_vs_bot_processa_bot_e_nao_aplica_fold_automatico_do_jogador(): void
+    {
+        Carbon::setTestNow('2026-05-16 10:00:00');
+
+        $user = User::factory()->create();
+        $table = $this->createTable();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'aggressive',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $this->actingAs($user)->postJson(route('poker.tables.bots', $table), [
+            'profile' => 'tag',
+            'difficulty' => 'normal',
+        ])->assertOk();
+
+        $hand = $table->hands()->where('status', 'running')->firstOrFail();
+        $state = $hand->state_payload;
+        $state['botVsBotSimulation'] = true;
+        $state['turnTimer'] = [
+            'secondsTotal' => 10,
+            'startedAt' => '2026-05-16T10:00:00-03:00',
+            'expiresAt' => '2026-05-16T10:00:10-03:00',
+            'serverNow' => '2026-05-16T10:00:00-03:00',
+            'isExpired' => false,
+            'label' => 'Tempo da jogada',
+        ];
+        $hand->forceFill(['state_payload' => $state])->save();
+
+        Carbon::setTestNow('2026-05-16 10:00:11');
+
+        $this->actingAs($user)
+            ->postJson(route('poker.tables.timeout', $table))
+            ->assertOk()
+            ->assertJsonPath('processed', true)
+            ->assertJsonPath('action', 'bot')
+            ->assertJsonPath('state.botVsBotSimulation', true)
+            ->assertJsonMissingPath('state.conclusion.winner.handName');
+
+        Carbon::setTestNow();
+    }
+
     private function createTable(): PokerTable
     {
         return PokerTable::query()->create([

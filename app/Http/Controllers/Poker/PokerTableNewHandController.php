@@ -56,8 +56,18 @@ final class PokerTableNewHandController extends Controller
             ]);
         }
 
-        $nextState = $pokerPersistence->startOnTable($table, $startPokerHand->execute());
-        $nextState = $botTurnProcessor->process($table, $nextState);
+        $isBotVsBotSimulation = $botTurnProcessor->isBotVsBotTable($table);
+        $initialState = [
+            ...$startPokerHand->execute(),
+            'botVsBotSimulation' => $isBotVsBotSimulation,
+        ];
+
+        $nextState = $pokerPersistence->startOnTable($table, $initialState);
+
+        if (! $isBotVsBotSimulation) {
+            $nextState = $botTurnProcessor->process($table, $nextState);
+        }
+
         $nextState = $pokerPersistence->persist($nextState);
 
         $broadcaster->broadcast($nextState);

@@ -16,12 +16,15 @@ final class PokerTable extends Model
         'small_blind',
         'big_blind',
         'max_players',
+        'is_private',
+        'invite_code',
     ];
 
     protected $casts = [
         'small_blind' => 'integer',
         'big_blind' => 'integer',
         'max_players' => 'integer',
+        'is_private' => 'boolean',
     ];
 
     /**

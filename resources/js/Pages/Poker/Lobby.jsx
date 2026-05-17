@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 
 function statusLabel(status) {
@@ -24,11 +24,50 @@ function streetLabel(street) {
 }
 
 export default function Lobby({ tables = [] }) {
-    const { auth } = usePage().props;
+    const { auth, flash = {} } = usePage().props;
     const user = auth?.user;
+    const [tableName, setTableName] = useState('');
+    const [privateTable, setPrivateTable] = useState(false);
+    const [inviteCode, setInviteCode] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
 
-    function createTable() {
-        router.post('/poker/tables');
+    const visibleTables = useMemo(() => {
+        if (statusFilter === 'all') {
+            return tables;
+        }
+
+        return tables.filter((table) => table.status === statusFilter);
+    }, [statusFilter, tables]);
+
+    function createTable(event) {
+        event.preventDefault();
+
+        router.post('/poker/tables', {
+            name: tableName,
+            is_private: privateTable,
+        });
+    }
+
+    function joinPrivateTable(event) {
+        event.preventDefault();
+
+        if (! user) {
+            router.visit('/login');
+            return;
+        }
+
+        router.post('/poker/private-tables/join', {
+            invite_code: inviteCode,
+        });
+    }
+
+    function joinTable(table) {
+        if (! user) {
+            router.visit('/login');
+            return;
+        }
+
+        router.post(`/poker/tables/${table.id}/join`);
     }
 
     return (
@@ -39,7 +78,7 @@ export default function Lobby({ tables = [] }) {
                         <p className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-300">Poker ABS</p>
                         <h1 className="mt-2 text-3xl font-black">Lobby de mesas</h1>
                         <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                            Entre em uma mesa existente ou crie uma nova mesa para validar o fluxo multiplayer com estado compartilhado.
+                            Crie uma mesa pública ou privada, entre em uma sala aberta e use código/convite quando a mesa não deve aparecer no lobby público.
                         </p>
                     </div>
 
@@ -64,80 +103,160 @@ export default function Lobby({ tables = [] }) {
                                 </a>
                             </div>
                         )}
-
-                        <div className="flex flex-wrap gap-3 md:justify-end">
-                            <a
-                                href="/poker/hands"
-                                className="inline-flex rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20"
-                            >
-                                Histórico de mãos
-                            </a>
-
-                            <a
-                                href="/poker/ranking"
-                                className="inline-flex rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/20"
-                            >
-                                Ranking
-                            </a>
-
-                            <button
-                                type="button"
-                                onClick={createTable}
-                                className="rounded-2xl bg-emerald-400 px-5 py-3 font-black text-emerald-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
-                            >
-                                Criar nova mesa
-                            </button>
-                        </div>
                     </div>
                 </header>
 
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {tables.map((table) => (
-                        <article key={table.id} className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-xl">
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-xl font-black">{table.name}</h2>
-                                    <p className="mt-1 text-sm text-slate-400">
-                                        Blinds {table.smallBlind}/{table.bigBlind} • {table.playersCount}/{table.maxPlayers} jogadores
-                                    </p>
-                                </div>
+                {(flash.success || flash.error) && (
+                    <div className={`rounded-2xl border px-5 py-4 text-sm font-bold ${flash.error ? 'border-red-300/30 bg-red-500/10 text-red-100' : 'border-emerald-300/30 bg-emerald-500/10 text-emerald-100'}`}>
+                        {flash.error || flash.success}
+                    </div>
+                )}
 
-                                <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">
-                                    {statusLabel(table.status)}
-                                </span>
-                            </div>
+                <section className="grid gap-4 xl:grid-cols-[1fr_340px_340px]">
+                    <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-xl">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-300">Filtros</p>
+                        <div className="mt-4 flex flex-wrap gap-3">
+                            {[
+                                ['all', 'Todas'],
+                                ['waiting', 'Aguardando'],
+                                ['playing', 'Em andamento'],
+                                ['finished', 'Finalizadas'],
+                            ].map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setStatusFilter(value)}
+                                    className={`rounded-full px-4 py-2 text-sm font-black transition ${statusFilter === value ? 'bg-emerald-300 text-emerald-950' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-                            <div className="mt-5 rounded-2xl bg-white/5 p-4 text-sm text-slate-300">
-                                {table.latestHand ? (
-                                    <div className="space-y-1">
-                                        <p>
-                                            Mão: <strong className="text-white">{statusLabel(table.latestHand.status)}</strong>
-                                        </p>
-                                        <p>
-                                            Rodada: <strong className="text-white">{streetLabel(table.latestHand.street)}</strong>
-                                        </p>
-                                        <p>
-                                            Pote: <strong className="text-white">{table.latestHand.pot}</strong>
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <p>Nenhuma mão criada nesta mesa ainda.</p>
-                                )}
-                            </div>
+                    <form onSubmit={createTable} className="rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-5 shadow-xl">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">Criar mesa</p>
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="table-name">
+                            Nome da mesa
+                        </label>
+                        <input
+                            id="table-name"
+                            value={tableName}
+                            onChange={(event) => setTableName(event.target.value)}
+                            placeholder="Ex: Mesa do Adriano"
+                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-300"
+                        />
+                        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-sm text-slate-200">
+                            <input
+                                type="checkbox"
+                                checked={privateTable}
+                                onChange={(event) => setPrivateTable(event.target.checked)}
+                                className="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950"
+                            />
+                            <span>
+                                <strong className="block text-white">Mesa privada</strong>
+                                <span className="text-xs text-slate-400">Não aparece no lobby público e gera código/link de convite.</span>
+                            </span>
+                        </label>
 
-                            <a
-                                href={table.url}
-                                className="mt-5 inline-flex w-full justify-center rounded-2xl bg-white px-5 py-3 font-black text-slate-950 transition hover:bg-emerald-100"
-                            >
-                                Entrar na mesa
-                            </a>
-                        </article>
-                    ))}
+                        <button
+                            type="submit"
+                            className="mt-4 w-full rounded-2xl bg-emerald-400 px-5 py-3 font-black text-emerald-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!user}
+                        >
+                            {privateTable ? 'Criar privada e entrar' : 'Criar e entrar'}
+                        </button>
+                        {!user && (
+                            <p className="mt-3 text-xs text-slate-300">Faça login para criar ou entrar em uma mesa real.</p>
+                        )}
+                    </form>
+
+                    <form onSubmit={joinPrivateTable} className="rounded-3xl border border-violet-300/20 bg-violet-300/10 p-5 shadow-xl">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">Mesa privada</p>
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="invite-code">
+                            Código de convite
+                        </label>
+                        <input
+                            id="invite-code"
+                            value={inviteCode}
+                            onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                            placeholder="Ex: A1B2C3D4"
+                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm uppercase tracking-[0.18em] text-white outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-500 focus:border-violet-300"
+                        />
+                        <button
+                            type="submit"
+                            className="mt-4 w-full rounded-2xl bg-violet-300 px-5 py-3 font-black text-violet-950 shadow-lg shadow-violet-950/30 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!user || !inviteCode.trim()}
+                        >
+                            Entrar por código
+                        </button>
+                        <p className="mt-3 text-xs text-slate-300">Mesas privadas ficam fora da lista pública, mas continuam usando a mesma mesa estabilizada.</p>
+                    </form>
                 </section>
 
-                {tables.length === 0 && (
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {visibleTables.map((table) => {
+                        const isFull = table.playersCount >= table.maxPlayers;
+                        const canJoin = user && !isFull;
+
+                        return (
+                            <article key={table.id} className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-xl">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-xl font-black">{table.name}</h2>
+                                        <p className="mt-1 text-sm text-slate-400">
+                                            Blinds {table.smallBlind}/{table.bigBlind} • {table.playersCount}/{table.maxPlayers} jogadores
+                                        </p>
+                                    </div>
+
+                                    <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">
+                                        {statusLabel(table.status)}
+                                    </span>
+                                </div>
+
+                                <div className="mt-5 rounded-2xl bg-white/5 p-4 text-sm text-slate-300">
+                                    {table.latestHand ? (
+                                        <div className="space-y-1">
+                                            <p>
+                                                Mão: <strong className="text-white">{statusLabel(table.latestHand.status)}</strong>
+                                            </p>
+                                            <p>
+                                                Rodada: <strong className="text-white">{streetLabel(table.latestHand.street)}</strong>
+                                            </p>
+                                            <p>
+                                                Pote: <strong className="text-white">{table.latestHand.pot}</strong>
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p>Nenhuma mão criada nesta mesa ainda.</p>
+                                    )}
+                                </div>
+
+                                <div className="mt-5 grid gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => joinTable(table)}
+                                        disabled={!canJoin}
+                                        className="inline-flex w-full justify-center rounded-2xl bg-white px-5 py-3 font-black text-slate-950 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-slate-400"
+                                    >
+                                        {isFull ? 'Mesa cheia' : 'Entrar como jogador'}
+                                    </button>
+
+                                    <a
+                                        href={table.url}
+                                        className="inline-flex w-full justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-black text-white transition hover:bg-white/10"
+                                    >
+                                        Assistir / abrir mesa
+                                    </a>
+                                </div>
+                            </article>
+                        );
+                    })}
+                </section>
+
+                {visibleTables.length === 0 && (
                     <div className="rounded-3xl border border-dashed border-white/20 bg-white/5 p-8 text-center text-slate-300">
-                        Ainda não existe nenhuma mesa. Crie a primeira para iniciar o teste da FASE 3.2.
+                        Nenhuma mesa pública encontrada para este filtro. Mesas privadas entram apenas por código ou link de convite.
                     </div>
                 )}
             </div>

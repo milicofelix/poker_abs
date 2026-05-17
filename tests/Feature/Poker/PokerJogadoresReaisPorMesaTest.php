@@ -61,6 +61,43 @@ final class PokerJogadoresReaisPorMesaTest extends TestCase
         ]);
     }
 
+
+    public function test_nao_permite_entrar_em_mesa_cheia_pelo_lobby(): void
+    {
+        $userA = User::factory()->create();
+        $userB = User::factory()->create();
+        $userC = User::factory()->create();
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa cheia',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 2,
+        ]);
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $userA->id,
+            'nickname' => $userA->name,
+            'status' => 'online',
+            'joined_at' => now(),
+        ]);
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $userB->id,
+            'nickname' => $userB->name,
+            'status' => 'online',
+            'joined_at' => now(),
+        ]);
+
+        $this->actingAs($userC)
+            ->postJson(route('poker.tables.join', $table))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Mesa cheia. Escolha outra mesa no lobby.');
+
+        $this->assertSame(2, PokerTablePlayer::query()->where('poker_table_id', $table->id)->count());
+    }
+
     public function test_visitante_nao_consegue_entrar_como_jogador_real(): void
     {
         $table = PokerTable::query()->create([
