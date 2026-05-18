@@ -13,7 +13,9 @@ export default function CardRow({
     dealFrom = 'dealer',
 }) {
     const alignment = align === 'left' ? 'justify-start text-left' : 'justify-center text-center';
-    const rowFlow = tone === 'hero' ? 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0' : 'flex-wrap';
+    const rowFlow = tone === 'hero'
+        ? 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0'
+        : 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0';
     const toneClass = tone === 'hero'
         ? 'border-amber-300/20 bg-black/20 p-1.5 shadow-inner shadow-black/40 sm:p-3'
         : 'border-white/10 bg-white/[0.04] p-1.5 sm:p-3';

@@ -100,4 +100,56 @@ final class PokerPlayTest extends TestCase
         $this->assertSame('winner-feedback', $page['props']['table']['stateFeedback']['checklist'][3]['area']);
     }
 
+
+    public function test_mesa_local_recebe_metadados_das_animacoes_leves(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.4', $page['props']['table']['motionUx']['phase']);
+        $this->assertSame('local', $page['props']['table']['motionUx']['mode']);
+        $this->assertFalse($page['props']['table']['motionUx']['safeToChangeGameplay']);
+        $this->assertCount(5, $page['props']['table']['motionUx']['checklist']);
+        $this->assertSame('card-motion', $page['props']['table']['motionUx']['checklist'][0]['area']);
+        $this->assertSame('accessibility', $page['props']['table']['motionUx']['checklist'][4]['area']);
+    }
+
+
+    public function test_mesa_local_recebe_metadados_de_responsividade_mobile(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.5', $page['props']['table']['responsiveUx']['phase']);
+        $this->assertSame('local', $page['props']['table']['responsiveUx']['mode']);
+        $this->assertFalse($page['props']['table']['responsiveUx']['safeToChangeGameplay']);
+        $this->assertCount(5, $page['props']['table']['responsiveUx']['checklist']);
+        $this->assertSame('safe-area', $page['props']['table']['responsiveUx']['checklist'][0]['area']);
+        $this->assertSame('mobile-actions', $page['props']['table']['responsiveUx']['checklist'][3]['area']);
+    }
+
+
+    public function test_mesa_local_recebe_metadados_do_polimento_final_da_fase_nove(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $page = $response->viewData('page');
+
+        $this->assertSame('9.6', $page['props']['table']['finalPolish']['phase']);
+        $this->assertSame('local', $page['props']['table']['finalPolish']['mode']);
+        $this->assertFalse($page['props']['table']['finalPolish']['safeToChangeGameplay']);
+        $this->assertSame('10', $page['props']['table']['finalPolish']['nextPhase']['phase']);
+        $this->assertCount(5, $page['props']['table']['finalPolish']['checklist']);
+        $this->assertSame('terminal-state-guard', $page['props']['table']['finalPolish']['checklist'][2]['area']);
+        $this->assertSame('phase-nine-closure', $page['props']['table']['finalPolish']['checklist'][4]['area']);
+    }
+
 }

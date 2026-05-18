@@ -10,6 +10,10 @@ import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSh
 import PokerInterfaceStateBanner from '../../Components/Poker/PokerInterfaceStateBanner';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
+import PokerStateFeedbackPanel from '../../Components/Poker/PokerStateFeedbackPanel';
+import PokerMotionUxPanel from '../../Components/Poker/PokerMotionUxPanel';
+import PokerResponsiveUxPanel from '../../Components/Poker/PokerResponsiveUxPanel';
+import PokerFinalPolishPanel from '../../Components/Poker/PokerFinalPolishPanel';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
@@ -670,7 +674,7 @@ export default function Play({ hand, table = null }) {
         <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#020617,#031b16_45%,#020617)] px-2 py-2 text-white sm:px-4 sm:py-3">
             <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.08),transparent_26%),radial-gradient(circle_at_80%_5%,rgba(16,185,129,0.12),transparent_28%)]" />
 
-            <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-3 pb-28 lg:pb-6">
+            <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-3 pb-36 sm:pb-32 lg:pb-6">
                 <PokerHeader
                     compact
                     table={table}
@@ -733,6 +737,7 @@ export default function Play({ hand, table = null }) {
                 )}
 
                 <PokerInterfaceStateBanner state={interfaceState} />
+                <PokerStateFeedbackPanel state={state} feedback={table?.stateFeedback} />
                 <HandConclusionBanner conclusion={state.conclusion} />
                 <LastActionAlert action={state.lastAction} />
                 <PokerBotThinkingIndicator active={botThinking} label={currentBotThinkingLabel} />
@@ -773,7 +778,7 @@ export default function Play({ hand, table = null }) {
                         )}
 
                         <div className="xl:hidden">
-                            <div className="sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                            <div className="poker-safe-sticky-actions sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
                                 <PokerActionPanel
                                     disabled={actionPanelLocked}
                                     currentBet={state.currentBet}
@@ -798,6 +803,9 @@ export default function Play({ hand, table = null }) {
 
                         <PokerFinalReviewChecklist table={table} />
                         <PokerVisualAuditPanel audit={table?.visualAudit} />
+                        <PokerMotionUxPanel motion={table?.motionUx} />
+                        <PokerResponsiveUxPanel responsive={table?.responsiveUx} />
+                        <PokerFinalPolishPanel polish={table?.finalPolish} />
 
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">

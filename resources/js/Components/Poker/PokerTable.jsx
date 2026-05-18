@@ -162,7 +162,7 @@ export default function PokerTable({ state }) {
     const playerBestHandVisible = shouldRevealPlayerCards && state.bestHand?.name;
 
     return (
-        <section className="relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
+        <section className="poker-table-breath relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
             <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
             <div className="pointer-events-none absolute inset-3 rounded-[0.9rem] border border-amber-200/20 sm:inset-6 sm:rounded-[1.35rem]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
@@ -171,8 +171,8 @@ export default function PokerTable({ state }) {
                 {dealerAnimationLabel(state)}
             </div>
 
-            <div className="relative z-10 grid min-h-[360px] gap-1 sm:gap-3 lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
-                <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-start">
+            <div className="relative z-10 grid min-h-[340px] gap-1 sm:gap-3 md:min-h-[410px] lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
+                <div className="grid min-w-0 gap-1.5 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
                     <div className={[
                         'relative overflow-hidden rounded-lg border p-1.5 transition duration-300 sm:rounded-2xl sm:p-3',
                         seatFrameClasses(state, 'opponent'),
@@ -211,16 +211,16 @@ export default function PokerTable({ state }) {
                         )}
                     </div>
 
-                    <div className="poker-turn-glow rounded-lg border border-amber-200/30 bg-black/35 p-1.5 text-center shadow-2xl shadow-black/40 sm:rounded-2xl sm:p-3">
+                    <div className="poker-status-slide poker-turn-glow rounded-lg border border-amber-200/30 bg-black/35 p-1.5 text-center shadow-2xl shadow-black/40 sm:rounded-2xl sm:p-3">
                         <p className="text-[0.58rem] font-black uppercase tracking-[0.18em] text-amber-200 sm:text-xs sm:tracking-[0.28em]">Turno atual</p>
                         <strong className="mt-0.5 block text-sm font-black text-white sm:mt-1 sm:text-base">{currentTurnLabel(state)}</strong>
                         <span className="mt-0.5 block truncate text-[0.62rem] font-semibold text-emerald-100/80 sm:text-[0.68rem]">{currentTurnMessage(state)}</span>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-center">
+                <div className="flex min-w-0 items-center justify-center">
                     <div className="w-full min-w-0 max-w-2xl rounded-xl border border-amber-200/25 bg-black/25 p-1.5 shadow-2xl shadow-black/50 backdrop-blur sm:rounded-2xl sm:p-3">
-                        <div className="poker-pot-pulse relative mx-auto mb-1.5 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-3 py-1 text-center shadow-xl shadow-amber-950/20 sm:mb-3 sm:px-5 sm:py-2">
+                        <div className="poker-soft-enter poker-pot-pulse relative mx-auto mb-1.5 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-3 py-1 text-center shadow-xl shadow-amber-950/20 sm:mb-3 sm:px-5 sm:py-2">
                             <div className="pointer-events-none absolute -top-4 left-1/2 flex -translate-x-1/2 items-end gap-1">
                                 {chipAmountParts(state.pot).map((height, index) => (
                                     <span
@@ -247,7 +247,7 @@ export default function PokerTable({ state }) {
                     </div>
                 </div>
 
-                <div className="grid gap-1.5 sm:gap-3 lg:grid-cols-[1fr_220px] lg:items-end">
+                <div className="grid min-w-0 gap-1.5 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
                     <button
                         type="button"
                         disabled={!hasPlayerCards || state.isFinished || isBotVsBotSimulation}

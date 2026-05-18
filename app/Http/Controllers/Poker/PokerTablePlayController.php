@@ -10,6 +10,9 @@ use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerPhaseEightClosureService;
 use App\Services\Poker\PokerPhaseNineActionButtonUxService;
 use App\Services\Poker\PokerPhaseNineStateFeedbackService;
+use App\Services\Poker\PokerPhaseNineMotionUxService;
+use App\Services\Poker\PokerPhaseNineResponsiveUxService;
+use App\Services\Poker\PokerPhaseNineFinalPolishService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
@@ -35,6 +38,9 @@ final class PokerTablePlayController extends Controller
         PokerPhaseNineVisualAuditService $visualAudit,
         PokerPhaseNineActionButtonUxService $actionButtonUx,
         PokerPhaseNineStateFeedbackService $stateFeedback,
+        PokerPhaseNineMotionUxService $motionUx,
+        PokerPhaseNineResponsiveUxService $responsiveUx,
+        PokerPhaseNineFinalPolishService $finalPolish,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -77,6 +83,9 @@ final class PokerTablePlayController extends Controller
                 'visualAudit' => $visualAudit->forTable($table, false),
                 'actionButtonUx' => $actionButtonUx->forTable($table, false),
                 'stateFeedback' => $stateFeedback->forTable($table, false),
+                'motionUx' => $motionUx->forTable($table, false),
+                'responsiveUx' => $responsiveUx->forTable($table, false),
+                'finalPolish' => $finalPolish->forTable($table, false),
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,

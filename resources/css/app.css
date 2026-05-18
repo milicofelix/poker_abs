@@ -153,6 +153,50 @@ body {
     }
 }
 
+
+@keyframes poker-soft-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes poker-table-breath {
+    0%, 100% {
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), inset 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+        box-shadow: 0 34px 105px rgba(0, 0, 0, 0.62), inset 0 0 46px rgba(251, 191, 36, 0.055);
+    }
+}
+
+@keyframes poker-status-slide {
+    0% {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.poker-soft-enter {
+    animation: poker-soft-enter 420ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.poker-table-breath {
+    animation: poker-table-breath 4.8s ease-in-out infinite;
+}
+
+.poker-status-slide {
+    animation: poker-status-slide 360ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .poker-card-deal,
     .poker-hidden-card-pulse,
@@ -160,7 +204,10 @@ body {
     .poker-chip-float,
     .poker-turn-glow,
     .poker-winner-pop,
-    .poker-action-shine {
+    .poker-action-shine,
+    .poker-soft-enter,
+    .poker-table-breath,
+    .poker-status-slide {
         animation: none !important;
     }
 }
@@ -284,5 +331,36 @@ body {
     .poker-bot-thinking-dot,
     .poker-bot-thinking-bubble {
         animation: none !important;
+    }
+}
+
+/* FASE 9.5 — responsividade/mobile da mesa de poker */
+.poker-safe-sticky-actions {
+    margin-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+    .poker-card-scroll {
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .poker-card-scroll > * {
+        scroll-snap-align: center;
+        flex: 0 0 auto;
+    }
+
+    .poker-mobile-action-panel button {
+        touch-action: manipulation;
+    }
+}
+
+@media (max-width: 380px) {
+    .poker-mobile-action-panel {
+        border-radius: 1rem 1rem 0 0;
+    }
+
+    .poker-mobile-action-panel input[type='number'] {
+        max-width: 3.75rem;
     }
 }
