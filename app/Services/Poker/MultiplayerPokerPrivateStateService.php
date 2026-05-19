@@ -447,10 +447,24 @@ final class MultiplayerPokerPrivateStateService
         }
 
         $secondsTotal = $currentSeatIsBot ? 10 : 30;
+        $currentSecondsTotal = (int) ($state['turnTimer']['secondsTotal'] ?? $secondsTotal);
         $state['turnTimer']['secondsTotal'] = $secondsTotal;
         $state['turnTimer']['label'] = $currentSeatIsBot
             ? 'Tempo da jogada do bot'
             : 'Tempo da jogada';
+
+        if ($currentSecondsTotal !== $secondsTotal && isset($state['turnTimer']['startedAt'])) {
+            $startedAt = \Illuminate\Support\Carbon::parse((string) $state['turnTimer']['startedAt'])
+                ->timezone(config('app.timezone'));
+            $expiresAt = $startedAt->copy()->addSeconds($secondsTotal);
+            $now = now()->timezone(config('app.timezone'));
+            $secondsRemaining = max(0, $now->diffInSeconds($expiresAt, false));
+
+            $state['turnTimer']['expiresAt'] = $expiresAt->toIso8601String();
+            $state['turnTimer']['serverNow'] = $now->toIso8601String();
+            $state['turnTimer']['secondsRemaining'] = $secondsRemaining;
+            $state['turnTimer']['isExpired'] = $secondsRemaining <= 0;
+        }
 
         return $state;
     }

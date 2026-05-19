@@ -2,7 +2,6 @@
 
 namespace App\Services\Poker;
 
-use App\Application\Poker\StartPokerHandAction;
 use App\Models\Poker\PokerTable;
 
 final class PokerTableRuntimeStateService
@@ -25,10 +24,9 @@ final class PokerTableRuntimeStateService
     public function resolve(
         PokerTable $table,
         LocalPokerPersistenceService $pokerPersistence,
-        StartPokerHandAction $startPokerHand,
     ): array {
         $state = $pokerPersistence->latestStateForTable($table)
-            ?? $this->readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
+            ?? $this->readiness->waitingState($table);
 
         $stateContracts = $this->stateContracts->forTable($table, $state);
 

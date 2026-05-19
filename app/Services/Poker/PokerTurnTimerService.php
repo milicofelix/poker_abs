@@ -48,12 +48,25 @@ final class PokerTurnTimerService
             return $this->start($state, $now);
         }
 
+        $expectedSeconds = $this->secondsFor($state);
+        $currentSeconds = (int) ($state['turnTimer']['secondsTotal'] ?? $expectedSeconds);
+        $startedAt = isset($state['turnTimer']['startedAt'])
+            ? Carbon::parse((string) $state['turnTimer']['startedAt'])->timezone(config('app.timezone'))
+            : $now->copy();
         $expiresAt = Carbon::parse((string) $state['turnTimer']['expiresAt'])
             ->timezone(config('app.timezone'));
+
+        if ($currentSeconds !== $expectedSeconds) {
+            $expiresAt = $startedAt->copy()->addSeconds($expectedSeconds);
+        }
+
         $secondsRemaining = max(0, $now->diffInSeconds($expiresAt, false));
 
         $state['turnTimer'] = [
             ...$state['turnTimer'],
+            'secondsTotal' => $expectedSeconds,
+            'startedAt' => $startedAt->toIso8601String(),
+            'expiresAt' => $expiresAt->toIso8601String(),
             'serverNow' => $now->toIso8601String(),
             'secondsRemaining' => $secondsRemaining,
             'isExpired' => $secondsRemaining <= 0,

@@ -31,6 +31,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ])->assertOk();
         }
 
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
         $this->actingAs($users->first())
             ->getJson(route('poker.tables.state', $table))
             ->assertOk()
@@ -65,6 +70,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ])->assertOk();
         }
 
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
         $this->actingAs($users->first())
             ->postJson(route('poker.tables.actions', $table), [
                 'action' => 'call',
@@ -93,6 +103,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
                 'seat_number' => $index + 1,
             ])->assertOk();
         }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
 
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
@@ -138,6 +153,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
                 'seat_number' => $index + 1,
             ])->assertOk();
         }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
 
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
@@ -200,6 +220,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ])->assertOk();
         }
 
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
         $hand = PokerHand::query()->where('poker_table_id', $table->id)->latest('id')->firstOrFail();
         $state = $hand->state_payload;
         $state['pot'] = 200;
@@ -259,6 +284,11 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
                 'seat_number' => $index + 1,
             ])->assertOk();
         }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
 
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
@@ -369,6 +399,83 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ->assertJsonPath('state.lastAction.isBot', true)
             ->assertJsonPath('state.currentTurn.seatNumber', 3)
             ->assertJsonPath('state.isFinished', false);
+    }
+
+
+    public function test_refresh_da_mesa_multi_seat_nao_inicia_mao_automaticamente(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa multi-seat sem auto start no refresh',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 4,
+        ]);
+        $users = User::factory()->count(3)->create();
+
+        foreach ($users as $index => $user) {
+            $this->actingAs($user)->postJson(route('poker.tables.join', $table))->assertOk();
+            $this->actingAs($user)->postJson(route('poker.tables.seat', $table), [
+                'seat_number' => $index + 1,
+            ])->assertOk();
+        }
+
+        $this->actingAs($users[0])
+            ->get(route('poker.tables.show', $table))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('hand.isWaitingForPlayers', true)
+                ->where('hand.turnTimer', null));
+
+        $this->actingAs($users[0])
+            ->getJson(route('poker.tables.state', $table))
+            ->assertOk()
+            ->assertJsonPath('state.isWaitingForPlayers', true)
+            ->assertJsonPath('state.turnTimer', null);
+
+        $this->assertSame(0, PokerHand::query()->where('poker_table_id', $table->id)->count());
+    }
+
+    public function test_mesa_multi_seat_nao_inicia_mao_antes_de_acionar_nova_mao_para_permitir_mais_assentos(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa multi-seat aguardando jogadores restantes',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 6,
+        ]);
+        $users = User::factory()->count(4)->create();
+
+        foreach ([0, 1] as $index) {
+            $this->actingAs($users[$index])->postJson(route('poker.tables.join', $table))->assertOk();
+            $this->actingAs($users[$index])->postJson(route('poker.tables.seat', $table), [
+                'seat_number' => $index + 1,
+            ])->assertOk()
+                ->assertJsonPath('state.isWaitingForPlayers', true);
+        }
+
+        $this->assertSame(0, PokerHand::query()->where('poker_table_id', $table->id)->count());
+
+        $this->actingAs($users[2])->postJson(route('poker.tables.join', $table))->assertOk();
+        $this->actingAs($users[2])->postJson(route('poker.tables.seat', $table), [
+            'seat_number' => 3,
+        ])->assertOk()
+            ->assertJsonPath('state.isWaitingForPlayers', true);
+
+        $this->assertSame(0, PokerHand::query()->where('poker_table_id', $table->id)->count());
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
+        $this->actingAs($users[3])->postJson(route('poker.tables.join', $table))->assertOk();
+        $this->actingAs($users[3])->postJson(route('poker.tables.seat', $table), [
+            'seat_number' => 4,
+        ])->assertOk();
+
+        $this->assertSame(1, PokerHand::query()->where('poker_table_id', $table->id)->count());
     }
 
     private function criarJogadorSentado(PokerTable $table, User $user, int $seatNumber, bool $isBot, string $nickname): void

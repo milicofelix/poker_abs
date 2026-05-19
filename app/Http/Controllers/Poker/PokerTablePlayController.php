@@ -53,7 +53,7 @@ final class PokerTablePlayController extends Controller
             : $pokerPersistence->currentStateForTable($table);
 
         if (! $hand) {
-            $hand = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
+            $hand = $readiness->waitingState($table);
         }
 
         $hand = $privateState->forUser($table, $hand, $request->user());

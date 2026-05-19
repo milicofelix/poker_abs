@@ -38,7 +38,10 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
         $this->seatPlayer($table, $userOne, 1);
         $this->seatPlayer($table, $userTwo, 2);
 
-        $this->actingAs($userOne)->get(route('poker.tables.show', $table))->assertOk();
+        $this->actingAs($userOne)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('message', 'Nova mão iniciada para todos os jogadores.');
 
         PokerHand::query()->latest('id')->firstOrFail()->forceFill([
             'status' => 'finished',
@@ -89,7 +92,9 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
         $this->seatPlayer($table, $botUser, 1, true);
         $this->seatPlayer($table, $humanUser, 2);
 
-        $this->actingAs($humanUser)->get(route('poker.tables.show', $table))->assertOk();
+        $this->actingAs($humanUser)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk();
 
         PokerHand::query()->latest('id')->firstOrFail()->forceFill([
             'status' => 'finished',
@@ -116,7 +121,9 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
         $this->seatPlayer($table, $botOne, 1, true);
         $this->seatPlayer($table, $botTwo, 2, true);
 
-        $this->actingAs($spectator)->get(route('poker.tables.show', $table))->assertOk();
+        $this->actingAs($spectator)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk();
 
         PokerHand::query()->latest('id')->firstOrFail()->forceFill([
             'status' => 'finished',
@@ -150,7 +157,9 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
         $this->seatPlayer($table, $userOne, 1);
         $this->seatPlayer($table, $userTwo, 2);
 
-        $this->actingAs($userOne)->get(route('poker.tables.show', $table))->assertOk();
+        $this->actingAs($userOne)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk();
 
         $hand = PokerHand::query()->latest('id')->firstOrFail();
         $state = $hand->state_payload;
@@ -195,7 +204,10 @@ final class PokerNovaMaoMultiplayerTest extends TestCase
         $this->seatPlayer($table, $userOne, 1);
         $this->seatPlayer($table, $userTwo, 2);
 
-        $this->actingAs($userOne)->get(route('poker.tables.show', $table))->assertOk();
+        $this->actingAs($userOne)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('message', 'Nova mão iniciada para todos os jogadores.');
 
         $this->actingAs($userOne)
             ->postJson(route('poker.tables.new-hand', $table))

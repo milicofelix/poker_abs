@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Poker;
 
-use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
@@ -24,11 +23,10 @@ final class PokerTableStateController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
         PokerTableRuntimeStateService $runtimeState,
-        StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 
-        $runtime = $runtimeState->resolve($table, $pokerPersistence, $startPokerHand);
+        $runtime = $runtimeState->resolve($table, $pokerPersistence);
         $state = $runtime['state'];
 
         return response()->json([

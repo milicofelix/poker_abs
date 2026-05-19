@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Poker;
 
 use App\Actions\Poker\SitPokerTablePlayerAction;
-use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
@@ -27,7 +26,6 @@ final class PokerTableSeatController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
         PokerTableReadinessService $readiness,
-        StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         $user = $request->user();
 
@@ -53,9 +51,10 @@ final class PokerTableSeatController extends Controller
             ], 422);
         }
 
-        $state = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
+        $state = $pokerPersistence->currentStateForTable($table)
+            ?? $readiness->waitingState($table);
 
-        if (! (bool) ($state['isWaitingForPlayers'] ?? false)) {
+        if ($pokerPersistence->currentStateForTable($table)) {
             $tableBroadcaster->broadcast($state);
         }
 

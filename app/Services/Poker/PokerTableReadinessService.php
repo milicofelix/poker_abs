@@ -68,6 +68,33 @@ final class PokerTableReadinessService
         return $pokerPersistence->startOnTable($table, $startPokerHand->execute());
     }
 
+
+    /**
+     * Inicia uma nova mão apenas quando o jogador aciona explicitamente o botão.
+     *
+     * Isso evita que refresh, polling de estado ou escolha de assento criem uma
+     * mão sozinhos e bloqueiem a entrada dos jogadores restantes em mesas 3+.
+     *
+     * @return array<string, mixed>
+     */
+    public function startExplicitNewHand(
+        PokerTable $table,
+        LocalPokerPersistenceService $pokerPersistence,
+        bool $isBotVsBotSimulation = false,
+    ): array {
+        if ($table->isMultiSeatCandidate()) {
+            return $pokerPersistence->startMultiSeatOnTable(
+                $table,
+                $this->startMultiSeatPokerHand->execute($table),
+            );
+        }
+
+        $state = app(StartPokerHandAction::class)->execute();
+        $state['botVsBotSimulation'] = $isBotVsBotSimulation;
+
+        return $pokerPersistence->startOnTable($table, $state);
+    }
+
     /**
      * @return array<string, mixed>
      */

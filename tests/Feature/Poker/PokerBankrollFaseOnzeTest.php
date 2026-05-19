@@ -128,6 +128,11 @@ final class PokerBankrollFaseOnzeTest extends TestCase
             ])->assertOk();
         }
 
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
             'raise_amount' => 0,
@@ -175,6 +180,11 @@ final class PokerBankrollFaseOnzeTest extends TestCase
                 'seat_number' => $index + 1,
             ])->assertOk();
         }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
 
         /** @var \App\Services\Poker\LocalPokerPersistenceService $persistence */
         $persistence = app(\App\Services\Poker\LocalPokerPersistenceService::class);
