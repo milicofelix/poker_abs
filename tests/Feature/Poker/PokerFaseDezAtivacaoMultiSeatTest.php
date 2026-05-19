@@ -263,7 +263,10 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
             'raise_amount' => 0,
-        ])->assertOk()->assertJsonPath('state.currentTurn.seatNumber', 2);
+        ])
+            ->assertOk()
+            ->assertJsonPath('state.currentTurn.seatNumber', 2)
+            ->assertJsonPath('state.turnTimer.secondsTotal', 30);
 
         $hand = PokerHand::query()->where('poker_table_id', $table->id)->latest('id')->firstOrFail();
         $state = $hand->state_payload;
@@ -304,7 +307,8 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ->postJson(route('poker.tables.new-hand', $table))
             ->assertOk()
             ->assertJsonPath('state.multiSeat.enabled', true)
-            ->assertJsonPath('state.currentTurn.seatNumber', 1);
+            ->assertJsonPath('state.currentTurn.seatNumber', 1)
+            ->assertJsonPath('state.turnTimer.secondsTotal', 30);
 
         $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
@@ -324,6 +328,44 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
             ->assertJsonPath('state.turnTimeout.engine', 'multi_seat')
             ->assertJsonPath('state.turnTimeout.seatNumber', 2)
             ->assertJsonPath('state.lastAction.seatNumber', 2)
+            ->assertJsonPath('state.lastAction.isBot', true)
+            ->assertJsonPath('state.currentTurn.seatNumber', 3)
+            ->assertJsonPath('state.turnTimer.secondsTotal', 30)
+            ->assertJsonPath('state.isFinished', false);
+    }
+
+    public function test_bot_multi_seat_age_sem_esperar_expirar_timer_quando_for_sua_vez(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa multi-seat bot imediato',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 4,
+        ]);
+        $users = User::factory()->count(3)->create();
+
+        $this->criarJogadorSentado($table, $users[0], 1, false, 'Adriano');
+        $this->criarJogadorSentado($table, $users[1], 2, true, 'Bot Conservador');
+        $this->criarJogadorSentado($table, $users[2], 3, false, 'Maria');
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.currentTurn.seatNumber', 1);
+
+        $this->actingAs($users[0])->postJson(route('poker.tables.actions', $table), [
+            'action' => 'call',
+            'raise_amount' => 0,
+        ])->assertOk()->assertJsonPath('state.currentTurn.seatNumber', 2);
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.timeout', $table))
+            ->assertOk()
+            ->assertJsonPath('processed', true)
+            ->assertJsonPath('action', 'bot')
+            ->assertJsonPath('state.turnTimeout.engine', 'multi_seat')
+            ->assertJsonPath('state.turnTimeout.seatNumber', 2)
             ->assertJsonPath('state.lastAction.isBot', true)
             ->assertJsonPath('state.currentTurn.seatNumber', 3)
             ->assertJsonPath('state.isFinished', false);

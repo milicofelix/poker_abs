@@ -113,6 +113,7 @@ final class MultiplayerPokerPrivateStateService
         $state['botVsBotSimulation'] = false;
         $state['multiSeat']['currentSeatIsBot'] = $currentSeatIsBot;
         $state['multiSeat']['autoProcessCurrentBot'] = $currentSeatIsBot && ! $isFinished;
+        $state = $this->normalizeMultiSeatTurnTimerForPerspective($state, $currentSeatIsBot, $isFinished);
 
         $state['multiplayerPerspective'] = [
             'role' => $currentPlayer ? 'multi_seat_player' : 'spectator',
@@ -431,8 +432,29 @@ final class MultiplayerPokerPrivateStateService
     }
 
     /**
+     * Mantém o contrato privado coerente com a regra visual da FASE 10.18.3:
+     * humano tem 30s e bot multi-seat tem 10s. O estado persistido normalmente
+     * já vem correto pelo PokerTurnTimerService, mas esta normalização protege
+     * respostas que ainda carreguem um timer antigo durante reidratação/polling.
+     *
+     * @param array<string, mixed> $state
      * @return array<string, mixed>
      */
+    private function normalizeMultiSeatTurnTimerForPerspective(array $state, bool $currentSeatIsBot, bool $isFinished): array
+    {
+        if ($isFinished || ! isset($state['turnTimer']) || ! is_array($state['turnTimer'])) {
+            return $state;
+        }
+
+        $secondsTotal = $currentSeatIsBot ? 10 : 30;
+        $state['turnTimer']['secondsTotal'] = $secondsTotal;
+        $state['turnTimer']['label'] = $currentSeatIsBot
+            ? 'Tempo da jogada do bot'
+            : 'Tempo da jogada';
+
+        return $state;
+    }
+
     private function serializePlayer(PokerTablePlayer $player, bool $isCurrent): array
     {
         return [
