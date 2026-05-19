@@ -105,6 +105,13 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                     </a>
 
                     <a
+                        href="/poker/bankroll"
+                        className="inline-flex w-fit rounded-xl border border-violet-300/30 bg-violet-300/10 px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-300/20"
+                    >
+                        Meu bankroll
+                    </a>
+
+                    <a
                         href="/poker/statistics"
                         className="inline-flex w-fit rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20"
                     >

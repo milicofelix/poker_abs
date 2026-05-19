@@ -21,11 +21,17 @@ final class PokerTableCreateController extends Controller
             'name' => ['nullable', 'string', 'max:80'],
             'is_private' => ['sometimes', 'boolean'],
             'max_players' => ['nullable', 'integer', 'min:'.PokerTable::MIN_DECLARED_MAX_PLAYERS, 'max:'.PokerTable::FUTURE_MULTI_SEAT_TARGET],
+            'buy_in' => ['nullable', 'integer', 'min:'.PokerTable::MIN_BUY_IN, 'max:'.PokerTable::MAX_BUY_IN, 'multiple_of:'.PokerTable::BUY_IN_STEP],
+        ], [
+            'buy_in.min' => 'O buy-in mínimo é de '.PokerTable::MIN_BUY_IN.' fichas.',
+            'buy_in.max' => 'O buy-in máximo é de '.PokerTable::MAX_BUY_IN.' fichas.',
+            'buy_in.multiple_of' => 'O buy-in deve ser informado em múltiplos de '.PokerTable::BUY_IN_STEP.' fichas.',
         ]);
 
         $tableNumber = PokerTable::query()->count() + 1;
         $isPrivate = (bool) ($validated['is_private'] ?? false);
         $maxPlayers = (int) ($validated['max_players'] ?? PokerTable::DEFAULT_MAX_PLAYERS);
+        $buyIn = (int) ($validated['buy_in'] ?? PokerTable::DEFAULT_BUY_IN);
 
         $table = PokerTable::query()->create([
             'name' => filled($validated['name'] ?? null)
@@ -34,6 +40,7 @@ final class PokerTableCreateController extends Controller
             'status' => 'waiting',
             'small_blind' => 10,
             'big_blind' => 20,
+            'buy_in' => $buyIn,
             'max_players' => $maxPlayers,
             'is_private' => $isPrivate,
             'invite_code' => $isPrivate ? $this->generateInviteCode() : null,

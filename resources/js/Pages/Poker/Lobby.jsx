@@ -36,6 +36,8 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
         { value: 6, label: '6 jogadores · preparação multi-seat', isCurrentEngine: false, isMultiSeatCandidate: true },
     ];
     const [maxPlayers, setMaxPlayers] = useState(tableCreation.defaultMaxPlayers ?? 2);
+    const [buyIn, setBuyIn] = useState(tableCreation.defaultBuyIn ?? 1000);
+    const buyInOptions = tableCreation.buyInOptions ?? [500, 1000, 2000, 5000, 10000];
     const [inviteCode, setInviteCode] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -54,6 +56,7 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
             name: tableName,
             is_private: privateTable,
             max_players: Number(maxPlayers),
+            buy_in: Number(buyIn),
         });
     }
 
@@ -177,6 +180,41 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
                             </div>
                         )}
 
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="table-buy-in">
+                            Buy-in da mesa
+                        </label>
+                        <input
+                            id="table-buy-in"
+                            type="number"
+                            min={tableCreation.minBuyIn ?? 200}
+                            max={tableCreation.maxBuyIn ?? 10000}
+                            step={tableCreation.buyInStep ?? 100}
+                            list="table-buy-in-options"
+                            value={buyIn}
+                            onChange={(event) => setBuyIn(Number(event.target.value))}
+                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-300"
+                        />
+                        <datalist id="table-buy-in-options">
+                            {buyInOptions.map((option) => (
+                                <option key={option} value={option} />
+                            ))}
+                        </datalist>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {buyInOptions.map((option) => (
+                                <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() => setBuyIn(option)}
+                                    className={`rounded-full px-3 py-1 text-xs font-black transition ${Number(buyIn) === Number(option) ? 'bg-emerald-300 text-emerald-950' : 'bg-white/10 text-emerald-100 hover:bg-white/20'}`}
+                                >
+                                    {option} fichas
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-emerald-100/75">
+                            Valor debitado do bankroll quando o jogador senta na mesa. Permitido de {tableCreation.minBuyIn ?? 200} até {tableCreation.maxBuyIn ?? 10000}, em múltiplos de {tableCreation.buyInStep ?? 100}.
+                        </p>
+
                         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-sm text-slate-200">
                             <input
                                 type="checkbox"
@@ -236,7 +274,7 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
                                     <div>
                                         <h2 className="text-xl font-black">{table.name}</h2>
                                         <p className="mt-1 text-sm text-slate-400">
-                                            Blinds {table.smallBlind}/{table.bigBlind} • {table.playersCount}/{table.maxPlayers} jogadores
+                                            Blinds {table.smallBlind}/{table.bigBlind} • Buy-in {table.buyIn ?? table.capacity?.buyIn ?? table.capacity?.defaultBuyIn ?? 1000} • {table.playersCount}/{table.maxPlayers} jogadores
                                         </p>
                                     </div>
 

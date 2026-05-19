@@ -26,6 +26,7 @@ final class HandleInertiaRequests extends Middleware
                     'id' => $request->user()->id,
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
+                    'pokerBankroll' => (int) $request->user()->poker_bankroll,
                 ] : null,
             ],
             'flash' => [

@@ -4,6 +4,7 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -22,7 +23,8 @@ final class PokerRuntimeStateContractTest extends TestCase
             'max_players' => 4,
         ]);
 
-        $this->getJson(route('poker.tables.state', $table))
+        $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table))
             ->assertOk()
             ->assertJsonPath('engineMode', 'heads_up')
             ->assertJsonPath('multiSeatEnabled', false)
@@ -63,7 +65,8 @@ final class PokerRuntimeStateContractTest extends TestCase
             'finished_at' => now(),
         ]);
 
-        $this->getJson(route('poker.tables.state', $table))
+        $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table))
             ->assertOk()
             ->assertJsonPath('state.isFinished', true)
             ->assertJsonPath('state.street', 'showdown')

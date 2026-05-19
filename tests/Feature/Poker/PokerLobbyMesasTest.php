@@ -61,7 +61,7 @@ final class PokerLobbyMesasTest extends TestCase
 
     public function test_visitante_nao_pode_criar_mesa_real(): void
     {
-        $this->post('/poker/tables')
+        $this->postJson('/poker/tables')
             ->assertUnauthorized();
 
         $this->assertSame(0, PokerTable::query()->count());
@@ -72,8 +72,10 @@ final class PokerLobbyMesasTest extends TestCase
         $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
 
-        $firstResponse = $this->get(route('poker.tables.show', $table));
-        $secondResponse = $this->get(route('poker.tables.show', $table));
+        $user = User::factory()->create();
+
+        $firstResponse = $this->actingAs($user)->get(route('poker.tables.show', $table));
+        $secondResponse = $this->actingAs($user)->get(route('poker.tables.show', $table));
 
         $firstResponse->assertOk();
         $secondResponse->assertOk();

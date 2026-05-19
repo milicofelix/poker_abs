@@ -18,6 +18,8 @@ trait SerializesPokerTablePlayers
             'userId' => $player->user_id,
             'nickname' => $player->nickname,
             'stack' => $player->stack,
+            'buyInAmount' => $player->buy_in_amount,
+            'buyInPaidAt' => $player->buy_in_paid_at?->toIso8601String(),
             'status' => $player->status,
             'seatNumber' => $player->seat_number,
             'lastSeenAt' => $player->last_seen_at?->toIso8601String(),

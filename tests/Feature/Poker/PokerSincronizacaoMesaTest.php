@@ -5,6 +5,7 @@ namespace Tests\Feature\Poker;
 use App\Events\Poker\PokerTableStateUpdated;
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -20,7 +21,8 @@ final class PokerSincronizacaoMesaTest extends TestCase
         $hand = PokerHand::query()->firstOrFail();
         $originalState = $hand->state_payload;
 
-        $response = $this->postJson(route('poker.tables.actions', $table), [
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.actions', $table), [
             'state' => [
                 ...$originalState,
                 'pot' => 9999,
@@ -45,7 +47,8 @@ final class PokerSincronizacaoMesaTest extends TestCase
 
         $table = $this->createActivePokerTable();
 
-        $response = $this->postJson(route('poker.tables.actions', $table), [
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
         ]);
 
@@ -70,7 +73,8 @@ final class PokerSincronizacaoMesaTest extends TestCase
             'max_players' => 2,
         ]);
 
-        $this->postJson(route('poker.tables.actions', $table), [
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
         ])->assertNotFound();
     }

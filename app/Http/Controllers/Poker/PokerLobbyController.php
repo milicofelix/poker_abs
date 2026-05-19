@@ -39,6 +39,11 @@ final class PokerLobbyController extends Controller
                 'defaultMaxPlayers' => PokerTable::DEFAULT_MAX_PLAYERS,
                 'currentEngineMaxPlayers' => PokerTable::CURRENT_ENGINE_MAX_PLAYERS,
                 'futureMultiSeatTarget' => PokerTable::FUTURE_MULTI_SEAT_TARGET,
+                'defaultBuyIn' => PokerTable::DEFAULT_BUY_IN,
+                'minBuyIn' => PokerTable::MIN_BUY_IN,
+                'maxBuyIn' => PokerTable::MAX_BUY_IN,
+                'buyInStep' => PokerTable::BUY_IN_STEP,
+                'buyInOptions' => PokerTable::SUGGESTED_BUY_INS,
                 'maxPlayersOptions' => collect(range(PokerTable::MIN_DECLARED_MAX_PLAYERS, PokerTable::FUTURE_MULTI_SEAT_TARGET))
                     ->map(static fn (int $value): array => [
                         'value' => $value,
@@ -73,6 +78,7 @@ final class PokerLobbyController extends Controller
             'statusTone' => $this->statusTone($table->status),
             'smallBlind' => $table->small_blind,
             'bigBlind' => $table->big_blind,
+            'buyIn' => $table->buyInAmount(),
             'isPrivate' => (bool) $table->is_private,
             'inviteCode' => $table->invite_code,
             'inviteUrl' => $table->invite_code ? route('poker.private-tables.invite', $table->invite_code) : null,

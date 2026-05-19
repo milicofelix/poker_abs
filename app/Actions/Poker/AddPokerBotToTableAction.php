@@ -46,7 +46,9 @@ final class AddPokerBotToTableAction
             ],
             [
                 'nickname' => sprintf('Bot %s', PokerBotProfiles::label($profile)),
-                'stack' => 1000,
+                'stack' => PokerTable::DEFAULT_BUY_IN,
+                'buy_in_amount' => PokerTable::DEFAULT_BUY_IN,
+                'buy_in_paid_at' => now(),
                 'seat_number' => $seatNumber,
                 'status' => 'online',
                 'is_bot' => true,

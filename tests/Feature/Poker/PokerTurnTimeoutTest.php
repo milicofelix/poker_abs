@@ -6,6 +6,7 @@ use App\Events\Poker\PokerTableStateUpdated;
 use App\Models\Poker\PokerActionLog;
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
@@ -25,7 +26,8 @@ final class PokerTurnTimeoutTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:31');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', true);
@@ -58,7 +60,8 @@ final class PokerTurnTimeoutTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', false);
@@ -95,7 +98,8 @@ final class PokerTurnTimeoutTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:31');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', true);

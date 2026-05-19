@@ -7,6 +7,7 @@ use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerPlayer;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTableSeat;
+use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -15,6 +16,7 @@ final class LocalPokerPersistenceService
 {
     public function __construct(
         private readonly PokerTurnTimerService $turnTimer,
+        private readonly PokerBankrollService $bankroll,
     ) {
     }
     /**
@@ -272,6 +274,10 @@ final class LocalPokerPersistenceService
                 $state = $this->turnTimer->start($state);
             }
 
+            if ((bool) ($persistence['multiSeat'] ?? false)) {
+                $state = $this->settleMultiSeatBankrollIfNeeded($hand, $state);
+            }
+
             $hand->forceFill([
                 'status' => (bool) ($state['isFinished'] ?? false) ? 'finished' : 'running',
                 'street' => (string) ($state['street'] ?? 'pre_flop'),
@@ -418,6 +424,139 @@ final class LocalPokerPersistenceService
             'winner_label' => isset($winner['label']) ? (string) $winner['label'] : null,
             'winning_hand_name' => isset($winner['handName']) ? (string) $winner['handName'] : null,
         ];
+    }
+
+
+    /**
+     * Aplica o resultado financeiro da mão multi-seat uma única vez.
+     *
+     * A FASE 11.2 ainda não implementa side pots completos; por enquanto o pote
+     * principal é dividido igualmente entre os assentos vencedores informados
+     * pelo motor da FASE 10.12.
+     *
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function settleMultiSeatBankrollIfNeeded(PokerHand $hand, array $state): array
+    {
+        if (! (bool) ($state['isFinished'] ?? false)) {
+            return $state;
+        }
+
+        if (data_get($state, 'bankrollSettlement.applied') === true) {
+            return $state;
+        }
+
+        if ($hand->state_payload && data_get($hand->state_payload, 'bankrollSettlement.applied') === true) {
+            $state['bankrollSettlement'] = $hand->state_payload['bankrollSettlement'];
+
+            return $state;
+        }
+
+        $players = data_get($state, 'multiSeat.players', []);
+
+        if (! is_array($players) || $players === []) {
+            return $state;
+        }
+
+        $winnerSeats = array_values(array_filter(array_map(
+            'intval',
+            (array) data_get($state, 'multiSeat.winnerSeats', []),
+        )));
+
+        if ($winnerSeats === []) {
+            $winnerSeat = (int) data_get($state, 'conclusion.winner.seatNumber', 0);
+
+            if ($winnerSeat > 0) {
+                $winnerSeats = [$winnerSeat];
+            }
+        }
+
+        $winnerSeats = array_values(array_unique($winnerSeats));
+        sort($winnerSeats);
+
+        if ($winnerSeats === []) {
+            return $state;
+        }
+
+        $pot = max(0, (int) ($state['pot'] ?? 0));
+        $baseShare = intdiv($pot, count($winnerSeats));
+        $remainder = $pot % count($winnerSeats);
+        $payouts = [];
+
+        foreach ($winnerSeats as $index => $seatNumber) {
+            $payouts[$seatNumber] = $baseShare + ($index < $remainder ? 1 : 0);
+        }
+
+        foreach ($players as $index => $player) {
+            if (! is_array($player)) {
+                continue;
+            }
+
+            $seatNumber = (int) ($player['seatNumber'] ?? 0);
+            $payout = (int) ($payouts[$seatNumber] ?? 0);
+
+            if ($payout <= 0) {
+                continue;
+            }
+
+            $players[$index]['stack'] = max(0, (int) ($player['stack'] ?? 0)) + $payout;
+            $players[$index]['lastPayout'] = $payout;
+
+            $tablePlayerId = (int) ($player['tablePlayerId'] ?? 0);
+
+            if ($tablePlayerId <= 0 || (bool) ($player['isBot'] ?? false)) {
+                continue;
+            }
+
+            /** @var \App\Models\Poker\PokerTablePlayer|null $tablePlayer */
+            $tablePlayer = \App\Models\Poker\PokerTablePlayer::query()
+                ->whereKey($tablePlayerId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $tablePlayer || ! $tablePlayer->user_id) {
+                continue;
+            }
+
+            /** @var User|null $user */
+            $user = User::query()
+                ->whereKey($tablePlayer->user_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $user) {
+                continue;
+            }
+
+            $this->bankroll->creditPayout(
+                user: $user,
+                table: $hand->table,
+                hand: $hand,
+                tablePlayer: $tablePlayer,
+                amount: $payout,
+                metadata: [
+                    'reason' => 'Pote principal recebido no showdown.',
+                    'seatNumber' => $seatNumber,
+                    'winnerSeats' => $winnerSeats,
+                    'pot' => $pot,
+                ],
+            );
+        }
+
+        $state['multiSeat']['players'] = $players;
+        $state['bankrollSettlement'] = [
+            'applied' => true,
+            'phase' => '11.3',
+            'pot' => $pot,
+            'winnerSeats' => $winnerSeats,
+            'payoutsBySeat' => $payouts,
+            'note' => 'Pote principal liquidado no bankroll com trilha de auditoria. Side pots ficam para fase futura.',
+        ];
+
+        $state['multiSeat']['bankrollSettlementPhase'] = '11.3';
+
+        return $state;
     }
 
 

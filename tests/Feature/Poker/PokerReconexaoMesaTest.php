@@ -4,6 +4,7 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,7 +19,8 @@ final class PokerReconexaoMesaTest extends TestCase
         $hand = PokerHand::query()->firstOrFail();
         $state = $hand->state_payload;
 
-        $response = $this->getJson(route('poker.tables.state', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table));
 
         $response->assertOk();
         $response->assertJsonPath('state.persistence.tableId', $table->id);
@@ -36,7 +38,8 @@ final class PokerReconexaoMesaTest extends TestCase
             'max_players' => 2,
         ]);
 
-        $this->getJson(route('poker.tables.state', $table))
+        $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table))
             ->assertOk()
             ->assertJsonPath('state.isWaitingForPlayers', true)
             ->assertJsonPath('state.turnTimer', null)
@@ -47,7 +50,8 @@ final class PokerReconexaoMesaTest extends TestCase
     {
         $table = $this->createActivePokerTable();
 
-        $this->get(route('poker.tables.show', $table))
+        $this->actingAs(User::factory()->create())
+            ->get(route('poker.tables.show', $table))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('table.stateUrl', route('poker.tables.state', $table))

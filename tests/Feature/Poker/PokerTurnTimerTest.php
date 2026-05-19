@@ -4,6 +4,7 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -35,7 +36,8 @@ final class PokerTurnTimerTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:35');
 
-        $response = $this->getJson(route('poker.tables.state', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table));
 
         $response->assertOk();
         $response->assertJsonPath('state.turnTimer.secondsRemaining', 0);
@@ -50,7 +52,8 @@ final class PokerTurnTimerTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 
-        $response = $this->postJson(route('poker.tables.actions', $table), [
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
         ]);
 

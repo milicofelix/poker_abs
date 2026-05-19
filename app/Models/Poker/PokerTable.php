@@ -14,12 +14,18 @@ final class PokerTable extends Model
     public const CURRENT_ENGINE_MAX_PLAYERS = 2;
     public const MIN_DECLARED_MAX_PLAYERS = 2;
     public const FUTURE_MULTI_SEAT_TARGET = 6;
+    public const DEFAULT_BUY_IN = 1000;
+    public const MIN_BUY_IN = 200;
+    public const MAX_BUY_IN = 10000;
+    public const BUY_IN_STEP = 100;
+    public const SUGGESTED_BUY_INS = [500, 1000, 2000, 5000, 10000];
 
     protected $fillable = [
         'name',
         'status',
         'small_blind',
         'big_blind',
+        'buy_in',
         'max_players',
         'is_private',
         'invite_code',
@@ -28,10 +34,18 @@ final class PokerTable extends Model
     protected $casts = [
         'small_blind' => 'integer',
         'big_blind' => 'integer',
+        'buy_in' => 'integer',
         'max_players' => 'integer',
         'is_private' => 'boolean',
     ];
 
+
+    public function buyInAmount(): int
+    {
+        $buyIn = (int) ($this->buy_in ?: self::DEFAULT_BUY_IN);
+
+        return min(self::MAX_BUY_IN, max(self::MIN_BUY_IN, $buyIn));
+    }
 
     public function declaredMaxPlayers(): int
     {
@@ -78,6 +92,9 @@ final class PokerTable extends Model
             'engineMode' => $this->engineMode(),
             'engineModeLabel' => $this->engineModeLabel(),
             'futureMultiSeatTarget' => self::FUTURE_MULTI_SEAT_TARGET,
+            'defaultBuyIn' => self::DEFAULT_BUY_IN,
+            'buyIn' => $this->buyInAmount(),
+            'buyInStep' => self::BUY_IN_STEP,
         ];
     }
 
