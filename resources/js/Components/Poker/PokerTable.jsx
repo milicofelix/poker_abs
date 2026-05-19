@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import CardRow from './CardRow';
+import PlayingCard from './PlayingCard';
 
 function visibleCommunityCards(state) {
     const amountByStreet = {
@@ -143,6 +144,223 @@ function seatBadgeClasses(state, seat) {
     return 'border-slate-400/30 bg-slate-950/80 text-slate-200';
 }
 
+
+function isMultiSeatLayout(state) {
+    return Boolean(state?.multiSeat?.enabled) && Array.isArray(state?.multiSeat?.players) && state.multiSeat.players.length > 2;
+}
+
+function multiSeatPlayers(state) {
+    return [...(state?.multiSeat?.players ?? [])]
+        .filter((player) => player && Number(player.seatNumber ?? 0) > 0)
+        .sort((left, right) => Number(left.seatNumber ?? 0) - Number(right.seatNumber ?? 0));
+}
+
+function currentUserSeatNumber(state) {
+    return Number(state?.multiplayerPerspective?.seatNumber ?? state?.playersContext?.current?.seatNumber ?? 0);
+}
+
+function multiSeatCurrentTurnSeat(state) {
+    const seat = state?.currentTurn?.seatNumber ?? state?.multiSeat?.currentSeat;
+
+    return seat === null || seat === undefined ? null : Number(seat);
+}
+
+function isMultiSeatWinner(state, seatNumber) {
+    const winnerSeats = state?.multiSeat?.winnerSeats ?? [];
+    const conclusionSeat = state?.conclusion?.winner?.seatNumber;
+
+    return Boolean(state?.isFinished) && (
+        winnerSeats.map(Number).includes(Number(seatNumber)) || Number(conclusionSeat ?? 0) === Number(seatNumber)
+    );
+}
+
+function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed) {
+    if (isFinished) {
+        return 'Cartas abertas no showdown';
+    }
+
+    if (!isCurrentUserSeat) {
+        return 'Cartas protegidas';
+    }
+
+    return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
+}
+
+function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index }) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const isCurrentUserSeat = seatNumber === currentUserSeat;
+    const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
+    const isWinner = isMultiSeatWinner(state, seatNumber);
+    const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
+    const cards = isCurrentUserSeat ? (state?.playerCards ?? []) : (player?.cards ?? []);
+    const shouldRevealCards = Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed);
+    const visibleCards = shouldRevealCards ? cards : [];
+    const hiddenCount = Math.max(0, (cards?.length || 2) - visibleCards.length);
+    const displayName = isCurrentUserSeat ? 'Você' : (player?.nickname ?? player?.displayName ?? `Jogador ${seatNumber}`);
+    const bestHand = isCurrentUserSeat ? state?.bestHand : player?.bestHand;
+
+    return (
+        <article
+            className={[
+                'relative overflow-hidden rounded-2xl border p-2 shadow-2xl shadow-black/35 transition duration-300 sm:p-3',
+                isWinner
+                    ? 'poker-winner-seat border-amber-200/70 bg-amber-300/15'
+                    : isCurrentTurn
+                        ? 'poker-turn-glow border-emerald-200/60 bg-emerald-300/10'
+                        : hasFolded
+                            ? 'border-slate-500/20 bg-black/25 opacity-60'
+                            : 'border-white/10 bg-black/25',
+            ].join(' ')}
+        >
+            <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                    <p className="text-[0.56rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Assento {seatNumber}</p>
+                    <strong className="block truncate text-sm font-black text-white sm:text-base">{displayName}</strong>
+                </div>
+
+                <div className="flex shrink-0 flex-col items-end gap-1 text-[0.58rem] font-black uppercase tracking-[0.15em]">
+                    {isCurrentTurn && <span className="rounded-full border border-emerald-100/45 bg-emerald-300 px-2 py-0.5 text-emerald-950">Vez</span>}
+                    {isWinner && <span className="rounded-full border border-amber-100/70 bg-amber-300 px-2 py-0.5 text-amber-950">Vencedor</span>}
+                    {hasFolded && <span className="rounded-full border border-slate-400/30 bg-slate-950/80 px-2 py-0.5 text-slate-200">Fold</span>}
+                </div>
+            </div>
+
+            <button
+                type="button"
+                disabled={!isCurrentUserSeat || Boolean(state?.isFinished)}
+                onClick={() => isCurrentUserSeat && !state?.isFinished && onTogglePlayerCards()}
+                className={`block w-full rounded-xl border border-white/10 bg-white/[0.04] p-2 text-left transition ${isCurrentUserSeat && !state?.isFinished ? 'hover:border-amber-200/40 hover:bg-amber-200/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80' : 'cursor-default'}`}
+                aria-label={multiSeatCardVisibilityLabel(isCurrentUserSeat, state?.isFinished, playerCardsRevealed)}
+            >
+                <div className="poker-card-scroll flex justify-center gap-1 overflow-x-auto pb-1 sm:gap-1.5">
+                    {visibleCards.map((card, cardIndex) => (
+                        <PlayingCard
+                            key={`${seatNumber}-${card?.label ?? cardIndex}`}
+                            card={card}
+                            compact
+                            dealIndex={index + cardIndex}
+                            dealStepMs={110}
+                            dealFrom={isCurrentUserSeat ? 'bottom' : 'dealer'}
+                        />
+                    ))}
+
+                    {Array.from({ length: hiddenCount }).map((_, cardIndex) => (
+                        <PlayingCard
+                            key={`${seatNumber}-hidden-${cardIndex}`}
+                            hidden
+                            compact
+                            dealIndex={index + cardIndex}
+                            dealStepMs={110}
+                            dealFrom={isCurrentUserSeat ? 'bottom' : 'dealer'}
+                        />
+                    ))}
+                </div>
+
+                <p className="mt-1 text-center text-[0.58rem] font-black uppercase tracking-[0.16em] text-amber-100/80">
+                    {multiSeatCardVisibilityLabel(isCurrentUserSeat, state?.isFinished, playerCardsRevealed)}
+                </p>
+            </button>
+
+            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[0.62rem] font-bold text-slate-200/85">
+                <span className="rounded-lg bg-black/30 px-2 py-1">Stack<br /><strong className="text-white">{player?.stack ?? 0}</strong></span>
+                <span className="rounded-lg bg-black/30 px-2 py-1">Aposta<br /><strong className="text-white">{player?.streetBet ?? 0}</strong></span>
+                <span className="rounded-lg bg-black/30 px-2 py-1">Status<br /><strong className="text-white">{hasFolded ? 'Fold' : 'Ativo'}</strong></span>
+            </div>
+
+            {(state?.isFinished || isCurrentUserSeat) && bestHand?.name && (
+                <p className="mt-2 rounded-xl border border-white/10 bg-black/25 px-2 py-1.5 text-center text-[0.68rem] font-bold text-emerald-100">
+                    Melhor mão: {bestHand.name}
+                </p>
+            )}
+        </article>
+    );
+}
+
+function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerCardsRevealed }) {
+    const players = multiSeatPlayers(state);
+    const currentSeat = currentUserSeatNumber(state);
+    const currentTurnSeat = multiSeatCurrentTurnSeat(state);
+    const currentTurnPlayer = players.find((player) => Number(player.seatNumber ?? 0) === currentTurnSeat);
+    const currentPlayer = players.find((player) => Number(player.seatNumber ?? 0) === currentSeat);
+    const opponents = players.filter((player) => Number(player.seatNumber ?? 0) !== currentSeat);
+    const maxPlayers = Number(state?.multiSeat?.maxPlayers ?? state?.tableCapacity?.maxPlayers ?? players.length ?? 0);
+
+    return (
+        <section className="poker-table-breath relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,#166534_0%,#065f46_36%,#052e2b_66%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
+            <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
+            <div className="pointer-events-none absolute inset-4 rounded-[999px] border border-amber-200/20 sm:inset-x-16 sm:inset-y-28" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
+
+            <div className="relative z-10 grid gap-3">
+                <div className="grid gap-2 rounded-2xl border border-amber-200/25 bg-black/30 p-2 text-center shadow-2xl shadow-black/35 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:p-3">
+                    <div className="text-left">
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Mesa multi-seat</p>
+                        <strong className="block text-lg font-black text-white">{players.length}/{maxPlayers} jogadores</strong>
+                    </div>
+
+                    <div className="rounded-full border border-amber-200/40 bg-amber-300/15 px-4 py-2 shadow-xl shadow-amber-950/25">
+                        <p className="text-[0.56rem] font-black uppercase tracking-[0.2em] text-amber-100">Pote</p>
+                        <strong className="block text-2xl font-black text-white">{state?.pot ?? 0}</strong>
+                    </div>
+
+                    <div className="text-left sm:text-right">
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-emerald-100/75">Turno atual</p>
+                        <strong className="block text-base font-black text-white">
+                            {state?.isFinished ? 'Mão finalizada' : (currentTurnPlayer?.nickname ?? state?.currentTurn?.actorLabel ?? 'Aguardando')}
+                        </strong>
+                        <span className="text-[0.68rem] font-semibold text-emerald-100/75">{state?.currentTurn?.message ?? 'Sincronizando mesa 3+.'}</span>
+                    </div>
+                </div>
+
+                <div className="grid gap-3 xl:min-h-[620px] xl:grid-rows-[minmax(160px,auto)_minmax(220px,1fr)_minmax(170px,auto)]">
+                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3 xl:items-start">
+                        {opponents.map((player, index) => (
+                            <MultiSeatPlayerSpot
+                                key={`opponent-${player.seatNumber}`}
+                                player={player}
+                                state={state}
+                                currentUserSeat={currentSeat}
+                                currentTurnSeat={currentTurnSeat}
+                                playerCardsRevealed={playerCardsRevealed}
+                                onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                                index={index}
+                            />
+                        ))}
+                    </div>
+
+                    <div className="flex min-w-0 items-center justify-center px-1 sm:px-6 xl:px-16">
+                        <div className="w-full max-w-3xl rounded-[2rem] border border-amber-200/25 bg-black/25 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:p-5">
+                            <CardRow
+                                title="Board / Cartas comunitárias"
+                                cards={community.visible}
+                                hiddenCount={community.hiddenCount}
+                                tone="hero"
+                                dealStartIndex={4}
+                                dealFrom="dealer"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mx-auto w-full max-w-4xl xl:self-end">
+                        {currentPlayer && (
+                            <MultiSeatPlayerSpot
+                                key={`current-${currentPlayer.seatNumber}`}
+                                player={currentPlayer}
+                                state={state}
+                                currentUserSeat={currentSeat}
+                                currentTurnSeat={currentTurnSeat}
+                                playerCardsRevealed={playerCardsRevealed}
+                                onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                                index={8}
+                            />
+                        )}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function PokerTable({ state }) {
     const community = visibleCommunityCards(state);
     const playerHandSignature = useMemo(
@@ -160,6 +378,17 @@ export default function PokerTable({ state }) {
     const shouldRevealPlayerCards = isBotVsBotSimulation || state.isFinished || playerCardsRevealed;
     const shouldRevealOpponentCards = isBotVsBotSimulation || state.isFinished;
     const playerBestHandVisible = shouldRevealPlayerCards && state.bestHand?.name;
+
+    if (isMultiSeatLayout(state)) {
+        return (
+            <MultiSeatPokerTable
+                state={state}
+                community={community}
+                playerCardsRevealed={playerCardsRevealed}
+                setPlayerCardsRevealed={setPlayerCardsRevealed}
+            />
+        );
+    }
 
     return (
         <section className="poker-table-breath relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">

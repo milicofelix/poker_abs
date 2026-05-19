@@ -96,4 +96,37 @@ final class PokerMultiplayerRealtimeTest extends TestCase
         $this->assertLessThan(1500, strlen(json_encode($payload)));
     }
 
+
+    public function test_evento_realtime_multi_seat_envia_sinal_leve_sem_dados_privados(): void
+    {
+        $this->get('/poker')->assertOk();
+
+        $table = PokerTable::query()->firstOrFail();
+
+        $payload = (new PokerTableStateUpdated($table->id, [
+            'street' => 'river',
+            'isFinished' => false,
+            'persistence' => [
+                'tableId' => $table->id,
+                'syncVersion' => 22,
+            ],
+            'multiSeat' => [
+                'enabled' => true,
+                'currentSeat' => 3,
+                'players' => [
+                    ['seatNumber' => 1, 'cards' => [['label' => 'A♠']]],
+                    ['seatNumber' => 2, 'cards' => [['label' => 'K♠']]],
+                    ['seatNumber' => 3, 'cards' => [['label' => 'Q♠']]],
+                ],
+            ],
+        ]))->broadcastWith();
+
+        $this->assertSame('10.16', $payload['state']['multiSeatRealtime']['phase']);
+        $this->assertSame(3, $payload['state']['multiSeatRealtime']['currentSeat']);
+        $this->assertSame([1, 2, 3], $payload['state']['multiSeatRealtime']['activeSeatNumbers']);
+        $this->assertTrue($payload['state']['multiSeatRealtime']['requiresHydration']);
+        $this->assertArrayNotHasKey('multiSeat', $payload['state']);
+        $this->assertLessThan(1500, strlen(json_encode($payload)));
+    }
+
 }

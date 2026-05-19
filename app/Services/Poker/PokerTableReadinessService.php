@@ -2,6 +2,7 @@
 
 namespace App\Services\Poker;
 
+use App\Application\Poker\StartMultiSeatPokerHandAction;
 use App\Application\Poker\StartPokerHandAction;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
@@ -9,6 +10,11 @@ use Illuminate\Support\Collection;
 
 final class PokerTableReadinessService
 {
+    public function __construct(
+        private readonly StartMultiSeatPokerHandAction $startMultiSeatPokerHand,
+    ) {
+    }
+
     /**
      * @return Collection<int, PokerTablePlayer>
      */
@@ -28,7 +34,13 @@ final class PokerTableReadinessService
 
     public function canStartHand(PokerTable $table): bool
     {
-        return $this->seatedPlayers($table)->count() >= $table->minimumPlayersToStartCurrentEngine();
+        $playersSeated = $this->seatedPlayers($table)->count();
+
+        if ($table->isMultiSeatCandidate()) {
+            return $playersSeated >= PokerMultiSeatEngineActivationService::MINIMUM_PLAYERS;
+        }
+
+        return $playersSeated >= $this->minimumPlayersToStart($table);
     }
 
     /**
@@ -49,6 +61,10 @@ final class PokerTableReadinessService
             return $this->waitingState($table);
         }
 
+        if ($table->isMultiSeatCandidate()) {
+            return $pokerPersistence->startMultiSeatOnTable($table, $this->startMultiSeatPokerHand->execute($table));
+        }
+
         return $pokerPersistence->startOnTable($table, $startPokerHand->execute());
     }
 
@@ -59,7 +75,7 @@ final class PokerTableReadinessService
     {
         $seatedPlayers = $this->seatedPlayers($table);
         $playersSeated = $seatedPlayers->count();
-        $minimumPlayers = $table->minimumPlayersToStartCurrentEngine();
+        $minimumPlayers = $this->minimumPlayersToStart($table);
         $playersNeeded = max(0, $minimumPlayers - $playersSeated);
 
         return [
@@ -117,6 +133,17 @@ final class PokerTableReadinessService
             'bestHand' => null,
             'opponentBestHand' => null,
         ];
+    }
+
+    private function minimumPlayersToStart(PokerTable $table): int
+    {
+        if (! $table->isMultiSeatCandidate()) {
+            return $table->minimumPlayersToStartCurrentEngine();
+        }
+
+        return $this->seatedPlayers($table)->count() >= PokerMultiSeatEngineActivationService::MINIMUM_PLAYERS
+            ? PokerMultiSeatEngineActivationService::MINIMUM_PLAYERS
+            : $table->minimumPlayersToStartCurrentEngine();
     }
 
     /**

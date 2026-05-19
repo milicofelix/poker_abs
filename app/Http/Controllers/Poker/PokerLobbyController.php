@@ -31,9 +31,25 @@ final class PokerLobbyController extends Controller
             'tables' => $tables,
             'summary' => $this->summary($tables),
             'phase' => [
-                'label' => 'FASE 8.1',
-                'title' => 'Lobby real de mesas',
-                'description' => 'Listagem real das mesas públicas com criação/entrada e acesso separado por código para mesas privadas.',
+                'label' => 'FASE 10.2',
+                'title' => 'Contratos de mesa 3+',
+                'description' => 'Listagem real das mesas públicas com criação/entrada e assentos para 2 a 6 jogadores, mantendo o motor da mão em heads-up até a ativação completa.',
+            ],
+            'tableCreation' => [
+                'defaultMaxPlayers' => PokerTable::DEFAULT_MAX_PLAYERS,
+                'currentEngineMaxPlayers' => PokerTable::CURRENT_ENGINE_MAX_PLAYERS,
+                'futureMultiSeatTarget' => PokerTable::FUTURE_MULTI_SEAT_TARGET,
+                'maxPlayersOptions' => collect(range(PokerTable::MIN_DECLARED_MAX_PLAYERS, PokerTable::FUTURE_MULTI_SEAT_TARGET))
+                    ->map(static fn (int $value): array => [
+                        'value' => $value,
+                        'label' => $value === PokerTable::CURRENT_ENGINE_MAX_PLAYERS
+                            ? '2 jogadores · motor atual'
+                            : $value.' jogadores · preparação multi-seat',
+                        'isCurrentEngine' => $value === PokerTable::CURRENT_ENGINE_MAX_PLAYERS,
+                        'isMultiSeatCandidate' => $value > PokerTable::CURRENT_ENGINE_MAX_PLAYERS,
+                    ])
+                    ->values()
+                    ->all(),
             ],
         ]);
     }
@@ -45,7 +61,7 @@ final class PokerLobbyController extends Controller
     {
         $latestHand = $table->hands->first();
         $playersCount = (int) $table->real_players_count;
-        $maxPlayers = (int) $table->max_players;
+        $maxPlayers = $table->declaredMaxPlayers();
         $isFull = $playersCount >= $maxPlayers;
         $canEnter = $table->status !== 'finished' && ! $isFull;
 
@@ -64,6 +80,7 @@ final class PokerLobbyController extends Controller
             'playersCount' => $playersCount,
             'availableSeats' => max(0, $maxPlayers - $playersCount),
             'isFull' => $isFull,
+            'capacity' => $table->capacityPayload(),
             'canEnter' => $canEnter,
             'actionLabel' => $this->actionLabel($table->status, $isFull),
             'updatedAtLabel' => $table->updated_at?->diffForHumans(),

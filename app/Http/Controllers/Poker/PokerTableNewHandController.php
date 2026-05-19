@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Poker;
 
+use App\Application\Poker\StartMultiSeatPokerHandAction;
 use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
@@ -23,6 +24,7 @@ final class PokerTableNewHandController extends Controller
         Request $request,
         PokerTable $table,
         StartPokerHandAction $startPokerHand,
+        StartMultiSeatPokerHandAction $startMultiSeatPokerHand,
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $broadcaster,
@@ -57,15 +59,23 @@ final class PokerTableNewHandController extends Controller
         }
 
         $isBotVsBotSimulation = $botTurnProcessor->isBotVsBotTable($table);
-        $initialState = [
-            ...$startPokerHand->execute(),
-            'botVsBotSimulation' => $isBotVsBotSimulation,
-        ];
 
-        $nextState = $pokerPersistence->startOnTable($table, $initialState);
+        if ($table->isMultiSeatCandidate()) {
+            $nextState = $pokerPersistence->startMultiSeatOnTable(
+                $table,
+                $startMultiSeatPokerHand->execute($table),
+            );
+        } else {
+            $initialState = [
+                ...$startPokerHand->execute(),
+                'botVsBotSimulation' => $isBotVsBotSimulation,
+            ];
 
-        if (! $isBotVsBotSimulation) {
-            $nextState = $botTurnProcessor->process($table, $nextState);
+            $nextState = $pokerPersistence->startOnTable($table, $initialState);
+
+            if (! $isBotVsBotSimulation) {
+                $nextState = $botTurnProcessor->process($table, $nextState);
+            }
         }
 
         $nextState = $pokerPersistence->persist($nextState);

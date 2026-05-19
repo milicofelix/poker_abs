@@ -14,6 +14,8 @@ import PokerStateFeedbackPanel from '../../Components/Poker/PokerStateFeedbackPa
 import PokerMotionUxPanel from '../../Components/Poker/PokerMotionUxPanel';
 import PokerResponsiveUxPanel from '../../Components/Poker/PokerResponsiveUxPanel';
 import PokerFinalPolishPanel from '../../Components/Poker/PokerFinalPolishPanel';
+import PokerPhaseTenAuditPanel from '../../Components/Poker/PokerPhaseTenAuditPanel';
+import PokerMultiSeatIntegrationPanel from '../../Components/Poker/PokerMultiSeatIntegrationPanel';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
@@ -424,6 +426,7 @@ export default function Play({ hand, table = null }) {
     const [startingNewHand, setStartingNewHand] = useState(false);
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
+    const [stateContracts, setStateContracts] = useState(table?.stateContracts ?? null);
     const [joinMessage, setJoinMessage] = useState(null);
     const [handRankHelpOpen, setHandRankHelpOpen] = useState(false);
     const soundEffects = usePokerSoundEffects(state);
@@ -437,6 +440,10 @@ export default function Play({ hand, table = null }) {
 
         if (Array.isArray(payload?.seatSlots)) {
             setSeatSlots(payload.seatSlots);
+        }
+
+        if (payload?.stateContracts) {
+            setStateContracts(payload.stateContracts);
         }
     }, []);
 
@@ -463,7 +470,11 @@ export default function Play({ hand, table = null }) {
         turnTimer,
         handlePersonalizedState,
         {
-            autoProcessBotTurns: Boolean(state?.botVsBotSimulation),
+            autoProcessBotTurns: Boolean(
+                state?.botVsBotSimulation
+                || state?.turnTimer?.autoProcessCurrentBot
+                || state?.multiSeat?.autoProcessCurrentBot
+            ),
         },
     );
 
@@ -806,6 +817,12 @@ export default function Play({ hand, table = null }) {
                         <PokerMotionUxPanel motion={table?.motionUx} />
                         <PokerResponsiveUxPanel responsive={table?.responsiveUx} />
                         <PokerFinalPolishPanel polish={table?.finalPolish} />
+                        <PokerPhaseTenAuditPanel audit={table?.phaseTenAudit} />
+                        <PokerMultiSeatIntegrationPanel
+                            contracts={stateContracts}
+                            players={realPlayers}
+                            maxPlayers={table?.maxPlayers}
+                        />
 
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">

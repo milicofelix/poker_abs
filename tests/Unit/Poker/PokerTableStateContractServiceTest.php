@@ -5,6 +5,7 @@ namespace Tests\Unit\Poker;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
 use App\Models\User;
+use App\Services\Poker\PokerMultiSeatDealPreviewService;
 use App\Services\Poker\PokerMultiSeatEnginePreparationService;
 use App\Services\Poker\PokerTableStateContractService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,11 +84,31 @@ final class PokerTableStateContractServiceTest extends TestCase
         $this->assertSame(6, $payload['multiSeat']['declaredMaxPlayers']);
         $this->assertSame([1, 2, 3, 4, 5, 6], $payload['multiSeat']['supportedSeats']);
         $this->assertSame([1, 3, 5], array_column($payload['multiSeat']['turnOrder'], 'seatNumber'));
+        $this->assertSame('10.4', $payload['multiSeat']['turnCyclePreview']['phase']);
+        $this->assertSame('multi_seat_turn_cycle.v0', $payload['multiSeat']['turnCyclePreview']['schemaVersion']);
+        $this->assertSame('multi_seat_actions.v0', $payload['multiSeat']['actionPreview']['schemaVersion']);
+        $this->assertSame('multi_seat_betting_round.v0', $payload['multiSeat']['bettingRoundPreview']['schemaVersion']);
+        $this->assertSame('10.6', $payload['multiSeat']['bettingRoundPreview']['phase']);
+        $this->assertSame('multi_seat_showdown.v0', $payload['multiSeat']['showdownPreview']['schemaVersion']);
+        $this->assertSame('10.7', $payload['multiSeat']['showdownPreview']['phase']);
+        $this->assertFalse($payload['multiSeat']['actionPreview']['enabledInMainEngine']);
+        $this->assertFalse($payload['multiSeat']['bettingRoundPreview']['enabledInMainEngine']);
+        $this->assertFalse($payload['multiSeat']['showdownPreview']['enabledInMainEngine']);
+        $this->assertFalse($payload['multiSeat']['turnCyclePreview']['enabledInMainEngine']);
+        $this->assertSame(1, $payload['multiSeat']['turnCyclePreview']['dealerSeat']);
+        $this->assertSame(3, $payload['multiSeat']['turnCyclePreview']['smallBlindSeat']);
+        $this->assertSame(5, $payload['multiSeat']['turnCyclePreview']['bigBlindSeat']);
+        $this->assertSame(1, $payload['multiSeat']['turnCyclePreview']['firstPreFlopSeat']);
         $this->assertTrue($payload['compatibility']['headsUpStillAuthoritative']);
     }
 
     private function service(): PokerTableStateContractService
     {
-        return new PokerTableStateContractService(new PokerMultiSeatEnginePreparationService());
+        $preparation = new PokerMultiSeatEnginePreparationService();
+
+        return new PokerTableStateContractService(
+            $preparation,
+            new PokerMultiSeatDealPreviewService($preparation),
+        );
     }
 }

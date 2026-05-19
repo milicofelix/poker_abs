@@ -10,6 +10,7 @@ use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
 use App\Services\Poker\PokerTableTurnActionService;
 use App\Services\Poker\PokerBotTurnProcessor;
+use App\Services\Poker\PokerMultiSeatTurnActionService;
 use Illuminate\Http\JsonResponse;
 
 final class PokerTableRoundActionController extends Controller
@@ -22,20 +23,31 @@ final class PokerTableRoundActionController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         PokerTableTurnActionService $turnAction,
         PokerBotTurnProcessor $botTurnProcessor,
+        PokerMultiSeatTurnActionService $multiSeatTurnAction,
     ): JsonResponse {
         $currentState = $pokerPersistence->currentStateForTable($table);
 
         abort_if(! $currentState, 404, 'Mesa sem mão ativa.');
 
-        $nextState = $turnAction->execute(
-            $table,
-            $currentState,
-            $request->user(),
-            $request->pokerAction(),
-            $request->raiseAmount(),
-        );
+        if ((bool) data_get($currentState, 'multiSeat.enabled', false)) {
+            $nextState = $multiSeatTurnAction->execute(
+                $table,
+                $currentState,
+                $request->user(),
+                $request->pokerAction(),
+                $request->raiseAmount(),
+            );
+        } else {
+            $nextState = $turnAction->execute(
+                $table,
+                $currentState,
+                $request->user(),
+                $request->pokerAction(),
+                $request->raiseAmount(),
+            );
 
-        $nextState = $botTurnProcessor->process($table, $nextState);
+            $nextState = $botTurnProcessor->process($table, $nextState);
+        }
 
         $nextState = $pokerPersistence->persist($nextState);
 

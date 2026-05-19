@@ -12,6 +12,7 @@ final class PokerTable extends Model
 
     public const DEFAULT_MAX_PLAYERS = 2;
     public const CURRENT_ENGINE_MAX_PLAYERS = 2;
+    public const MIN_DECLARED_MAX_PLAYERS = 2;
     public const FUTURE_MULTI_SEAT_TARGET = 6;
 
     protected $fillable = [
@@ -34,7 +35,7 @@ final class PokerTable extends Model
 
     public function declaredMaxPlayers(): int
     {
-        return max(1, (int) ($this->max_players ?: self::DEFAULT_MAX_PLAYERS));
+        return max(self::MIN_DECLARED_MAX_PLAYERS, (int) ($this->max_players ?: self::DEFAULT_MAX_PLAYERS));
     }
 
     public function currentEngineMaxPlayers(): int

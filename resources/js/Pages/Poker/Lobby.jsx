@@ -23,11 +23,19 @@ function streetLabel(street) {
     return labels[street] ?? street;
 }
 
-export default function Lobby({ tables = [] }) {
+export default function Lobby({ tables = [], tableCreation = {} }) {
     const { auth, flash = {} } = usePage().props;
     const user = auth?.user;
     const [tableName, setTableName] = useState('');
     const [privateTable, setPrivateTable] = useState(false);
+    const maxPlayersOptions = tableCreation.maxPlayersOptions ?? [
+        { value: 2, label: '2 jogadores · motor atual', isCurrentEngine: true, isMultiSeatCandidate: false },
+        { value: 3, label: '3 jogadores · preparação multi-seat', isCurrentEngine: false, isMultiSeatCandidate: true },
+        { value: 4, label: '4 jogadores · preparação multi-seat', isCurrentEngine: false, isMultiSeatCandidate: true },
+        { value: 5, label: '5 jogadores · preparação multi-seat', isCurrentEngine: false, isMultiSeatCandidate: true },
+        { value: 6, label: '6 jogadores · preparação multi-seat', isCurrentEngine: false, isMultiSeatCandidate: true },
+    ];
+    const [maxPlayers, setMaxPlayers] = useState(tableCreation.defaultMaxPlayers ?? 2);
     const [inviteCode, setInviteCode] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -45,6 +53,7 @@ export default function Lobby({ tables = [] }) {
         router.post('/poker/tables', {
             name: tableName,
             is_private: privateTable,
+            max_players: Number(maxPlayers),
         });
     }
 
@@ -146,6 +155,28 @@ export default function Lobby({ tables = [] }) {
                             placeholder="Ex: Mesa do Adriano"
                             className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-300"
                         />
+
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="table-max-players">
+                            Capacidade da mesa
+                        </label>
+                        <select
+                            id="table-max-players"
+                            value={maxPlayers}
+                            onChange={(event) => setMaxPlayers(Number(event.target.value))}
+                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-300"
+                        >
+                            {maxPlayersOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        {Number(maxPlayers) > (tableCreation.currentEngineMaxPlayers ?? 2) && (
+                            <div className="mt-3 rounded-2xl border border-amber-200/25 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-relaxed text-amber-100">
+                                Entrada e assentos 3+ ficam liberados agora. A mão ainda roda no motor heads-up até as próximas fases da FASE 10.
+                            </div>
+                        )}
+
                         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-sm text-slate-200">
                             <input
                                 type="checkbox"
@@ -209,9 +240,16 @@ export default function Lobby({ tables = [] }) {
                                         </p>
                                     </div>
 
-                                    <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">
-                                        {statusLabel(table.status)}
-                                    </span>
+                                    <div className="flex shrink-0 flex-col items-end gap-2">
+                                        <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">
+                                            {statusLabel(table.status)}
+                                        </span>
+                                        {table.capacity?.isMultiSeatCandidate && (
+                                            <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.14em] text-amber-100">
+                                                3+ preparado
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="mt-5 rounded-2xl bg-white/5 p-4 text-sm text-slate-300">
@@ -228,7 +266,14 @@ export default function Lobby({ tables = [] }) {
                                             </p>
                                         </div>
                                     ) : (
-                                        <p>Nenhuma mão criada nesta mesa ainda.</p>
+                                        <div className="space-y-2">
+                                            <p>Nenhuma mão criada nesta mesa ainda.</p>
+                                            {table.capacity?.isMultiSeatCandidate && (
+                                                <p className="rounded-xl border border-amber-200/20 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100">
+                                                    Contrato 3+ liberado para lobby/entrada/assentos. Motor da mão segue heads-up por segurança.
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
 

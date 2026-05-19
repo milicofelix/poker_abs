@@ -118,7 +118,9 @@ export default function usePokerTurnTimeout(timeoutUrl, timer, onTimeoutState, o
             }
         }
 
-        const delay = millisecondsUntil(timer.expiresAt) + (autoProcessBotTurns ? 650 : 350);
+        const delay = autoProcessBotTurns
+            ? 650
+            : millisecondsUntil(timer.expiresAt) + 350;
 
         timeoutId = window.setTimeout(processTimeout, delay);
 

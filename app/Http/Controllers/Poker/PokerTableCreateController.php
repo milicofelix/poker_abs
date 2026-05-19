@@ -20,10 +20,12 @@ final class PokerTableCreateController extends Controller
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:80'],
             'is_private' => ['sometimes', 'boolean'],
+            'max_players' => ['nullable', 'integer', 'min:'.PokerTable::MIN_DECLARED_MAX_PLAYERS, 'max:'.PokerTable::FUTURE_MULTI_SEAT_TARGET],
         ]);
 
         $tableNumber = PokerTable::query()->count() + 1;
         $isPrivate = (bool) ($validated['is_private'] ?? false);
+        $maxPlayers = (int) ($validated['max_players'] ?? PokerTable::DEFAULT_MAX_PLAYERS);
 
         $table = PokerTable::query()->create([
             'name' => filled($validated['name'] ?? null)
@@ -32,7 +34,7 @@ final class PokerTableCreateController extends Controller
             'status' => 'waiting',
             'small_blind' => 10,
             'big_blind' => 20,
-            'max_players' => PokerTable::DEFAULT_MAX_PLAYERS,
+            'max_players' => $maxPlayers,
             'is_private' => $isPrivate,
             'invite_code' => $isPrivate ? $this->generateInviteCode() : null,
         ]);
@@ -43,7 +45,9 @@ final class PokerTableCreateController extends Controller
             ->route('poker.tables.show', $table)
             ->with('success', $isPrivate
                 ? 'Mesa privada criada. Compartilhe o código com quem você quer convidar.'
-                : 'Mesa criada. Você já entrou como jogador real.');
+                : ($maxPlayers > PokerTable::CURRENT_ENGINE_MAX_PLAYERS
+                    ? 'Mesa multi-seat criada. A entrada e os assentos 3+ já estão liberados; o motor de jogo 3+ será ativado nas próximas fases.'
+                    : 'Mesa criada. Você já entrou como jogador real.'));
     }
 
     private function generateInviteCode(): string

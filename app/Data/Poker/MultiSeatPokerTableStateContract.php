@@ -22,6 +22,11 @@ final readonly class MultiSeatPokerTableStateContract
         public array $turnOrder,
         public array $blinds,
         public string $note,
+        public array $dealPreview,
+        public array $turnCyclePreview,
+        public array $actionPreview,
+        public array $bettingRoundPreview,
+        public array $showdownPreview,
     ) {
     }
 
@@ -46,6 +51,11 @@ final readonly class MultiSeatPokerTableStateContract
             )),
             blinds: is_array($preparationPayload['blinds'] ?? null) ? $preparationPayload['blinds'] : [],
             note: 'Contrato futuro da mesa multi-seat. Ele documenta assentos, ordem e blinds, mas ainda não executa jogadas 3+.',
+            dealPreview: is_array($preparationPayload['dealPreview'] ?? null) ? $preparationPayload['dealPreview'] : [],
+            turnCyclePreview: is_array($preparationPayload['turnCyclePreview'] ?? null) ? $preparationPayload['turnCyclePreview'] : [],
+            actionPreview: is_array($preparationPayload['actionPreview'] ?? null) ? $preparationPayload['actionPreview'] : [],
+            bettingRoundPreview: is_array($preparationPayload['bettingRoundPreview'] ?? null) ? $preparationPayload['bettingRoundPreview'] : [],
+            showdownPreview: is_array($preparationPayload['showdownPreview'] ?? null) ? $preparationPayload['showdownPreview'] : [],
         );
     }
 
@@ -65,6 +75,11 @@ final readonly class MultiSeatPokerTableStateContract
             'turnOrder' => $this->turnOrder,
             'blinds' => $this->blinds,
             'note' => $this->note,
+            'dealPreview' => $this->dealPreview,
+            'turnCyclePreview' => $this->turnCyclePreview,
+            'actionPreview' => $this->actionPreview,
+            'bettingRoundPreview' => $this->bettingRoundPreview,
+            'showdownPreview' => $this->showdownPreview,
         ];
     }
 }

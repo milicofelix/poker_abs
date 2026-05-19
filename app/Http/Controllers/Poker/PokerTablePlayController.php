@@ -14,8 +14,10 @@ use App\Services\Poker\PokerPhaseNineMotionUxService;
 use App\Services\Poker\PokerPhaseNineResponsiveUxService;
 use App\Services\Poker\PokerPhaseNineFinalPolishService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
+use App\Services\Poker\PokerPhaseTenHeadsUpAuditService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
+use App\Services\Poker\PokerTableStateContractService;
 use App\Support\Poker\PokerBotProfiles;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\Request;
@@ -41,6 +43,8 @@ final class PokerTablePlayController extends Controller
         PokerPhaseNineMotionUxService $motionUx,
         PokerPhaseNineResponsiveUxService $responsiveUx,
         PokerPhaseNineFinalPolishService $finalPolish,
+        PokerPhaseTenHeadsUpAuditService $phaseTenAudit,
+        PokerTableStateContractService $stateContracts,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -54,6 +58,7 @@ final class PokerTablePlayController extends Controller
 
         $hand = $privateState->forUser($table, $hand, $request->user());
         $phaseClosure = $phaseEightClosure->forLobbyTable($table);
+        $stateContractPayload = $stateContracts->forTable($table, $hand ?? []);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -86,6 +91,8 @@ final class PokerTablePlayController extends Controller
                 'motionUx' => $motionUx->forTable($table, false),
                 'responsiveUx' => $responsiveUx->forTable($table, false),
                 'finalPolish' => $finalPolish->forTable($table, false),
+                'phaseTenAudit' => $phaseTenAudit->forTable($table, false),
+                'stateContracts' => $stateContractPayload,
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,

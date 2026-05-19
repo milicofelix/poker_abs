@@ -130,6 +130,79 @@ final class LocalPokerPersistenceService
         });
     }
 
+
+    /**
+     * Persiste uma mão multi-seat controlada na mesa sem reutilizar o contrato heads-up.
+     *
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    public function startMultiSeatOnTable(PokerTable $table, array $state): array
+    {
+        return DB::transaction(function () use ($table, $state): array {
+            $table->forceFill(['status' => 'playing'])->save();
+
+            $players = $state['multiSeat']['players'] ?? [];
+            $players = is_array($players) ? array_values(array_filter(
+                $players,
+                static fn (mixed $player): bool => is_array($player),
+            )) : [];
+
+            $seats = [];
+
+            foreach ($players as $player) {
+                $seatNumber = (int) ($player['seatNumber'] ?? 0);
+                $tablePlayerId = (int) ($player['tablePlayerId'] ?? 0);
+
+                if ($seatNumber <= 0 || $tablePlayerId <= 0) {
+                    continue;
+                }
+
+                $seats[] = $table->seats()->updateOrCreate(
+                    ['seat_number' => $seatNumber],
+                    [
+                        'poker_player_id' => null,
+                        'status' => 'occupied',
+                        'role' => (bool) ($player['isBot'] ?? false) ? 'simple_bot' : 'real_user',
+                        'stack_snapshot' => (int) ($player['stack'] ?? 0),
+                        'is_dealer' => $seatNumber === (int) data_get($state, 'multiSeat.dealerSeat', 1),
+                        'is_small_blind' => $seatNumber === (int) data_get($state, 'multiSeat.smallBlindSeat', 2),
+                        'is_big_blind' => $seatNumber === (int) data_get($state, 'multiSeat.bigBlindSeat', 3),
+                    ],
+                );
+            }
+
+            $hand = $table->hands()->create([
+                'code' => (string) Str::uuid(),
+                'status' => (bool) ($state['isFinished'] ?? false) ? 'finished' : 'running',
+                'street' => (string) ($state['street'] ?? 'pre_flop'),
+                'pot' => (int) ($state['pot'] ?? 0),
+                'current_bet' => (int) ($state['currentBet'] ?? 0),
+                'dealer_position' => (int) data_get($state, 'multiSeat.dealerSeat', 1),
+                ...$this->winnerAttributes($state),
+                'started_at' => now(),
+                'finished_at' => (bool) ($state['isFinished'] ?? false) ? now() : null,
+            ]);
+
+            $state = $this->turnTimer->start([
+                ...$state,
+                'tableSeats' => $this->serializeSeats($seats),
+                'persistence' => [
+                    'multiSeat' => true,
+                    'tableId' => $table->id,
+                    'handId' => $hand->id,
+                    'loggedActions' => 0,
+                    'syncVersion' => 1,
+                ],
+            ]);
+
+            $hand->forceFill(['state_payload' => $state])->save();
+            $this->syncMultiSeatStacks($state);
+
+            return $state;
+        });
+    }
+
     /**
      * @return array<string, mixed>|null
      */
@@ -211,24 +284,28 @@ final class LocalPokerPersistenceService
                     : null,
             ])->save();
 
-            $playerStack = (int) ($state['playerStack'] ?? 1000);
-            $opponentStack = (int) ($state['opponentStack'] ?? 1000);
+            if ((bool) ($persistence['multiSeat'] ?? false)) {
+                $this->syncMultiSeatStacks($state);
+            } else {
+                $playerStack = (int) ($state['playerStack'] ?? 1000);
+                $opponentStack = (int) ($state['opponentStack'] ?? 1000);
 
-            PokerPlayer::query()
-                ->whereKey((int) $persistence['playerId'])
-                ->update(['stack' => $playerStack]);
+                PokerPlayer::query()
+                    ->whereKey((int) $persistence['playerId'])
+                    ->update(['stack' => $playerStack]);
 
-            PokerPlayer::query()
-                ->whereKey((int) $persistence['opponentId'])
-                ->update(['stack' => $opponentStack]);
+                PokerPlayer::query()
+                    ->whereKey((int) $persistence['opponentId'])
+                    ->update(['stack' => $opponentStack]);
 
-            PokerTableSeat::query()
-                ->whereKey((int) ($persistence['playerSeatId'] ?? 0))
-                ->update(['stack_snapshot' => $playerStack]);
+                PokerTableSeat::query()
+                    ->whereKey((int) ($persistence['playerSeatId'] ?? 0))
+                    ->update(['stack_snapshot' => $playerStack]);
 
-            PokerTableSeat::query()
-                ->whereKey((int) ($persistence['opponentSeatId'] ?? 0))
-                ->update(['stack_snapshot' => $opponentStack]);
+                PokerTableSeat::query()
+                    ->whereKey((int) ($persistence['opponentSeatId'] ?? 0))
+                    ->update(['stack_snapshot' => $opponentStack]);
+            }
 
             $state['tableSeats'] = $this->serializeSeats(
                 PokerTableSeat::query()
@@ -273,9 +350,15 @@ final class LocalPokerPersistenceService
      */
     private function hasPersistence(array $state): bool
     {
+        if (! isset($state['persistence']['tableId'], $state['persistence']['handId'])) {
+            return false;
+        }
+
+        if ((bool) ($state['persistence']['multiSeat'] ?? false)) {
+            return true;
+        }
+
         return isset(
-            $state['persistence']['tableId'],
-            $state['persistence']['handId'],
             $state['persistence']['playerId'],
             $state['persistence']['opponentId'],
             $state['persistence']['playerSeatId'],
@@ -303,8 +386,12 @@ final class LocalPokerPersistenceService
      * @param array<string, mixed> $action
      * @param array<string, mixed> $persistence
      */
-    private function resolvePlayerId(array $action, array $persistence): int
+    private function resolvePlayerId(array $action, array $persistence): ?int
     {
+        if ((bool) ($persistence['multiSeat'] ?? false)) {
+            return null;
+        }
+
         return ($action['actor'] ?? null) === 'opponent'
             ? (int) $persistence['opponentId']
             : (int) $persistence['playerId'];
@@ -331,6 +418,32 @@ final class LocalPokerPersistenceService
             'winner_label' => isset($winner['label']) ? (string) $winner['label'] : null,
             'winning_hand_name' => isset($winner['handName']) ? (string) $winner['handName'] : null,
         ];
+    }
+
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function syncMultiSeatStacks(array $state): void
+    {
+        $players = $state['multiSeat']['players'] ?? [];
+
+        if (! is_array($players)) {
+            return;
+        }
+
+        foreach ($players as $player) {
+            if (! is_array($player) || ! isset($player['tablePlayerId'])) {
+                continue;
+            }
+
+            $stack = max(0, (int) ($player['stack'] ?? 0));
+            $tablePlayerId = (int) $player['tablePlayerId'];
+
+            \App\Models\Poker\PokerTablePlayer::query()
+                ->whereKey($tablePlayerId)
+                ->update(['stack' => $stack]);
+        }
     }
 
     /**

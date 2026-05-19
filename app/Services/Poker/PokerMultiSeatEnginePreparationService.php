@@ -15,7 +15,7 @@ final class PokerMultiSeatEnginePreparationService
     {
         return $table->realPlayers()
             ->whereNull('left_at')
-            ->whereNotNull('seat_number')
+            ->orderByRaw('seat_number IS NULL')
             ->orderBy('seat_number')
             ->orderBy('id')
             ->get();
@@ -43,11 +43,11 @@ final class PokerMultiSeatEnginePreparationService
             ->slice((int) $dealerIndex)
             ->concat($players->slice(0, (int) $dealerIndex))
             ->values()
-            ->map(static fn (PokerTablePlayer $player): array => [
+            ->map(static fn (PokerTablePlayer $player, int $index): array => [
                 'tablePlayerId' => $player->id,
                 'userId' => $player->user_id,
                 'nickname' => $player->nickname,
-                'seatNumber' => (int) $player->seat_number,
+                'seatNumber' => (int) ($player->seat_number ?? ($index + 1)),
                 'isBot' => (bool) $player->is_bot,
             ])
             ->all();
@@ -90,7 +90,7 @@ final class PokerMultiSeatEnginePreparationService
     /**
      * @return array<string, mixed>
      */
-    public function preparationPayload(PokerTable $table, ?int $dealerSeat = null): array
+    public function preparationPayload(PokerTable $table, ?int $dealerSeat = null, ?array $dealPreview = null): array
     {
         $order = $this->turnOrder($table, $dealerSeat);
 
@@ -104,6 +104,11 @@ final class PokerMultiSeatEnginePreparationService
             'blinds' => $this->blindSeats($table, $dealerSeat),
             'isPlayableByCurrentEngine' => count($order) >= $table->minimumPlayersToStartCurrentEngine(),
             'isMultiSeatEngineEnabled' => false,
+            'dealPreview' => $dealPreview ?? [],
+            'turnCyclePreview' => (new PokerMultiSeatTurnCyclePreviewService())->preview($table, $dealerSeat),
+            'actionPreview' => (new PokerMultiSeatActionPreviewService())->preview($table),
+            'bettingRoundPreview' => (new PokerMultiSeatBettingRoundPreviewService())->preview($table),
+            'showdownPreview' => (new PokerMultiSeatShowdownPreviewService())->preview($table),
             'note' => 'Base multi-seat preparada; motor de jogo 3+ ainda não ativado.',
         ];
     }

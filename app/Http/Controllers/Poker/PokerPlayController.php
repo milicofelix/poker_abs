@@ -14,6 +14,7 @@ use App\Services\Poker\PokerPhaseNineMotionUxService;
 use App\Services\Poker\PokerPhaseNineResponsiveUxService;
 use App\Services\Poker\PokerPhaseNineFinalPolishService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
+use App\Services\Poker\PokerPhaseTenHeadsUpAuditService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,6 +33,7 @@ final class PokerPlayController extends Controller
         PokerPhaseNineMotionUxService $motionUx,
         PokerPhaseNineResponsiveUxService $responsiveUx,
         PokerPhaseNineFinalPolishService $finalPolish,
+        PokerPhaseTenHeadsUpAuditService $phaseTenAudit,
     ): Response {
         if ($request->boolean('new')) {
             $pokerSession->forget();
@@ -44,7 +46,7 @@ final class PokerPlayController extends Controller
             $pokerSession->store($hand);
         }
 
-        $table = $this->localTablePayload($hand, $phaseEightClosure, $visualAudit, $actionButtonUx, $stateFeedback, $motionUx, $responsiveUx, $finalPolish);
+        $table = $this->localTablePayload($hand, $phaseEightClosure, $visualAudit, $actionButtonUx, $stateFeedback, $motionUx, $responsiveUx, $finalPolish, $phaseTenAudit);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -56,7 +58,7 @@ final class PokerPlayController extends Controller
      * @param array<string, mixed> $hand
      * @return array<string, mixed>|null
      */
-    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure, PokerPhaseNineVisualAuditService $visualAudit, PokerPhaseNineActionButtonUxService $actionButtonUx, PokerPhaseNineStateFeedbackService $stateFeedback, PokerPhaseNineMotionUxService $motionUx, PokerPhaseNineResponsiveUxService $responsiveUx, PokerPhaseNineFinalPolishService $finalPolish): ?array
+    private function localTablePayload(array $hand, PokerPhaseEightClosureService $phaseEightClosure, PokerPhaseNineVisualAuditService $visualAudit, PokerPhaseNineActionButtonUxService $actionButtonUx, PokerPhaseNineStateFeedbackService $stateFeedback, PokerPhaseNineMotionUxService $motionUx, PokerPhaseNineResponsiveUxService $responsiveUx, PokerPhaseNineFinalPolishService $finalPolish, PokerPhaseTenHeadsUpAuditService $phaseTenAudit): ?array
     {
         $tableId = $hand['persistence']['tableId'] ?? null;
 
@@ -94,6 +96,7 @@ final class PokerPlayController extends Controller
             'motionUx' => $motionUx->forTable($table, true),
             'responsiveUx' => $responsiveUx->forTable($table, true),
             'finalPolish' => $finalPolish->forTable($table, true),
+            'phaseTenAudit' => $phaseTenAudit->forTable($table, true),
         ];
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
+use App\Services\Poker\PokerMultiSeatRealtimeSyncContractService;
 use Illuminate\Queue\SerializesModels;
 
 final class PokerTableStateUpdated implements ShouldBroadcastNow
@@ -67,7 +68,22 @@ final class PokerTableStateUpdated implements ShouldBroadcastNow
             'streetLabel' => data_get($state, 'streetLabel'),
             'isFinished' => data_get($state, 'isFinished'),
             'lastAction' => $this->compactLastAction($state['lastAction'] ?? null),
+            'multiSeatRealtime' => $this->compactMultiSeatRealtime($state),
         ], static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>|null
+     */
+    private function compactMultiSeatRealtime(array $state): ?array
+    {
+        if (! (bool) data_get($state, 'multiSeat.enabled', false)) {
+            return null;
+        }
+
+        return (new PokerMultiSeatRealtimeSyncContractService())->forState($state);
     }
 
     /**
