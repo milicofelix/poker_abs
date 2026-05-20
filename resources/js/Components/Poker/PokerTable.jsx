@@ -165,6 +165,54 @@ function multiSeatCurrentTurnSeat(state) {
     return seat === null || seat === undefined ? null : Number(seat);
 }
 
+function multiSeatSeatPositionNumbers(state) {
+    return {
+        dealerSeat: Number(state?.multiSeat?.dealerSeat ?? state?.multiSeat?.blinds?.dealerSeat ?? 0),
+        smallBlindSeat: Number(state?.multiSeat?.smallBlindSeat ?? state?.multiSeat?.blinds?.smallBlindSeat ?? 0),
+        bigBlindSeat: Number(state?.multiSeat?.bigBlindSeat ?? state?.multiSeat?.blinds?.bigBlindSeat ?? 0),
+    };
+}
+
+function multiSeatPositionBadges(player, state) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const positions = multiSeatSeatPositionNumbers(state);
+
+    return [
+        {
+            key: 'dealer',
+            shortLabel: 'D',
+            label: 'Dealer',
+            active: Boolean(player?.isDealer) || (positions.dealerSeat > 0 && seatNumber === positions.dealerSeat),
+            className: 'border-amber-100/70 bg-amber-300 text-amber-950 shadow-amber-950/20',
+        },
+        {
+            key: 'small-blind',
+            shortLabel: 'SB',
+            label: 'Small Blind',
+            active: Boolean(player?.isSmallBlind) || (positions.smallBlindSeat > 0 && seatNumber === positions.smallBlindSeat),
+            className: 'border-sky-100/60 bg-sky-300 text-sky-950 shadow-sky-950/20',
+        },
+        {
+            key: 'big-blind',
+            shortLabel: 'BB',
+            label: 'Big Blind',
+            active: Boolean(player?.isBigBlind) || (positions.bigBlindSeat > 0 && seatNumber === positions.bigBlindSeat),
+            className: 'border-fuchsia-100/60 bg-fuchsia-300 text-fuchsia-950 shadow-fuchsia-950/20',
+        },
+    ].filter((badge) => badge.active);
+}
+
+function multiSeatBlindSummary(state) {
+    const positions = multiSeatSeatPositionNumbers(state);
+    const parts = [
+        positions.dealerSeat > 0 ? `Dealer: assento ${positions.dealerSeat}` : null,
+        positions.smallBlindSeat > 0 ? `SB: assento ${positions.smallBlindSeat}` : null,
+        positions.bigBlindSeat > 0 ? `BB: assento ${positions.bigBlindSeat}` : null,
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(' • ') : 'Dealer/SB/BB aguardando nova mão';
+}
+
 function isMultiSeatWinner(state, seatNumber) {
     const winnerSeats = state?.multiSeat?.winnerSeats ?? [];
     const conclusionSeat = state?.conclusion?.winner?.seatNumber;
@@ -198,6 +246,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
     const hiddenCount = Math.max(0, (cards?.length || 2) - visibleCards.length);
     const displayName = isCurrentUserSeat ? 'Você' : (player?.nickname ?? player?.displayName ?? `Jogador ${seatNumber}`);
     const bestHand = isCurrentUserSeat ? state?.bestHand : player?.bestHand;
+    const positionBadges = multiSeatPositionBadges(player, state);
 
     return (
         <article
@@ -216,6 +265,19 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                 <div className="min-w-0">
                     <p className="text-[0.56rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Assento {seatNumber}</p>
                     <strong className="block truncate text-sm font-black text-white sm:text-base">{displayName}</strong>
+                    {positionBadges.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1" aria-label={`Posições do assento ${seatNumber}`}>
+                            {positionBadges.map((badge) => (
+                                <span
+                                    key={badge.key}
+                                    title={badge.label}
+                                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[0.55rem] font-black uppercase tracking-[0.14em] shadow-lg ${badge.className}`}
+                                >
+                                    {badge.shortLabel}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1 text-[0.58rem] font-black uppercase tracking-[0.15em]">

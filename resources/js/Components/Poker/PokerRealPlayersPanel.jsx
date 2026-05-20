@@ -82,7 +82,9 @@ export default function PokerRealPlayersPanel({
     onJoin = null,
     onSeat = null,
     onLeave = null,
+    onRebuy = null,
     onAddBot = null,
+    buyIn = null,
     botProfiles = [],
     botDifficulties = [],
     botDifficultyOptions = [],
@@ -142,6 +144,17 @@ export default function PokerRealPlayersPanel({
                         <span className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100">
                             Você está no assento {currentPlayer.seatNumber}
                         </span>
+
+                        {onRebuy && (
+                            <button
+                                type="button"
+                                onClick={onRebuy}
+                                disabled={loading}
+                                className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                Rebuy{buyIn ? ` +${buyIn}` : ''}
+                            </button>
+                        )}
 
                         {onLeave && (
                             <button
@@ -224,7 +237,7 @@ export default function PokerRealPlayersPanel({
                                                 <span className={`h-2.5 w-2.5 rounded-full shadow-[0_0_12px] ${presenceDotClass(player)}`} />
                                                 {isCurrentSeat ? 'Você' : player.nickname}
                                             </p>
-                                            <p className="text-xs text-slate-400">{playerRoleLabel(player)} · Stack inicial: {player.stack}</p>
+                                            <p className="text-xs text-slate-400">{playerRoleLabel(player)} · Stack na mesa: {player.stack}</p>
                                             {isBot && (
                                                 <p className="mt-1 text-xs font-bold text-purple-200">
                                                     Perfil: {player.botProfile ?? 'bot'} · Dificuldade: {player.botDifficultyLabel ?? player.botDifficulty ?? 'normal'}

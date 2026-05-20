@@ -552,6 +552,33 @@ export default function Play({ hand, table = null }) {
         }
     }
 
+
+    async function handleRebuyTable() {
+        if (!table?.rebuyUrl) {
+            return;
+        }
+
+        setSeatingTable(true);
+        setJoinMessage(null);
+
+        try {
+            const response = await axios.post(table.rebuyUrl);
+
+            setRealPlayers(response.data.players ?? []);
+            setSeatSlots(response.data.seatSlots ?? []);
+            setJoinMessage(response.data.message ?? 'Rebuy realizado com sucesso.');
+
+            rehydrationStatus.rehydrate();
+        } catch (error) {
+            setJoinMessage(
+                error?.response?.data?.message
+                    ?? 'Não foi possível fazer rebuy nesta mesa.',
+            );
+        } finally {
+            setSeatingTable(false);
+        }
+    }
+
     async function handleLeaveTable() {
         if (!table?.leaveUrl) {
             return;
@@ -861,6 +888,8 @@ export default function Play({ hand, table = null }) {
                                         onJoin={table?.joinUrl ? handleJoinTable : null}
                                         onSeat={table?.seatUrl ? handleSeatTable : null}
                                         onLeave={table?.leaveUrl ? handleLeaveTable : null}
+                                        onRebuy={table?.rebuyUrl ? handleRebuyTable : null}
+                                        buyIn={table?.buyIn ?? table?.defaultBuyIn}
                                         onAddBot={table?.botUrl ? handleAddBot : null}
                                         botProfiles={table?.botProfiles ?? []}
                                         botDifficulties={table?.botDifficulties ?? []}

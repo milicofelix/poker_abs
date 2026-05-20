@@ -478,6 +478,48 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
         $this->assertSame(1, PokerHand::query()->where('poker_table_id', $table->id)->count());
     }
 
+    public function test_multi_seat_registra_contribuicoes_por_assento_para_preparar_side_pots(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa multi-seat side pot prep',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 4,
+        ]);
+        $users = User::factory()->count(3)->create();
+
+        foreach ($users as $index => $user) {
+            $this->actingAs($user)->postJson(route('poker.tables.join', $table))->assertOk();
+            $this->actingAs($user)->postJson(route('poker.tables.seat', $table), [
+                'seat_number' => $index + 1,
+            ])->assertOk();
+        }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true)
+            ->assertJsonPath('state.currentTurn.seatNumber', 1);
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.actions', $table), [
+                'action' => 'raise',
+                'raise_amount' => 60,
+            ])
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.contributions.phase', '12.4')
+            ->assertJsonPath('state.multiSeat.sidePots.phase', '12.4')
+            ->assertJsonPath('state.multiSeat.sidePots.ready', true)
+            ->assertJsonPath('state.multiSeat.contributions.sidePotReady', true)
+            ->assertJsonPath('state.multiSeat.contributions.totalPotTracked', 40)
+            ->assertJsonPath('state.multiSeat.contributions.seats.1.seatNumber', 1)
+            ->assertJsonPath('state.multiSeat.contributions.seats.1.total', 40)
+            ->assertJsonPath('state.multiSeat.contributions.seats.1.byStreet.pre_flop', 40)
+            ->assertJsonPath('state.multiSeat.players.0.handContribution', 40)
+            ->assertJsonPath('state.multiSeat.lastBettingAction.handContributionAfterAction', 40);
+    }
+
     private function criarJogadorSentado(PokerTable $table, User $user, int $seatNumber, bool $isBot, string $nickname): void
     {
         PokerTablePlayer::query()->create([

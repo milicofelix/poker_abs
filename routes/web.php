@@ -24,6 +24,7 @@ use App\Http\Controllers\Poker\PokerTableBotController;
 use App\Http\Controllers\Poker\PokerPrivateTableJoinController;
 use App\Http\Controllers\Poker\PokerPrivateTableInviteController;
 use App\Http\Controllers\Poker\PokerBankrollHistoryController;
+use App\Http\Controllers\Poker\PokerTableRebuyController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -50,7 +51,6 @@ Route::get('/poker/tables', fn () => redirect()->route('poker.lobby'))->name('po
 Route::get('/poker/lobby', PokerLobbyController::class)->name('poker.lobby');
 
 Route::middleware('auth')->group(function (): void {
-    Route::get('/poker/bankroll', PokerBankrollHistoryController::class)->name('poker.bankroll.index');
     Route::get('/poker/tables/{table}', PokerTablePlayController::class)->name('poker.tables.show');
     Route::post('/poker/tables', PokerTableCreateController::class)->name('poker.tables.store');
     Route::post('/poker/tables/{table}/actions', PokerTableRoundActionController::class)->name('poker.tables.actions');
@@ -59,8 +59,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/poker/tables/{table}/join', PokerTableJoinController::class)->name('poker.tables.join');
     Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name('poker.tables.seat');
     Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
+    Route::post('/poker/tables/{table}/rebuy', PokerTableRebuyController::class)->name('poker.tables.rebuy');
     Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
     Route::post('/poker/tables/{table}/bots', PokerTableBotController::class)->name('poker.tables.bots');
     Route::post('/poker/private-tables/join', PokerPrivateTableJoinController::class)->name('poker.private-tables.join');
     Route::get('/poker/invite/{inviteCode}', PokerPrivateTableInviteController::class)->name('poker.private-tables.invite');
+    Route::get('/poker/bankroll', PokerBankrollHistoryController::class)->name('poker.bankroll.index');
 });

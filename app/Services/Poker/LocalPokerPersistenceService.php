@@ -480,13 +480,8 @@ final class LocalPokerPersistenceService
         }
 
         $pot = max(0, (int) ($state['pot'] ?? 0));
-        $baseShare = intdiv($pot, count($winnerSeats));
-        $remainder = $pot % count($winnerSeats);
-        $payouts = [];
-
-        foreach ($winnerSeats as $index => $seatNumber) {
-            $payouts[$seatNumber] = $baseShare + ($index < $remainder ? 1 : 0);
-        }
+        $sidePotSettlement = $this->buildMultiSeatSidePotSettlement($state, $winnerSeats, $pot);
+        $payouts = $sidePotSettlement['payoutsBySeat'];
 
         foreach ($players as $index => $player) {
             if (! is_array($player)) {
@@ -536,7 +531,7 @@ final class LocalPokerPersistenceService
                 tablePlayer: $tablePlayer,
                 amount: $payout,
                 metadata: [
-                    'reason' => 'Pote principal recebido no showdown.',
+                    'reason' => 'Pote principal/lateral recebido no showdown.',
                     'seatNumber' => $seatNumber,
                     'winnerSeats' => $winnerSeats,
                     'pot' => $pot,
@@ -547,16 +542,304 @@ final class LocalPokerPersistenceService
         $state['multiSeat']['players'] = $players;
         $state['bankrollSettlement'] = [
             'applied' => true,
-            'phase' => '11.3',
+            'phase' => '12.6',
             'pot' => $pot,
             'winnerSeats' => $winnerSeats,
             'payoutsBySeat' => $payouts,
-            'note' => 'Pote principal liquidado no bankroll com trilha de auditoria. Side pots ficam para fase futura.',
+            'sidePots' => $sidePotSettlement['sidePots'],
+            'note' => $sidePotSettlement['hasSidePot']
+                ? 'Potes principal/laterais liquidados com base nas contribuições por assento.'
+                : 'Pote principal liquidado no stack da mesa com trilha de auditoria.',
         ];
 
-        $state['multiSeat']['bankrollSettlementPhase'] = '11.3';
+        $state['multiSeat']['sidePots'] = $sidePotSettlement['sidePots'];
+        $state['multiSeat']['bankrollSettlementPhase'] = '12.6';
 
         return $state;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @param array<int, int> $winnerSeats
+     * @return array{payoutsBySeat: array<int, int>, sidePots: array<string, mixed>, hasSidePot: bool}
+     */
+    private function buildMultiSeatSidePotSettlement(array $state, array $winnerSeats, int $fallbackPot): array
+    {
+        $contributionSeats = (array) data_get($state, 'multiSeat.contributions.seats', []);
+        $players = data_get($state, 'multiSeat.players', []);
+        $foldedSeats = [];
+
+        if (is_array($players)) {
+            foreach ($players as $player) {
+                if (is_array($player) && (bool) ($player['hasFolded'] ?? false)) {
+                    $foldedSeats[] = (int) ($player['seatNumber'] ?? 0);
+                }
+            }
+        }
+
+        $totals = [];
+        $playersBySeat = [];
+
+        if (is_array($players)) {
+            foreach ($players as $player) {
+                if (! is_array($player)) {
+                    continue;
+                }
+
+                $seatNumber = (int) ($player['seatNumber'] ?? 0);
+
+                if ($seatNumber > 0) {
+                    $playersBySeat[$seatNumber] = $player;
+                }
+            }
+        }
+
+        foreach ($contributionSeats as $seatKey => $seatContribution) {
+            if (! is_array($seatContribution)) {
+                continue;
+            }
+
+            $seatNumber = (int) ($seatContribution['seatNumber'] ?? $seatKey);
+            $total = max(0, (int) ($seatContribution['total'] ?? 0));
+
+            if ($seatNumber > 0 && $total > 0) {
+                $totals[$seatNumber] = $total;
+            }
+        }
+
+        if ($totals === []) {
+            return $this->buildFallbackMainPotSettlement($winnerSeats, $fallbackPot);
+        }
+
+        $levels = array_values(array_unique(array_values($totals)));
+        sort($levels);
+
+        $payouts = [];
+        $pots = [];
+        $previousLevel = 0;
+
+        foreach ($levels as $level) {
+            $contributors = array_values(array_keys(array_filter(
+                $totals,
+                static fn (int $total): bool => $total >= $level,
+            )));
+
+            $amount = ($level - $previousLevel) * count($contributors);
+
+            if ($amount <= 0) {
+                $previousLevel = $level;
+                continue;
+            }
+
+            $eligibleSeats = array_values(array_filter(
+                $contributors,
+                static fn (int $seatNumber): bool => ! in_array($seatNumber, $foldedSeats, true),
+            ));
+            sort($contributors);
+            sort($eligibleSeats);
+
+            $potWinnerSeats = $this->winnerSeatsForSidePot(
+                eligibleSeats: $eligibleSeats,
+                globalWinnerSeats: $winnerSeats,
+                playersBySeat: $playersBySeat,
+            );
+
+            sort($potWinnerSeats);
+            $baseShare = intdiv($amount, max(1, count($potWinnerSeats)));
+            $remainder = $amount % max(1, count($potWinnerSeats));
+            $potPayouts = [];
+
+            foreach ($potWinnerSeats as $index => $seatNumber) {
+                $share = $baseShare + ($index < $remainder ? 1 : 0);
+                $payouts[$seatNumber] = (int) ($payouts[$seatNumber] ?? 0) + $share;
+                $potPayouts[$seatNumber] = $share;
+            }
+
+            $pots[] = [
+                'index' => count($pots) + 1,
+                'type' => $pots === [] ? 'main' : 'side',
+                'isMainPot' => $pots === [],
+                'isSidePot' => $pots !== [],
+                'amount' => $amount,
+                'cap' => $level,
+                'allInCap' => $level,
+                'contributors' => $contributors,
+                'eligibleSeats' => $eligibleSeats,
+                'winnerSeats' => $potWinnerSeats,
+                'payoutsBySeat' => $potPayouts,
+            ];
+
+            $previousLevel = $level;
+        }
+
+        return [
+            'payoutsBySeat' => $payouts,
+            'sidePots' => [
+                'phase' => '12.6',
+                'ready' => true,
+                'hasSidePot' => count($pots) > 1,
+                'pots' => $pots,
+                'allInLevels' => $levels,
+                'oddChipPolicy' => 'odd_chip_to_lowest_seat_among_pot_winners',
+                'total' => array_sum(array_map(static fn (array $pot): int => (int) $pot['amount'], $pots)),
+            ],
+            'hasSidePot' => count($pots) > 1,
+        ];
+    }
+
+    /**
+     * Seleciona vencedores por pote.
+     *
+     * A FASE 12.6 permite que all-ins em cascata criem múltiplos potes elegíveis
+     * diferentes. Quando há mãos avaliadas no estado, o vencedor de cada pote
+     * é calculado apenas entre os assentos elegíveis daquele pote. Quando o
+     * estado não possui ranking suficiente, preserva o fallback antigo baseado
+     * em winnerSeats globais.
+     *
+     * @param array<int, int> $eligibleSeats
+     * @param array<int, int> $globalWinnerSeats
+     * @param array<int, array<string, mixed>> $playersBySeat
+     * @return array<int, int>
+     */
+    private function winnerSeatsForSidePot(array $eligibleSeats, array $globalWinnerSeats, array $playersBySeat): array
+    {
+        $eligibleSeats = array_values(array_filter(array_map('intval', $eligibleSeats)));
+        sort($eligibleSeats);
+
+        if ($eligibleSeats === []) {
+            return $globalWinnerSeats;
+        }
+
+        $rankedSeats = [];
+
+        foreach ($eligibleSeats as $seatNumber) {
+            $player = $playersBySeat[$seatNumber] ?? null;
+
+            if (! is_array($player)) {
+                continue;
+            }
+
+            $hand = $this->sidePotHandPayload($player);
+
+            if ($hand === null) {
+                continue;
+            }
+
+            $rankedSeats[$seatNumber] = $hand;
+        }
+
+        if ($rankedSeats !== []) {
+            $bestSeat = array_key_first($rankedSeats);
+            $bestHand = $rankedSeats[$bestSeat];
+
+            foreach ($rankedSeats as $seatNumber => $hand) {
+                if ($this->compareSidePotHands($hand, $bestHand) > 0) {
+                    $bestSeat = $seatNumber;
+                    $bestHand = $hand;
+                }
+            }
+
+            return array_values(array_filter(
+                array_keys($rankedSeats),
+                fn (int $seatNumber): bool => $this->compareSidePotHands($rankedSeats[$seatNumber], $bestHand) === 0,
+            ));
+        }
+
+        $intersectedWinners = array_values(array_intersect($globalWinnerSeats, $eligibleSeats));
+
+        if ($intersectedWinners !== []) {
+            return $intersectedWinners;
+        }
+
+        return [$eligibleSeats[0]];
+    }
+
+    /**
+     * @param array<string, mixed> $player
+     * @return array<string, mixed>|null
+     */
+    private function sidePotHandPayload(array $player): ?array
+    {
+        foreach (['showdownHand', 'bestHand'] as $key) {
+            $hand = $player[$key] ?? null;
+
+            if (is_array($hand) && array_key_exists('rank', $hand)) {
+                return [
+                    'rank' => (int) ($hand['rank'] ?? 0),
+                    'kickers' => array_values(array_map('intval', (array) ($hand['kickers'] ?? []))),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     */
+    private function compareSidePotHands(array $left, array $right): int
+    {
+        $rankComparison = (int) ($left['rank'] ?? 0) <=> (int) ($right['rank'] ?? 0);
+
+        if ($rankComparison !== 0) {
+            return $rankComparison;
+        }
+
+        $leftKickers = array_values(array_map('intval', (array) ($left['kickers'] ?? [])));
+        $rightKickers = array_values(array_map('intval', (array) ($right['kickers'] ?? [])));
+        $max = max(count($leftKickers), count($rightKickers));
+
+        for ($index = 0; $index < $max; $index++) {
+            $comparison = ($leftKickers[$index] ?? 0) <=> ($rightKickers[$index] ?? 0);
+
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<int, int> $winnerSeats
+     * @return array{payoutsBySeat: array<int, int>, sidePots: array<string, mixed>, hasSidePot: bool}
+     */
+    private function buildFallbackMainPotSettlement(array $winnerSeats, int $pot): array
+    {
+        $baseShare = intdiv($pot, max(1, count($winnerSeats)));
+        $remainder = $pot % max(1, count($winnerSeats));
+        $payouts = [];
+
+        foreach ($winnerSeats as $index => $seatNumber) {
+            $payouts[$seatNumber] = $baseShare + ($index < $remainder ? 1 : 0);
+        }
+
+        return [
+            'payoutsBySeat' => $payouts,
+            'sidePots' => [
+                'phase' => '12.6',
+                'ready' => false,
+                'hasSidePot' => false,
+                'pots' => [[
+                    'index' => 1,
+                    'type' => 'main',
+                    'isMainPot' => true,
+                    'isSidePot' => false,
+                    'amount' => $pot,
+                    'cap' => null,
+                    'allInCap' => null,
+                    'contributors' => [],
+                    'eligibleSeats' => $winnerSeats,
+                    'winnerSeats' => $winnerSeats,
+                    'payoutsBySeat' => $payouts,
+                ]],
+                'allInLevels' => [],
+                'oddChipPolicy' => 'odd_chip_to_lowest_seat_among_pot_winners',
+                'total' => $pot,
+            ],
+            'hasSidePot' => false,
+        ];
     }
 
 

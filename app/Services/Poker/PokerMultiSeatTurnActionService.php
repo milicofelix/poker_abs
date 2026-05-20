@@ -157,6 +157,17 @@ final readonly class PokerMultiSeatTurnActionService
             $actor['hasActed'] = true;
         }
 
+        if ($actorAmount > 0) {
+            $contribution = $this->registerSeatContribution(
+                state: $state,
+                actor: $actor,
+                currentSeat: $currentSeat,
+                amount: $actorAmount,
+            );
+            $state = $contribution['state'];
+            $actor = $contribution['actor'];
+        }
+
         $players[$actorIndex] = $actor;
         $activePlayers = $this->activePlayers($players);
         $isFinished = count($activePlayers) <= 1;
@@ -213,6 +224,7 @@ final readonly class PokerMultiSeatTurnActionService
             'action' => $pokerAction->value,
             'amountToCallBeforeAction' => $amountToCall,
             'amountCommitted' => $actorAmount,
+            'handContributionAfterAction' => (int) ($actor['handContribution'] ?? 0),
             'currentBetAfterAction' => $currentBet,
             'minimumRaiseAfterAction' => $minimumRaise,
             'isAllIn' => (bool) ($actor['isAllIn'] ?? false),
@@ -277,6 +289,144 @@ final readonly class PokerMultiSeatTurnActionService
             $players,
             static fn (array $player): bool => ! (bool) ($player['hasFolded'] ?? false),
         ));
+    }
+
+    /**
+     * Registra contribuição acumulada da mão por assento.
+     *
+     * Esta estrutura não resolve side pots ainda, mas deixa o estado preparado
+     * para a próxima fase calcular potes principal/laterais com base no total
+     * que cada assento colocou na mão, sem depender só do streetBet atual.
+     *
+     * @param array<string, mixed> $state
+     * @param array<string, mixed> $actor
+     * @return array{state: array<string, mixed>, actor: array<string, mixed>}
+     */
+    private function registerSeatContribution(array $state, array $actor, int $currentSeat, int $amount): array
+    {
+        $street = (string) ($state['street'] ?? 'pre_flop');
+        $seatKey = (string) $currentSeat;
+        $tablePlayerId = (int) ($actor['tablePlayerId'] ?? 0);
+        $previousActorContribution = (int) ($actor['handContribution'] ?? $actor['totalCommitted'] ?? 0);
+        $actorContribution = $previousActorContribution + $amount;
+
+        $actor['handContribution'] = $actorContribution;
+        $actor['totalCommitted'] = $actorContribution;
+
+        $contributions = is_array(data_get($state, 'multiSeat.contributions'))
+            ? (array) data_get($state, 'multiSeat.contributions')
+            : [];
+
+        $seats = is_array($contributions['seats'] ?? null) ? $contributions['seats'] : [];
+        $seatContribution = is_array($seats[$seatKey] ?? null) ? $seats[$seatKey] : [];
+        $byStreet = is_array($seatContribution['byStreet'] ?? null) ? $seatContribution['byStreet'] : [];
+
+        $byStreet[$street] = (int) ($byStreet[$street] ?? 0) + $amount;
+
+        $seats[$seatKey] = [
+            'seatNumber' => $currentSeat,
+            'tablePlayerId' => $tablePlayerId,
+            'nickname' => (string) ($actor['nickname'] ?? 'Jogador'),
+            'total' => (int) ($seatContribution['total'] ?? 0) + $amount,
+            'byStreet' => $byStreet,
+            'lastAmount' => $amount,
+        ];
+
+        $contributions['phase'] = '12.4';
+        $contributions['description'] = 'Contribuições por assento com prévia de side pots.';
+        $contributions['sidePotReady'] = true;
+        $contributions['totalPotTracked'] = (int) ($contributions['totalPotTracked'] ?? 0) + $amount;
+        $contributions['seats'] = $seats;
+
+        $state['multiSeat']['contributions'] = $contributions;
+        $state['multiSeat']['sidePots'] = $this->buildSidePotPreview($state);
+
+        return [
+            'state' => $state,
+            'actor' => $actor,
+        ];
+    }
+
+    /**
+     * Monta uma prévia determinística dos potes principal/laterais com base
+     * no total contribuído por assento. A liquidação financeira usa uma rotina
+     * equivalente na persistência, para evitar depender do frontend.
+     *
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function buildSidePotPreview(array $state): array
+    {
+        $contributionSeats = (array) data_get($state, 'multiSeat.contributions.seats', []);
+        $players = $this->players($state);
+        $foldedSeats = [];
+
+        foreach ($players as $player) {
+            if ((bool) ($player['hasFolded'] ?? false)) {
+                $foldedSeats[] = (int) ($player['seatNumber'] ?? 0);
+            }
+        }
+
+        $totals = [];
+
+        foreach ($contributionSeats as $seatKey => $seatContribution) {
+            if (! is_array($seatContribution)) {
+                continue;
+            }
+
+            $seatNumber = (int) ($seatContribution['seatNumber'] ?? $seatKey);
+            $total = max(0, (int) ($seatContribution['total'] ?? 0));
+
+            if ($seatNumber > 0 && $total > 0) {
+                $totals[$seatNumber] = $total;
+            }
+        }
+
+        $levels = array_values(array_unique(array_values($totals)));
+        sort($levels);
+
+        $pots = [];
+        $previousLevel = 0;
+
+        foreach ($levels as $level) {
+            $contributors = array_values(array_keys(array_filter(
+                $totals,
+                static fn (int $total): bool => $total >= $level,
+            )));
+
+            $amount = ($level - $previousLevel) * count($contributors);
+
+            if ($amount <= 0) {
+                $previousLevel = $level;
+                continue;
+            }
+
+            $eligibleSeats = array_values(array_filter(
+                $contributors,
+                static fn (int $seatNumber): bool => ! in_array($seatNumber, $foldedSeats, true),
+            ));
+
+            sort($contributors);
+            sort($eligibleSeats);
+
+            $pots[] = [
+                'type' => $pots === [] ? 'main' : 'side',
+                'amount' => $amount,
+                'cap' => $level,
+                'contributors' => $contributors,
+                'eligibleSeats' => $eligibleSeats,
+            ];
+
+            $previousLevel = $level;
+        }
+
+        return [
+            'phase' => '12.4',
+            'ready' => count($pots) > 0,
+            'hasSidePot' => count($pots) > 1,
+            'pots' => $pots,
+            'total' => array_sum(array_map(static fn (array $pot): int => (int) $pot['amount'], $pots)),
+        ];
     }
 
     /**

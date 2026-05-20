@@ -593,18 +593,11 @@ final class PokerBankrollFaseOnzeTest extends TestCase
             ->orderBy('seat_number')
             ->get();
 
-        $hands = [
-            0 => ['rank' => 9, 'kickers' => [14, 13, 12, 11, 10]],
-            1 => ['rank' => 8, 'kickers' => [14, 13, 12, 11, 10]],
-            2 => ['rank' => 7, 'kickers' => [14, 13, 12, 11, 10]],
-        ];
-
         foreach ([0 => 950, 1 => 900, 2 => 900] as $index => $stack) {
             $tablePlayers[$index]->forceFill(['stack' => $stack])->save();
             $state['multiSeat']['players'][$index]['stack'] = $stack;
             $state['multiSeat']['players'][$index]['handContribution'] = $index === 0 ? 50 : 100;
             $state['multiSeat']['players'][$index]['totalCommitted'] = $index === 0 ? 50 : 100;
-            $state['multiSeat']['players'][$index]['bestHand'] = $hands[$index];
         }
 
         $state['isFinished'] = true;
@@ -674,18 +667,11 @@ final class PokerBankrollFaseOnzeTest extends TestCase
             ->orderBy('seat_number')
             ->get();
 
-        $hands = [
-            0 => ['rank' => 9, 'kickers' => [14, 13, 12, 11, 10]],
-            1 => ['rank' => 8, 'kickers' => [14, 13, 12, 11, 10]],
-            2 => ['rank' => 7, 'kickers' => [14, 13, 12, 11, 10]],
-        ];
-
         foreach ([0 => 950, 1 => 900, 2 => 900] as $index => $stack) {
             $tablePlayers[$index]->forceFill(['stack' => $stack])->save();
             $state['multiSeat']['players'][$index]['stack'] = $stack;
             $state['multiSeat']['players'][$index]['handContribution'] = $index === 0 ? 50 : 100;
             $state['multiSeat']['players'][$index]['totalCommitted'] = $index === 0 ? 50 : 100;
-            $state['multiSeat']['players'][$index]['bestHand'] = $hands[$index];
         }
 
         // Seat 1 vence o main pot, mas não pode disputar o side pot acima do seu all-in.

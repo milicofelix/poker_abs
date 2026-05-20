@@ -74,6 +74,7 @@ final class PokerTablePlayController extends Controller
                 'joinUrl' => route('poker.tables.join', $table),
                 'seatUrl' => route('poker.tables.seat', $table),
                 'leaveUrl' => route('poker.tables.leave', $table),
+                'rebuyUrl' => route('poker.tables.rebuy', $table),
                 'botUrl' => route('poker.tables.bots', $table),
                 'maxPlayers' => $table->max_players,
                 'isPrivate' => (bool) $table->is_private,

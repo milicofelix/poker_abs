@@ -11,6 +11,10 @@ function statusLabel(status) {
     return labels[status] ?? status;
 }
 
+function formatChips(value) {
+    return new Intl.NumberFormat('pt-BR').format(Number(value ?? 0));
+}
+
 function streetLabel(street) {
     const labels = {
         pre_flop: 'Pré-flop',
@@ -95,9 +99,43 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
                     </div>
 
                     <div className="flex flex-col gap-3 md:items-end">
+                        <nav className="flex flex-wrap gap-2 md:justify-end">
+                            <a
+                                href="/poker/hands"
+                                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+                            >
+                                Histórico
+                            </a>
+                            <a
+                                href="/poker/statistics"
+                                className="rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
+                            >
+                                Estatísticas
+                            </a>
+                            <a
+                                href="/poker/ranking"
+                                className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/20"
+                            >
+                                Ranking
+                            </a>
+                            {user && (
+                                <a
+                                    href="/poker/bankroll"
+                                    className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-300/20"
+                                >
+                                    Minhas fichas
+                                </a>
+                            )}
+                        </nav>
+
                         {user ? (
-                            <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-200">
-                                Logado como <strong className="text-white">{user.name}</strong>
+                            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                                <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm text-emerald-100">
+                                    Fichas: <strong className="text-white">{formatChips(user.pokerBankroll)} </strong>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-200">
+                                    Logado como <strong className="text-white">{user.name}</strong>
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-wrap gap-3">

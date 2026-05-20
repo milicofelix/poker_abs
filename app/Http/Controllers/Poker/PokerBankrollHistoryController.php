@@ -15,62 +15,49 @@ final class PokerBankrollHistoryController extends Controller
         $user = $request->user();
 
         $transactions = PokerBankrollTransaction::query()
-            ->with(['table:id,name', 'hand:id,created_at'])
-            ->where('user_id', $user?->id)
+            ->where('user_id', $user->id)
+            ->with([
+                'table:id,name',
+                'hand:id,street,status',
+            ])
             ->latest('id')
             ->limit(50)
-            ->get()
-            ->map(fn (PokerBankrollTransaction $transaction): array => [
-                'id' => $transaction->id,
-                'type' => $transaction->type,
-                'typeLabel' => $this->typeLabel($transaction->type),
-                'amount' => $transaction->amount,
-                'amountLabel' => $this->amountLabel($transaction->amount),
-                'balanceBefore' => $transaction->balance_before,
-                'balanceAfter' => $transaction->balance_after,
-                'tableName' => $transaction->table?->name ?? 'Mesa removida',
-                'handId' => $transaction->poker_hand_id,
-                'createdAt' => $transaction->created_at?->format('d/m/Y H:i'),
-                'metadata' => $transaction->metadata ?? [],
-            ]);
+            ->get();
 
         $credits = (int) PokerBankrollTransaction::query()
-            ->where('user_id', $user?->id)
+            ->where('user_id', $user->id)
             ->where('amount', '>', 0)
             ->sum('amount');
 
         $debits = (int) PokerBankrollTransaction::query()
-            ->where('user_id', $user?->id)
+            ->where('user_id', $user->id)
             ->where('amount', '<', 0)
             ->sum('amount');
 
-        return Inertia::render('Poker/BankrollHistory', [
-            'bankroll' => [
-                'current' => (int) ($user?->poker_bankroll ?? 0),
+        return Inertia::render('Poker/Bankroll', [
+            'summary' => [
+                'currentBalance' => (int) $user->poker_bankroll,
                 'credits' => $credits,
-                'debits' => $debits,
-                'net' => $credits + $debits,
+                'debits' => abs($debits),
                 'transactionsCount' => PokerBankrollTransaction::query()
-                    ->where('user_id', $user?->id)
+                    ->where('user_id', $user->id)
                     ->count(),
             ],
-            'transactions' => $transactions,
+            'transactions' => $transactions->map(static fn (PokerBankrollTransaction $transaction): array => [
+                'id' => $transaction->id,
+                'type' => $transaction->type,
+                'typeLabel' => match ($transaction->type) {
+                    PokerBankrollTransaction::TYPE_BUY_IN => 'Buy-in',
+                    PokerBankrollTransaction::TYPE_PAYOUT => 'Premiação',
+                    default => 'Movimentação',
+                },
+                'amount' => $transaction->amount,
+                'balanceBefore' => $transaction->balance_before,
+                'balanceAfter' => $transaction->balance_after,
+                'tableName' => $transaction->table?->name,
+                'handStatus' => $transaction->hand?->status,
+                'createdAtLabel' => $transaction->created_at?->diffForHumans(),
+            ])->values(),
         ]);
-    }
-
-    private function typeLabel(string $type): string
-    {
-        return match ($type) {
-            PokerBankrollTransaction::TYPE_BUY_IN => 'Buy-in',
-            PokerBankrollTransaction::TYPE_PAYOUT => 'Premiação',
-            default => $type,
-        };
-    }
-
-    private function amountLabel(int $amount): string
-    {
-        $prefix = $amount > 0 ? '+' : '';
-
-        return $prefix.number_format($amount, 0, ',', '.').' fichas';
     }
 }

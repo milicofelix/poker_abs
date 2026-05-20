@@ -7,11 +7,13 @@ use App\Domain\Poker\Cards\Deck;
 use App\Domain\Poker\Hands\HandEvaluator;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
+use App\Services\Poker\PokerMultiSeatBlindRotationService;
 
 final readonly class StartMultiSeatPokerHandAction
 {
     public function __construct(
         private HandEvaluator $handEvaluator,
+        private PokerMultiSeatBlindRotationService $blindRotation,
     ) {
     }
 
@@ -20,32 +22,24 @@ final readonly class StartMultiSeatPokerHandAction
      */
     public function execute(PokerTable $table): array
     {
-        $players = $table->realPlayers()
-            ->whereNotNull('seat_number')
-            ->whereNull('left_at')
-            ->where(function ($query): void {
-                $query->where('status', 'online')
-                    ->orWhere('is_bot', true);
-            })
-            ->orderBy('seat_number')
-            ->orderBy('id')
-            ->get()
-            ->values();
+        $players = $this->blindRotation->seatedPlayers($table);
+        $blindPositions = $this->blindRotation->positionsForNewHand($table);
 
         $deck = Deck::standard()->shuffle();
         $communityCards = $deck->draw(5);
         $smallBlind = (int) $table->small_blind;
         $bigBlind = (int) $table->big_blind;
-        $dealerSeat = 1;
-        $smallBlindSeat = 2;
-        $bigBlindSeat = 3;
-        $firstPreFlopSeat = 1;
+        $dealerSeat = (int) ($blindPositions['dealerSeat'] ?? 1);
+        $smallBlindSeat = (int) ($blindPositions['smallBlindSeat'] ?? $dealerSeat);
+        $bigBlindSeat = (int) ($blindPositions['bigBlindSeat'] ?? $dealerSeat);
+        $firstPreFlopSeat = (int) ($blindPositions['firstPreFlopSeat'] ?? $dealerSeat);
+        $firstPostFlopSeat = (int) ($blindPositions['firstPostFlopSeat'] ?? $dealerSeat);
 
-        $multiSeatPlayers = $players->map(function (PokerTablePlayer $player) use ($deck, $communityCards, $smallBlindSeat, $bigBlindSeat, $smallBlind, $bigBlind): array {
+        $multiSeatPlayers = $players->map(function (PokerTablePlayer $player) use ($deck, $communityCards, $dealerSeat, $smallBlindSeat, $bigBlindSeat, $smallBlind, $bigBlind): array {
             $cards = $deck->draw(2);
             $streetBet = match ((int) $player->seat_number) {
-                $smallBlindSeat => $smallBlind,
-                $bigBlindSeat => $bigBlind,
+                $smallBlindSeat => min($smallBlind, max(0, (int) $player->stack)),
+                $bigBlindSeat => min($bigBlind, max(0, (int) $player->stack)),
                 default => 0,
             };
             $stack = max(0, (int) $player->stack - $streetBet);
@@ -61,11 +55,14 @@ final readonly class StartMultiSeatPokerHandAction
                 'displayName' => $player->nickname ?: 'Jogador '.$player->seat_number,
                 'seatNumber' => (int) $player->seat_number,
                 'isBot' => (bool) $player->is_bot,
-                'status' => 'active',
+                'status' => $stack === 0 && $streetBet > 0 ? 'all_in' : 'active',
                 'stack' => $stack,
                 'streetBet' => $streetBet,
                 'hasFolded' => false,
                 'hasActed' => false,
+                'isDealer' => (int) $player->seat_number === $dealerSeat,
+                'isSmallBlind' => (int) $player->seat_number === $smallBlindSeat,
+                'isBigBlind' => (int) $player->seat_number === $bigBlindSeat,
                 'cards' => array_map($this->serializeCard(...), $cards),
                 'bestHand' => [
                     'name' => $bestHand->rank->label(),
@@ -83,7 +80,7 @@ final readonly class StartMultiSeatPokerHandAction
         return [
             'street' => 'pre_flop',
             'streetLabel' => 'Pré-flop',
-            'pot' => $smallBlind + $bigBlind,
+            'pot' => array_sum(array_map(static fn (array $player): int => (int) ($player['streetBet'] ?? 0), $multiSeatPlayers)),
             'playerStack' => (int) ($firstPlayer['stack'] ?? 1000),
             'opponentStack' => (int) ($secondPlayer['stack'] ?? 1000),
             'currentBet' => $bigBlind,
@@ -117,14 +114,27 @@ final readonly class StartMultiSeatPokerHandAction
             'opponentBestHand' => $secondPlayer['bestHand'] ?? null,
             'multiSeat' => [
                 'enabled' => true,
-                'phase' => '10.9',
+                'phase' => '12.7',
                 'mode' => 'controlled_activation',
                 'dealerSeat' => $dealerSeat,
                 'smallBlindSeat' => $smallBlindSeat,
                 'bigBlindSeat' => $bigBlindSeat,
+                'firstPreFlopSeat' => $firstPreFlopSeat,
+                'firstPostFlopSeat' => $firstPostFlopSeat,
                 'currentSeat' => $firstPreFlopSeat,
+                'blinds' => [
+                    'phase' => '12.7',
+                    'dealerSeat' => $dealerSeat,
+                    'smallBlindSeat' => $smallBlindSeat,
+                    'bigBlindSeat' => $bigBlindSeat,
+                    'firstPreFlopSeat' => $firstPreFlopSeat,
+                    'firstPostFlopSeat' => $firstPostFlopSeat,
+                    'smallBlindAmount' => $smallBlind,
+                    'bigBlindAmount' => $bigBlind,
+                    'order' => $blindPositions['order'] ?? [],
+                ],
                 'players' => $multiSeatPlayers,
-                'message' => 'Mão multi-seat iniciada em ativação controlada.',
+                'message' => 'Mão multi-seat iniciada com dealer button e blinds automáticos.',
             ],
             'currentTurn' => [
                 'actor' => 'seat:'.$firstPreFlopSeat,
