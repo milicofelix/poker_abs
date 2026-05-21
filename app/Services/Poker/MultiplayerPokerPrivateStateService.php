@@ -15,7 +15,12 @@ final class MultiplayerPokerPrivateStateService
      */
     public function forUser(PokerTable $table, array $state, ?User $user): array
     {
+        $state = $this->normalizeInterfaceFlags($state);
         $realPlayers = $this->realPlayers($table);
+
+        if ((bool) data_get($state, 'multiSeat.enabled', false)) {
+            return $this->multiSeatPerspective($state, $realPlayers, $user);
+        }
 
         if (! $user) {
             return $this->withPlayersContext(
@@ -55,6 +60,133 @@ final class MultiplayerPokerPrivateStateService
             : $this->asPlayerPerspective($state, $currentPlayer);
 
         return $this->withPlayersContext($state, $realPlayers, $currentPlayer, $position);
+    }
+
+
+    /**
+     * @param array<string, mixed> $state
+     * @param Collection<int, PokerTablePlayer> $players
+     * @return array<string, mixed>
+     */
+    private function multiSeatPerspective(array $state, Collection $players, ?User $user): array
+    {
+        $currentPlayer = $user
+            ? $players->first(static fn (PokerTablePlayer $player): bool => (int) $player->user_id === (int) $user->id)
+            : null;
+        $isFinished = (bool) ($state['isFinished'] ?? false);
+        $rawCurrentSeat = data_get($state, 'multiSeat.currentSeat', data_get($state, 'currentTurn.seatNumber'));
+        $currentSeat = $isFinished || $rawCurrentSeat === null ? null : (int) $rawCurrentSeat;
+        $multiSeatPlayers = collect(data_get($state, 'multiSeat.players', []))
+            ->filter(static fn (mixed $player): bool => is_array($player))
+            ->values();
+        $currentSeatState = $currentPlayer
+            ? $multiSeatPlayers->first(static fn (array $player): bool => (int) ($player['seatNumber'] ?? 0) === (int) $currentPlayer->seat_number)
+            : null;
+        $currentSeatActor = $currentSeat === null
+            ? null
+            : $multiSeatPlayers->first(static fn (array $player): bool => (int) ($player['seatNumber'] ?? 0) === $currentSeat);
+        $isCurrentUserTurn = $currentPlayer !== null
+            && $currentPlayer->seat_number !== null
+            && $currentSeat !== null
+            && (int) $currentPlayer->seat_number === $currentSeat
+            && ! $isFinished;
+        $currentBet = (int) ($state['currentBet'] ?? 0);
+        $currentStreetBet = (int) ($currentSeatState['streetBet'] ?? 0);
+        $amountToCall = max(0, $currentBet - $currentStreetBet);
+        $playerStack = (int) ($currentSeatState['stack'] ?? 0);
+
+        $state['playerCards'] = is_array($currentSeatState) ? (array) ($currentSeatState['cards'] ?? []) : [];
+        $state['bestHand'] = is_array($currentSeatState) ? ($currentSeatState['bestHand'] ?? null) : null;
+        unset($state['opponentCards'], $state['opponentBestHand']);
+
+        $state['playerStack'] = $playerStack;
+        $state['playerStreetBet'] = $currentStreetBet;
+        $state['opponentStack'] = (int) ($currentSeatActor['stack'] ?? 0);
+        $state['opponentStreetBet'] = (int) ($currentSeatActor['streetBet'] ?? 0);
+        $state['amountToCall'] = $amountToCall;
+        $state['maximumRaiseTo'] = $playerStack + $currentStreetBet;
+        $state['canCheck'] = $isCurrentUserTurn && $amountToCall === 0;
+        $state['canCall'] = $isCurrentUserTurn && $amountToCall > 0 && $playerStack > 0;
+        $state['canRaise'] = $isCurrentUserTurn && $playerStack > $amountToCall;
+        $state['canAct'] = $isCurrentUserTurn;
+        $currentSeatIsBot = is_array($currentSeatActor) && (bool) ($currentSeatActor['isBot'] ?? $currentSeatActor['is_bot'] ?? false);
+        $state['botVsBotSimulation'] = false;
+        $state['multiSeat']['currentSeatIsBot'] = $currentSeatIsBot;
+        $state['multiSeat']['autoProcessCurrentBot'] = $currentSeatIsBot && ! $isFinished;
+        $state = $this->normalizeMultiSeatTurnTimerForPerspective($state, $currentSeatIsBot, $isFinished);
+
+        $state['multiplayerPerspective'] = [
+            'role' => $currentPlayer ? 'multi_seat_player' : 'spectator',
+            'tablePlayerId' => $currentPlayer?->id,
+            'userId' => $currentPlayer?->user_id,
+            'seatNumber' => $currentPlayer?->seat_number,
+            'label' => 'Suas cartas',
+        ];
+
+        $state['playersContext'] = [
+            'current' => $currentPlayer ? $this->serializePlayer($currentPlayer, true) : null,
+            'opponents' => $players
+                ->reject(static fn (PokerTablePlayer $player): bool => $currentPlayer && (int) $player->id === (int) $currentPlayer->id)
+                ->values()
+                ->map(fn (PokerTablePlayer $player): array => $this->serializePlayer($player, false))
+                ->all(),
+            'canonical' => [
+                'player' => $currentPlayer ? $this->serializePlayer($currentPlayer, true) : null,
+                'opponent' => is_array($currentSeatActor) ? [
+                    'seatNumber' => (int) ($currentSeatActor['seatNumber'] ?? 0),
+                    'nickname' => (string) ($currentSeatActor['nickname'] ?? 'Jogador'),
+                    'displayName' => (string) ($currentSeatActor['displayName'] ?? $currentSeatActor['nickname'] ?? 'Jogador'),
+                ] : null,
+            ],
+        ];
+
+        $actorLabel = is_array($currentSeatActor)
+            ? (string) ($currentSeatActor['nickname'] ?? $currentSeatActor['displayName'] ?? 'Jogador')
+            : 'Jogador';
+
+        $state['currentTurn'] = [
+            ...(is_array($state['currentTurn'] ?? null) ? $state['currentTurn'] : []),
+            'canonicalActor' => $isFinished ? null : 'seat:'.$currentSeat,
+            'actor' => $isFinished ? null : ($isCurrentUserTurn ? 'player' : 'opponent'),
+            'seatNumber' => $isFinished ? null : $currentSeat,
+            'actorLabel' => $isFinished ? 'Mão finalizada' : ($isCurrentUserTurn ? 'Você' : $actorLabel),
+            'isCurrentUserTurn' => $isCurrentUserTurn,
+            'message' => $isFinished
+                ? 'Mão multi-seat finalizada.'
+                : ($isCurrentUserTurn
+                    ? 'Sua vez de agir na mesa multi-seat.'
+                    : 'Aguardando ação de '.$actorLabel.'.'),
+        ];
+
+        if (isset($state['turnTimer']) && is_array($state['turnTimer'])) {
+            $state['turnTimer']['label'] = $state['currentTurn']['actorLabel'];
+            $state['turnTimer']['isCurrentUserTurn'] = $isCurrentUserTurn;
+            $state['turnTimer']['currentSeatIsBot'] = $currentSeatIsBot;
+            $state['turnTimer']['autoProcessCurrentBot'] = $currentSeatIsBot && ! $isFinished;
+        }
+
+        if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
+            $state['bettingSummary']['amountToCall'] = $amountToCall;
+            $state['bettingSummary']['currentActor'] = $isFinished ? null : ($isCurrentUserTurn ? 'player' : 'opponent');
+            $state['bettingSummary']['currentSeat'] = $currentSeat;
+        }
+
+        return $state;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function normalizeInterfaceFlags(array $state): array
+    {
+        $state['isWaitingForPlayers'] = (bool) ($state['isWaitingForPlayers'] ?? false);
+
+        if (! $state['isWaitingForPlayers']) {
+            unset($state['waitingForPlayers']);
+        }
+
+        return $state;
     }
 
     /**
@@ -164,7 +296,10 @@ final class MultiplayerPokerPrivateStateService
      */
     private function withoutPrivateOpponentData(array $state, string $role): array
     {
-        if (! (bool) ($state['isFinished'] ?? false)) {
+        $isFinished = (bool) ($state['isFinished'] ?? false);
+        $isBotVsBotSimulation = (bool) ($state['botVsBotSimulation'] ?? false);
+
+        if (! $isFinished && ! $isBotVsBotSimulation) {
             unset($state['opponentCards'], $state['opponentBestHand']);
         }
 
@@ -216,6 +351,37 @@ final class MultiplayerPokerPrivateStateService
      */
     private function withTurnContext(array $state, string $role, array $canonicalPlayers): array
     {
+        if ((bool) ($state['isWaitingForPlayers'] ?? false)) {
+            $message = $role === 'waiting_seat'
+                ? 'Escolha um assento livre para participar da mão.'
+                : (string) data_get($state, 'waitingForPlayers.message', 'Aguardando jogadores suficientes para iniciar.');
+
+            $state['currentTurn'] = [
+                ...(is_array($state['currentTurn'] ?? null) ? $state['currentTurn'] : []),
+                'canonicalActor' => 'waiting',
+                'actor' => 'waiting',
+                'actorLabel' => 'Aguardando jogadores',
+                'isCurrentUserTurn' => false,
+                'message' => $message,
+            ];
+
+            $state['amountToCall'] = 0;
+            $state['minimumRaiseTo'] = 0;
+            $state['maximumRaiseTo'] = 0;
+            $state['canCheck'] = false;
+            $state['canCall'] = false;
+            $state['canRaise'] = false;
+            $state['canAct'] = false;
+            $state['turnTimer'] = null;
+
+            if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
+                $state['bettingSummary']['amountToCall'] = 0;
+                $state['bettingSummary']['currentActor'] = 'waiting';
+            }
+
+            return $state;
+        }
+
         $canonicalActor = (string) data_get($state, 'currentTurn.actor', 'player');
         $canonicalActor = $canonicalActor === 'opponent' ? 'opponent' : 'player';
         $visibleActor = $this->visibleActor($canonicalActor, $role);
@@ -266,8 +432,29 @@ final class MultiplayerPokerPrivateStateService
     }
 
     /**
+     * Mantém o contrato privado coerente com a regra visual da FASE 10.18.3:
+     * humano tem 30s e bot multi-seat tem 10s. O estado persistido normalmente
+     * já vem correto pelo PokerTurnTimerService, mas esta normalização protege
+     * respostas que ainda carreguem um timer antigo durante reidratação/polling.
+     *
+     * @param array<string, mixed> $state
      * @return array<string, mixed>
      */
+    private function normalizeMultiSeatTurnTimerForPerspective(array $state, bool $currentSeatIsBot, bool $isFinished): array
+    {
+        if ($isFinished || ! isset($state['turnTimer']) || ! is_array($state['turnTimer'])) {
+            return $state;
+        }
+
+        $secondsTotal = $currentSeatIsBot ? 10 : 30;
+        $state['turnTimer']['secondsTotal'] = $secondsTotal;
+        $state['turnTimer']['label'] = $currentSeatIsBot
+            ? 'Tempo da jogada do bot'
+            : 'Tempo da jogada';
+
+        return $state;
+    }
+
     private function serializePlayer(PokerTablePlayer $player, bool $isCurrent): array
     {
         return [

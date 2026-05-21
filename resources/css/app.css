@@ -15,3 +15,352 @@ body,
 body {
     margin: 0;
 }
+
+
+@keyframes poker-card-deal {
+    0% {
+        opacity: 0;
+        transform: translate3d(var(--poker-deal-x, 0), var(--poker-deal-y, -92px), 0) rotate(var(--poker-deal-rotate, -9deg)) scale(0.72);
+        filter: blur(1px);
+    }
+    62% {
+        opacity: 1;
+        transform: translate3d(0, 4px, 0) rotate(1deg) scale(1.035);
+        filter: blur(0);
+    }
+    100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+        filter: blur(0);
+    }
+}
+
+@keyframes poker-hidden-card-pulse {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 22px 45px rgba(0, 0, 0, 0.38);
+    }
+    50% {
+        transform: translateY(-2px) scale(1.015);
+        box-shadow: 0 28px 55px rgba(251, 191, 36, 0.18);
+    }
+}
+
+@keyframes poker-pot-pulse {
+    0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0));
+    }
+    50% {
+        transform: scale(1.035);
+        filter: drop-shadow(0 0 22px rgba(251, 191, 36, 0.28));
+    }
+}
+
+@keyframes poker-chip-float {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0.76;
+    }
+    50% {
+        transform: translateY(-7px) rotate(9deg);
+        opacity: 1;
+    }
+}
+
+@keyframes poker-turn-glow {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(251, 191, 36, 0), inset 0 0 28px rgba(251, 191, 36, 0.06);
+    }
+    50% {
+        box-shadow: 0 0 38px rgba(251, 191, 36, 0.18), inset 0 0 40px rgba(251, 191, 36, 0.12);
+    }
+}
+
+@keyframes poker-winner-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+    }
+    60% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.015);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes poker-action-shine {
+    0% {
+        transform: translateX(-120%) skewX(-16deg);
+    }
+    100% {
+        transform: translateX(220%) skewX(-16deg);
+    }
+}
+
+.poker-card-deal {
+    animation: poker-card-deal 560ms cubic-bezier(0.16, 0.9, 0.2, 1) both;
+}
+
+.poker-hidden-card-pulse {
+    animation: poker-hidden-card-pulse 2.4s ease-in-out infinite;
+}
+
+.poker-card-deal.poker-hidden-card-pulse {
+    animation-name: poker-card-deal, poker-hidden-card-pulse;
+    animation-duration: 560ms, 2.4s;
+    animation-timing-function: cubic-bezier(0.16, 0.9, 0.2, 1), ease-in-out;
+    animation-fill-mode: both, none;
+    animation-iteration-count: 1, infinite;
+    animation-delay: var(--poker-card-delay, 0ms), calc(var(--poker-card-delay, 0ms) + 700ms);
+}
+
+.poker-pot-pulse {
+    animation: poker-pot-pulse 2.15s ease-in-out infinite;
+}
+
+.poker-chip-float {
+    animation: poker-chip-float 2.8s ease-in-out infinite;
+}
+
+.poker-turn-glow {
+    animation: poker-turn-glow 2s ease-in-out infinite;
+}
+
+.poker-winner-pop {
+    animation: poker-winner-pop 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.poker-action-shine {
+    animation: poker-action-shine 1.7s ease-in-out infinite;
+}
+
+.poker-dealer-shoe {
+    animation: poker-dealer-shoe 1.9s ease-in-out infinite;
+}
+
+@keyframes poker-dealer-shoe {
+    0%, 100% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 0.88;
+    }
+    50% {
+        transform: translateX(-50%) translateY(3px);
+        opacity: 1;
+    }
+}
+
+
+@keyframes poker-soft-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes poker-table-breath {
+    0%, 100% {
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), inset 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+        box-shadow: 0 34px 105px rgba(0, 0, 0, 0.62), inset 0 0 46px rgba(251, 191, 36, 0.055);
+    }
+}
+
+@keyframes poker-status-slide {
+    0% {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.poker-soft-enter {
+    animation: poker-soft-enter 420ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.poker-table-breath {
+    animation: poker-table-breath 4.8s ease-in-out infinite;
+}
+
+.poker-status-slide {
+    animation: poker-status-slide 360ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poker-card-deal,
+    .poker-hidden-card-pulse,
+    .poker-pot-pulse,
+    .poker-chip-float,
+    .poker-turn-glow,
+    .poker-winner-pop,
+    .poker-action-shine,
+    .poker-soft-enter,
+    .poker-table-breath,
+    .poker-status-slide {
+        animation: none !important;
+    }
+}
+
+@keyframes poker-winner-seat {
+    0%, 100% {
+        box-shadow: 0 0 26px rgba(251, 191, 36, 0.18), inset 0 0 22px rgba(251, 191, 36, 0.08);
+    }
+    50% {
+        box-shadow: 0 0 54px rgba(251, 191, 36, 0.36), inset 0 0 32px rgba(251, 191, 36, 0.16);
+    }
+}
+
+@keyframes poker-winner-crown {
+    0%, 100% {
+        transform: translateY(0) rotate(-2deg) scale(1);
+    }
+    50% {
+        transform: translateY(-4px) rotate(2deg) scale(1.04);
+    }
+}
+
+.poker-winner-seat {
+    animation: poker-winner-seat 2.1s ease-in-out infinite;
+}
+
+.poker-winner-crown {
+    animation: poker-winner-crown 2.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poker-winner-seat,
+    .poker-winner-crown {
+        animation: none !important;
+    }
+}
+
+
+.poker-card-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(251, 191, 36, 0.45) rgba(15, 23, 42, 0.35);
+}
+
+.poker-card-scroll::-webkit-scrollbar {
+    height: 7px;
+}
+
+.poker-card-scroll::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.35);
+    border-radius: 999px;
+}
+
+.poker-card-scroll::-webkit-scrollbar-thumb {
+    background: rgba(251, 191, 36, 0.45);
+    border-radius: 999px;
+}
+
+.poker-mobile-action-panel {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+    .poker-mobile-action-panel {
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+    }
+}
+
+.poker-compact-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(251, 191, 36, 0.5) rgba(15, 23, 42, 0.55);
+}
+
+.poker-compact-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.poker-compact-scroll::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.55);
+    border-radius: 999px;
+}
+
+.poker-compact-scroll::-webkit-scrollbar-thumb {
+    background: rgba(251, 191, 36, 0.5);
+    border-radius: 999px;
+}
+
+@keyframes poker-bot-thinking-dot {
+    0%, 100% {
+        transform: scale(0.75);
+        opacity: 0.45;
+        box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.25);
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+        box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+    }
+}
+
+@keyframes poker-bot-thinking-bubble {
+    0%, 100% {
+        transform: translateY(0);
+        opacity: 0.35;
+    }
+    50% {
+        transform: translateY(-5px);
+        opacity: 1;
+    }
+}
+
+.poker-bot-thinking-dot {
+    animation: poker-bot-thinking-dot 1.25s ease-in-out infinite;
+}
+
+.poker-bot-thinking-bubble {
+    animation: poker-bot-thinking-bubble 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poker-bot-thinking-dot,
+    .poker-bot-thinking-bubble {
+        animation: none !important;
+    }
+}
+
+/* FASE 9.5 — responsividade/mobile da mesa de poker */
+.poker-safe-sticky-actions {
+    margin-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+    .poker-card-scroll {
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .poker-card-scroll > * {
+        scroll-snap-align: center;
+        flex: 0 0 auto;
+    }
+
+    .poker-mobile-action-panel button {
+        touch-action: manipulation;
+    }
+}
+
+@media (max-width: 380px) {
+    .poker-mobile-action-panel {
+        border-radius: 1rem 1rem 0 0;
+    }
+
+    .poker-mobile-action-panel input[type='number'] {
+        max-width: 3.75rem;
+    }
+}

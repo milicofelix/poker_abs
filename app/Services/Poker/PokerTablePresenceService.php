@@ -68,6 +68,10 @@ final class PokerTablePresenceService
 
         $table->realPlayers()
             ->where('status', 'online')
+            ->where(function ($query): void {
+                $query->where('is_bot', false)
+                    ->orWhereNull('is_bot');
+            })
             ->where(function ($query) use ($threshold): void {
                 $query->whereNull('last_seen_at')
                     ->orWhere('last_seen_at', '<', $threshold);

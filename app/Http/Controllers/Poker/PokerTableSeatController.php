@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Poker;
 
 use App\Actions\Poker\SitPokerTablePlayerAction;
+use App\Application\Poker\StartPokerHandAction;
 use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
+use App\Services\Poker\PokerTableReadinessService;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +26,8 @@ final class PokerTableSeatController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         MultiplayerPokerTableStateBroadcaster $tableBroadcaster,
+        PokerTableReadinessService $readiness,
+        StartPokerHandAction $startPokerHand,
     ): JsonResponse {
         $user = $request->user();
 
@@ -49,23 +53,15 @@ final class PokerTableSeatController extends Controller
             ], 422);
         }
 
-        $state = $pokerPersistence->currentStateForTable($table);
+        $state = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
 
-        if ($state) {
+        if (! (bool) ($state['isWaitingForPlayers'] ?? false)) {
             $tableBroadcaster->broadcast($state);
         }
 
         return response()->json([
             'message' => 'Assento escolhido com sucesso.',
-            'player' => [
-                'id' => $player->id,
-                'userId' => $player->user_id,
-                'nickname' => $player->nickname,
-                'stack' => $player->stack,
-                'status' => $player->status,
-                'seatNumber' => $player->seat_number,
-                'lastSeenAt' => $player->last_seen_at?->toIso8601String(),
-            ],
+            'player' => $this->serializeTablePlayer($player),
             'players' => $this->serializeRealPlayers($table),
             'seats' => collect($this->serializeRealPlayers($table))
                 ->filter(static fn (array $player): bool => $player['seatNumber'] !== null)

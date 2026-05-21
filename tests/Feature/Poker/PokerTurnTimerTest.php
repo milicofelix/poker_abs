@@ -4,6 +4,7 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -11,12 +12,13 @@ use Tests\TestCase;
 final class PokerTurnTimerTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_nova_mesa_inicia_mao_com_turn_timer_sincronizado(): void
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
+        $this->createActivePokerTable();
 
         $state = PokerHand::query()->firstOrFail()->state_payload;
 
@@ -30,13 +32,12 @@ final class PokerTurnTimerTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:35');
 
-        $response = $this->getJson(route('poker.tables.state', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->getJson(route('poker.tables.state', $table));
 
         $response->assertOk();
         $response->assertJsonPath('state.turnTimer.secondsRemaining', 0);
@@ -47,13 +48,12 @@ final class PokerTurnTimerTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 
-        $response = $this->postJson(route('poker.tables.actions', $table), [
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.actions', $table), [
             'action' => 'call',
         ]);
 

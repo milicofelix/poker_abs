@@ -20,6 +20,10 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Poker\PokerTableLeaveController;
 use App\Http\Controllers\Poker\PokerTableNewHandController;
+use App\Http\Controllers\Poker\PokerTableBotController;
+use App\Http\Controllers\Poker\PokerPrivateTableJoinController;
+use App\Http\Controllers\Poker\PokerPrivateTableInviteController;
+use App\Http\Controllers\Poker\PokerBankrollHistoryController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -42,13 +46,21 @@ Route::get('/poker/ranking', PokerRankingController::class)->name('poker.ranking
 Route::get('/poker/hands/{hand}', PokerHandShowController::class)->name('poker.hands.show');
 Route::get('/poker/hands/{hand}/replay', PokerHandReplayController::class)->name('poker.hands.replay');
 Route::get('/poker/statistics', PokerStatisticsController::class)->name('poker.statistics.index');
-Route::get('/poker/tables/{table}', PokerTablePlayController::class)->name('poker.tables.show');
-Route::post('/poker/tables', PokerTableCreateController::class)->name('poker.tables.store');
+Route::get('/poker/tables', fn () => redirect()->route('poker.lobby'))->name('poker.tables.index');
 Route::get('/poker/lobby', PokerLobbyController::class)->name('poker.lobby');
-Route::post('/poker/tables/{table}/actions', PokerTableRoundActionController::class)->name('poker.tables.actions');
-Route::get('/poker/tables/{table}/state', PokerTableStateController::class)->name('poker.tables.state');
-Route::post('/poker/tables/{table}/timeout', PokerTableTurnTimeoutController::class)->name('poker.tables.timeout');
-Route::post('/poker/tables/{table}/join', PokerTableJoinController::class)->name('poker.tables.join');
-Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name('poker.tables.seat');
-Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
-Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get('/poker/bankroll', PokerBankrollHistoryController::class)->name('poker.bankroll.index');
+    Route::get('/poker/tables/{table}', PokerTablePlayController::class)->name('poker.tables.show');
+    Route::post('/poker/tables', PokerTableCreateController::class)->name('poker.tables.store');
+    Route::post('/poker/tables/{table}/actions', PokerTableRoundActionController::class)->name('poker.tables.actions');
+    Route::get('/poker/tables/{table}/state', PokerTableStateController::class)->name('poker.tables.state');
+    Route::post('/poker/tables/{table}/timeout', PokerTableTurnTimeoutController::class)->name('poker.tables.timeout');
+    Route::post('/poker/tables/{table}/join', PokerTableJoinController::class)->name('poker.tables.join');
+    Route::post('/poker/tables/{table}/seat', PokerTableSeatController::class)->name('poker.tables.seat');
+    Route::post('/poker/tables/{table}/leave', PokerTableLeaveController::class)->name('poker.tables.leave');
+    Route::post('/poker/tables/{table}/new-hand', PokerTableNewHandController::class)->name('poker.tables.new-hand');
+    Route::post('/poker/tables/{table}/bots', PokerTableBotController::class)->name('poker.tables.bots');
+    Route::post('/poker/private-tables/join', PokerPrivateTableJoinController::class)->name('poker.private-tables.join');
+    Route::get('/poker/invite/{inviteCode}', PokerPrivateTableInviteController::class)->name('poker.private-tables.invite');
+});

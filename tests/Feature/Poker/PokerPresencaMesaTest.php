@@ -104,6 +104,50 @@ final class PokerPresencaMesaTest extends TestCase
             ->assertJsonPath('seatSlots.0.player.nickname', 'Adriano');
     }
 
+
+    public function test_tela_da_mesa_exibe_jogador_sentado_e_espectador_na_presenca_visual(): void
+    {
+        $seatedUser = User::factory()->create(['name' => 'Jogador Sentado']);
+        $spectatorUser = User::factory()->create(['name' => 'Visitante Online']);
+        $viewer = User::factory()->create(['name' => 'Viewer']);
+        $table = $this->createTable();
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $seatedUser->id,
+            'nickname' => 'Jogador Sentado',
+            'stack' => 1000,
+            'seat_number' => 1,
+            'status' => 'online',
+            'joined_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        PokerTablePlayer::query()->create([
+            'poker_table_id' => $table->id,
+            'user_id' => $spectatorUser->id,
+            'nickname' => 'Visitante Online',
+            'stack' => 1000,
+            'seat_number' => null,
+            'status' => 'online',
+            'joined_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('poker.tables.show', $table))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('table.realPlayers.0.nickname', 'Jogador Sentado')
+                ->where('table.realPlayers.0.seatNumber', 1)
+                ->where('table.realPlayers.0.status', 'online')
+                ->where('table.realPlayers.1.nickname', 'Visitante Online')
+                ->where('table.realPlayers.1.seatNumber', null)
+                ->where('table.realPlayers.1.status', 'online')
+                ->where('table.seatSlots.0.status', 'occupied')
+                ->where('table.seatSlots.0.player.nickname', 'Jogador Sentado'));
+    }
+
     private function createTable(): PokerTable
     {
         return PokerTable::query()->create([

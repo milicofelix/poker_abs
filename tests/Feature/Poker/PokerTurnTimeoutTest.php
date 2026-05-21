@@ -6,6 +6,7 @@ use App\Events\Poker\PokerTableStateUpdated;
 use App\Models\Poker\PokerActionLog;
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
@@ -14,19 +15,19 @@ use Tests\TestCase;
 final class PokerTurnTimeoutTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesActivePokerTable;
 
     public function test_timeout_expirado_executa_fold_automatico_quando_existe_aposta_pendente(): void
     {
         Event::fake([PokerTableStateUpdated::class]);
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:31');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', true);
@@ -55,13 +56,12 @@ final class PokerTurnTimeoutTest extends TestCase
         Event::fake([PokerTableStateUpdated::class]);
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
 
         Carbon::setTestNow('2026-05-13 20:00:10');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', false);
@@ -76,9 +76,7 @@ final class PokerTurnTimeoutTest extends TestCase
     {
         Carbon::setTestNow('2026-05-13 20:00:00');
 
-        $this->post('/poker/tables');
-
-        $table = PokerTable::query()->firstOrFail();
+        $table = $this->createActivePokerTable();
         $hand = PokerHand::query()->firstOrFail();
         $state = $hand->state_payload;
         $state['street'] = 'flop';
@@ -100,7 +98,8 @@ final class PokerTurnTimeoutTest extends TestCase
 
         Carbon::setTestNow('2026-05-13 20:00:31');
 
-        $response = $this->postJson(route('poker.tables.timeout', $table));
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson(route('poker.tables.timeout', $table));
 
         $response->assertOk();
         $response->assertJsonPath('processed', true);

@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PokerTablePlayer extends Model
 {
@@ -14,8 +15,13 @@ final class PokerTablePlayer extends Model
     protected $fillable = [
         'poker_table_id',
         'user_id',
+        'is_bot',
+        'bot_profile',
+        'bot_difficulty',
         'nickname',
         'stack',
+        'buy_in_amount',
+        'buy_in_paid_at',
         'seat_number',
         'status',
         'joined_at',
@@ -26,7 +32,10 @@ final class PokerTablePlayer extends Model
     protected $casts = [
         'poker_table_id' => 'integer',
         'user_id' => 'integer',
+        'is_bot' => 'boolean',
         'stack' => 'integer',
+        'buy_in_amount' => 'integer',
+        'buy_in_paid_at' => 'datetime',
         'seat_number' => 'integer',
         'joined_at' => 'datetime',
         'left_at' => 'datetime',
@@ -48,4 +57,13 @@ final class PokerTablePlayer extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /**
+     * @return HasMany<PokerBotDecisionLog, $this>
+     */
+    public function botDecisionLogs(): HasMany
+    {
+        return $this->hasMany(PokerBotDecisionLog::class, 'poker_table_player_id');
+    }
 }
+

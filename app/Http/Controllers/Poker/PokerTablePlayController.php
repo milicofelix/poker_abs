@@ -7,7 +7,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Poker\PokerTable;
 use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
+use App\Services\Poker\PokerPhaseEightClosureService;
+use App\Services\Poker\PokerPhaseNineActionButtonUxService;
+use App\Services\Poker\PokerPhaseNineStateFeedbackService;
+use App\Services\Poker\PokerPhaseNineMotionUxService;
+use App\Services\Poker\PokerPhaseNineResponsiveUxService;
+use App\Services\Poker\PokerPhaseNineFinalPolishService;
+use App\Services\Poker\PokerPhaseNineVisualAuditService;
+use App\Services\Poker\PokerPhaseTenHeadsUpAuditService;
 use App\Services\Poker\PokerTablePresenceService;
+use App\Services\Poker\PokerTableReadinessService;
+use App\Services\Poker\PokerTableStateContractService;
+use App\Support\Poker\PokerBotProfiles;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,6 +35,16 @@ final class PokerTablePlayController extends Controller
         LocalPokerPersistenceService $pokerPersistence,
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
+        PokerTableReadinessService $readiness,
+        PokerPhaseEightClosureService $phaseEightClosure,
+        PokerPhaseNineVisualAuditService $visualAudit,
+        PokerPhaseNineActionButtonUxService $actionButtonUx,
+        PokerPhaseNineStateFeedbackService $stateFeedback,
+        PokerPhaseNineMotionUxService $motionUx,
+        PokerPhaseNineResponsiveUxService $responsiveUx,
+        PokerPhaseNineFinalPolishService $finalPolish,
+        PokerPhaseTenHeadsUpAuditService $phaseTenAudit,
+        PokerTableStateContractService $stateContracts,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -32,10 +53,12 @@ final class PokerTablePlayController extends Controller
             : $pokerPersistence->currentStateForTable($table);
 
         if (! $hand) {
-            $hand = $pokerPersistence->startOnTable($table, $startPokerHand->execute());
+            $hand = $readiness->startIfReady($table, $startPokerHand, $pokerPersistence);
         }
 
         $hand = $privateState->forUser($table, $hand, $request->user());
+        $phaseClosure = $phaseEightClosure->forLobbyTable($table);
+        $stateContractPayload = $stateContracts->forTable($table, $hand ?? []);
 
         return Inertia::render('Poker/Play', [
             'hand' => $hand,
@@ -51,11 +74,36 @@ final class PokerTablePlayController extends Controller
                 'joinUrl' => route('poker.tables.join', $table),
                 'seatUrl' => route('poker.tables.seat', $table),
                 'leaveUrl' => route('poker.tables.leave', $table),
+                'botUrl' => route('poker.tables.bots', $table),
                 'maxPlayers' => $table->max_players,
+                'isPrivate' => (bool) $table->is_private,
+                'inviteCode' => $table->invite_code,
+                'inviteUrl' => $table->invite_code ? route('poker.private-tables.invite', $table->invite_code) : null,
                 'lobbyUrl' => route('poker.lobby'),
+                'isLocalMode' => false,
+                'modeLabel' => 'Mesa do lobby',
+                'modeDescription' => 'Mesa multiplayer com assentos, presença, bots trocáveis, tempo real e timeout automático.',
+                'reviewChecklist' => $phaseClosure['checklist'],
+                'phaseClosure' => $phaseClosure,
+                'visualAudit' => $visualAudit->forTable($table, false),
+                'actionButtonUx' => $actionButtonUx->forTable($table, false),
+                'stateFeedback' => $stateFeedback->forTable($table, false),
+                'motionUx' => $motionUx->forTable($table, false),
+                'responsiveUx' => $responsiveUx->forTable($table, false),
+                'finalPolish' => $finalPolish->forTable($table, false),
+                'phaseTenAudit' => $phaseTenAudit->forTable($table, false),
+                'stateContracts' => $stateContractPayload,
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),
                 'currentUserId' => $request->user()?->id,
+                'currentUserBankroll' => $request->user()?->poker_bankroll,
+                'defaultBuyIn' => $table->buyInAmount(),
+                'buyIn' => $table->buyInAmount(),
+                'minBuyIn' => PokerTable::MIN_BUY_IN,
+                'maxBuyIn' => PokerTable::MAX_BUY_IN,
+                'botProfiles' => array_values(PokerBotProfiles::all()),
+                'botDifficulties' => PokerBotProfiles::difficulties(),
+                'botDifficultyOptions' => array_values(PokerBotProfiles::difficultyOptions()),
             ],
         ]);
     }
