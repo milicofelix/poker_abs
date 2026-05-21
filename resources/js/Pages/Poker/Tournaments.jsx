@@ -99,10 +99,10 @@ export default function Tournaments({ tournamentCenter = {} }) {
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.8'}</p>
+                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.9'}</p>
                         <h1 className="mt-2 text-3xl font-black">Central de torneios</h1>
                         <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada, add-on e lobby avançado.
+                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada, add-on e lobby avançado, persistência e retomada segura.
                         </p>
                     </div>
 
@@ -241,6 +241,17 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                             <strong>Add-on</strong><br />
                                                             {tournament.reentryAddon.addonEnabled ? `${formatChips(tournament.reentryAddon.addonBuyIn)} · +${formatChips(tournament.reentryAddon.addonStack)} fichas · até nível ${tournament.reentryAddon.addonAvailableUntilBlindLevel}` : 'Desativado'}
                                                         </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {tournament.resumeState && (
+                                                <div className="mt-3 rounded-2xl border border-indigo-300/20 bg-indigo-300/10 p-3 text-xs text-indigo-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-indigo-100">Retomada do torneio</p>
+                                                    <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Status</strong><br />{tournament.resumeState.message}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Snapshot</strong><br />{tournament.resumeState.lastSnapshotAt ?? 'Gerado ao abrir'}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Blinds</strong><br />{formatChips(tournament.resumeState.snapshot?.smallBlind ?? tournament.blindStructure?.smallBlind)} / {formatChips(tournament.resumeState.snapshot?.bigBlind ?? tournament.blindStructure?.bigBlind)}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Retomável</strong><br />{tournament.resumeState.isRestorable ? 'Sim' : 'Histórico'}</span>
                                                     </div>
                                                 </div>
                                             )}

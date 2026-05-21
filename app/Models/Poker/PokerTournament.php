@@ -60,6 +60,9 @@ final class PokerTournament extends Model
         'addon_buy_in',
         'addon_stack',
         'addon_available_until_blind_level',
+        'resume_token',
+        'resume_snapshot',
+        'last_snapshot_at',
     ];
 
     protected $casts = [
@@ -89,6 +92,8 @@ final class PokerTournament extends Model
         'addon_buy_in' => 'integer',
         'addon_stack' => 'integer',
         'addon_available_until_blind_level' => 'integer',
+        'resume_snapshot' => 'array',
+        'last_snapshot_at' => 'datetime',
     ];
 
     /**
