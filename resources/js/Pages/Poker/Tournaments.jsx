@@ -1,0 +1,315 @@
+import React, { useMemo, useState } from 'react';
+import { router, usePage } from '@inertiajs/react';
+
+function formatChips(value) {
+    return new Intl.NumberFormat('pt-BR').format(Number(value ?? 0));
+}
+
+function statusTone(status) {
+    return {
+        registering: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
+        running: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+        finished: 'border-slate-300/20 bg-slate-300/10 text-slate-200',
+    }[status] ?? 'border-white/10 bg-white/10 text-slate-200';
+}
+
+export default function Tournaments({ tournamentCenter = {} }) {
+    const { auth, flash = {} } = usePage().props;
+    const user = auth?.user;
+    const defaults = tournamentCenter.defaults ?? {};
+    const tournaments = tournamentCenter.tournaments ?? [];
+    const summary = tournamentCenter.summary ?? {};
+
+    const [name, setName] = useState('Torneio Sit & Go ABS');
+    const [buyIn, setBuyIn] = useState(defaults.buyIn ?? 1000);
+    const [startingStack, setStartingStack] = useState(defaults.startingStack ?? 5000);
+    const [maxPlayers, setMaxPlayers] = useState(defaults.maxPlayers ?? 9);
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    const visibleTournaments = useMemo(() => {
+        if (statusFilter === 'all') {
+            return tournaments;
+        }
+
+        return tournaments.filter((tournament) => tournament.status === statusFilter);
+    }, [statusFilter, tournaments]);
+
+    function createTournament(event) {
+        event.preventDefault();
+
+        if (! user) {
+            router.visit('/login');
+            return;
+        }
+
+        router.post('/poker/tournaments', {
+            name,
+            buy_in: Number(buyIn),
+            starting_stack: Number(startingStack),
+            max_players: Number(maxPlayers),
+        });
+    }
+
+    function register(tournament) {
+        if (! user) {
+            router.visit('/login');
+            return;
+        }
+
+        router.post(`/poker/tournaments/${tournament.id}/register`);
+    }
+
+    function startTournament(tournament) {
+        router.post(`/poker/tournaments/${tournament.id}/start`);
+    }
+
+    function registerBot(tournament) {
+        router.post(`/poker/tournaments/${tournament.id}/bots`);
+    }
+
+    function eliminateParticipant(tournament, participant) {
+        router.post(`/poker/tournaments/${tournament.id}/participants/${participant.id}/eliminate`);
+    }
+
+    function advanceBlindLevel(tournament) {
+        router.post(`/poker/tournaments/${tournament.id}/blind-level`);
+    }
+
+    function prepareFinalTable(tournament) {
+        router.post(`/poker/tournaments/${tournament.id}/final-table`);
+    }
+
+    return (
+        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 p-6 text-white">
+            <div className="mx-auto flex max-w-7xl flex-col gap-6">
+                <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.1'}</p>
+                        <h1 className="mt-2 text-3xl font-black">Central de torneios</h1>
+                        <p className="mt-2 max-w-3xl text-sm text-slate-300">
+                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática e mesa final.
+                        </p>
+                    </div>
+
+                    <nav className="flex flex-wrap gap-3">
+                        <a href="/poker/lobby" className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20">Lobby</a>
+                        <a href="/poker/ranking" className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/20">Ranking</a>
+                        <a href="/poker/profile" className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-5 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/20">Meu perfil</a>
+                    </nav>
+                </header>
+
+                {(flash.success || flash.error) && (
+                    <div className={`rounded-2xl border px-5 py-4 text-sm font-bold ${flash.error ? 'border-red-300/30 bg-red-500/10 text-red-100' : 'border-emerald-300/30 bg-emerald-500/10 text-emerald-100'}`}>
+                        {flash.error || flash.success}
+                    </div>
+                )}
+
+                <section className="grid gap-3 md:grid-cols-4">
+                    {[
+                        ['Total', summary.total],
+                        ['Inscrições abertas', summary.registering],
+                        ['Em andamento', summary.running],
+                        ['Finalizados', summary.finished],
+                    ].map(([label, value]) => (
+                        <article key={label} className="rounded-3xl border border-white/10 bg-slate-950/45 p-5 shadow-xl">
+                            <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">{label}</p>
+                            <strong className="mt-2 block text-3xl font-black text-white">{formatChips(value)}</strong>
+                        </article>
+                    ))}
+                </section>
+
+                <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
+                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">Torneios</p>
+                                <h2 className="mt-1 text-2xl font-black">Salas disponíveis</h2>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    ['all', 'Todos'],
+                                    ['registering', 'Abertos'],
+                                    ['running', 'Em andamento'],
+                                    ['finished', 'Finalizados'],
+                                ].map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setStatusFilter(value)}
+                                        className={`rounded-full px-4 py-2 text-xs font-black transition ${statusFilter === value ? 'bg-violet-300 text-violet-950' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="mt-5 grid gap-4">
+                            {visibleTournaments.length === 0 ? (
+                                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-6 text-center text-sm text-slate-300">
+                                    Nenhum torneio encontrado para este filtro.
+                                </div>
+                            ) : visibleTournaments.map((tournament) => (
+                                <article key={tournament.id} className="rounded-3xl border border-white/10 bg-slate-950/45 p-5 shadow-xl">
+                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                        <div>
+                                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${statusTone(tournament.status)}`}>
+                                                {tournament.statusLabel}
+                                            </span>
+                                            <h3 className="mt-3 text-2xl font-black">{tournament.name}</h3>
+                                            <p className="mt-2 text-sm text-slate-300">
+                                                Buy-in {formatChips(tournament.buyIn)} · Stack inicial {formatChips(tournament.startingStack)} · Prize pool {formatChips(tournament.prizePool)}
+                                            </p>
+                                            <p className="mt-1 text-xs text-slate-400">
+                                                Inscritos: {formatChips(tournament.registeredPlayers)} / {formatChips(tournament.maxPlayers)}
+                                                {tournament.startsAt ? ` · Início previsto: ${tournament.startsAt}` : ''}
+                                            </p>
+                                            {tournament.blindStructure && (
+                                                <div className="mt-3 grid gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-50 sm:grid-cols-4">
+                                                    <span><strong>Nível</strong><br />{tournament.blindStructure.currentLevel}</span>
+                                                    <span><strong>SB / BB</strong><br />{formatChips(tournament.blindStructure.smallBlind)} / {formatChips(tournament.blindStructure.bigBlind)}</span>
+                                                    <span><strong>Duração</strong><br />{tournament.blindStructure.levelMinutes} min</span>
+                                                    <span><strong>Próximo</strong><br />{tournament.blindStructure.nextBlindAt ?? 'Ao iniciar'}</span>
+                                                </div>
+                                            )}
+                                            {Array.isArray(tournament.payoutPlan) && tournament.payoutPlan.length > 0 && (
+                                                <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-xs text-emerald-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-emerald-100">Premiação</p>
+                                                    <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                                        {tournament.payoutPlan.map((payout) => (
+                                                            <span key={`${tournament.id}-${payout.position}`} className="rounded-xl bg-slate-950/35 px-3 py-2">
+                                                                <strong>{payout.position}º lugar</strong><br />
+                                                                {payout.percent}% · {formatChips(payout.amount)} fichas
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {tournament.finalTable?.enabled && (
+                                                <div className="mt-3 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/10 p-3 text-xs text-fuchsia-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-fuchsia-100">Mesa final</p>
+                                                    <p className="mt-1 text-fuchsia-50/80">Organizada em {tournament.finalTable.startedAt ?? 'agora'} · até {tournament.finalTable.maxPlayers ?? 9} jogadores.</p>
+                                                    {Array.isArray(tournament.finalTable.seatMap) && tournament.finalTable.seatMap.length > 0 && (
+                                                        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                                            {tournament.finalTable.seatMap.map((seat) => (
+                                                                <span key={`${tournament.id}-final-seat-${seat.seat}`} className="rounded-xl bg-slate-950/35 px-3 py-2">
+                                                                    <strong>Assento {seat.seat}</strong><br />
+                                                                    {seat.name} · {formatChips(seat.stack)} fichas
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col gap-2 xl:items-end">
+                                            {tournament.isRegistered && (
+                                                <span className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-sm font-black text-emerald-100">
+                                                    Você está inscrito
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={! tournament.canRegister}
+                                                onClick={() => register(tournament)}
+                                                className={`rounded-xl px-5 py-3 text-sm font-black transition ${tournament.canRegister ? 'bg-white text-slate-950 hover:bg-violet-100' : 'cursor-not-allowed bg-white/10 text-slate-500'}`}
+                                            >
+                                                {tournament.canRegister ? 'Inscrever-se' : 'Inscrição indisponível'}
+                                            </button>
+                                            {tournament.canRegisterBot && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => registerBot(tournament)}
+                                                    className="rounded-xl border border-sky-300/30 bg-sky-300/10 px-5 py-3 text-sm font-black text-sky-100 transition hover:bg-sky-300/20"
+                                                >
+                                                    Adicionar bot
+                                                </button>
+                                            )}
+                                            {tournament.canStart && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startTournament(tournament)}
+                                                    className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-5 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/20"
+                                                >
+                                                    Iniciar torneio
+                                                </button>
+                                            )}
+                                            {tournament.canAdvanceBlind && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => advanceBlindLevel(tournament)}
+                                                    className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-5 py-3 text-sm font-black text-orange-100 transition hover:bg-orange-300/20"
+                                                >
+                                                    Avançar blinds
+                                                </button>
+                                            )}
+                                            {tournament.canPrepareFinalTable && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => prepareFinalTable(tournament)}
+                                                    className="rounded-xl border border-fuchsia-300/30 bg-fuchsia-300/10 px-5 py-3 text-sm font-black text-fuchsia-100 transition hover:bg-fuchsia-300/20"
+                                                >
+                                                    Organizar mesa final
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                                        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Participantes</p>
+                                        {tournament.participants.length === 0 ? (
+                                            <p className="mt-3 text-sm text-slate-400">Ainda não há inscritos.</p>
+                                        ) : (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {tournament.participants.map((participant) => (
+                                                    <span key={participant.id} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-bold text-slate-200">
+                                                        <span>{participant.finishPosition ? `${participant.finishPosition}º · ` : ''}{participant.name} · {participant.statusLabel ?? participant.status} · {formatChips(participant.stack)} fichas{participant.prizeAmount > 0 ? ` · prêmio ${formatChips(participant.prizeAmount)}` : ''}</span>
+                                                        {tournament.status === 'running' && participant.status === 'active' && (
+                                                            <button type="button" onClick={() => eliminateParticipant(tournament, participant)} className="rounded-full bg-red-400/20 px-2 py-1 text-[10px] font-black text-red-100 hover:bg-red-400/30">
+                                                                Eliminar
+                                                            </button>
+                                                        )}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    </div>
+
+                    <form onSubmit={createTournament} className="rounded-3xl border border-violet-300/20 bg-violet-300/10 p-5 shadow-2xl">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-100">Criar torneio</p>
+                        <h2 className="mt-1 text-xl font-black">Sit & Go básico</h2>
+                        <p className="mt-2 text-sm text-violet-100/80">
+                            Nesta etapa, a criação deixa o torneio em inscrições abertas. Após iniciar, já é possível acompanhar e avançar níveis de blinds progressivos.
+                        </p>
+
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="tournament-name">Nome</label>
+                        <input id="tournament-name" value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-violet-300" />
+
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="tournament-buy-in">Buy-in</label>
+                        <input id="tournament-buy-in" type="number" min="100" step="100" value={buyIn} onChange={(event) => setBuyIn(event.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-violet-300" />
+
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="tournament-stack">Stack inicial</label>
+                        <input id="tournament-stack" type="number" min="500" step="500" value={startingStack} onChange={(event) => setStartingStack(event.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-violet-300" />
+
+                        <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="tournament-max-players">Máximo de jogadores</label>
+                        <input id="tournament-max-players" type="number" min="2" max="200" value={maxPlayers} onChange={(event) => setMaxPlayers(event.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-violet-300" />
+
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
+                            Blinds padrão: {formatChips(defaults.smallBlind ?? 25)} / {formatChips(defaults.bigBlind ?? 50)} · níveis de {defaults.blindLevelMinutes ?? 10} min · payout padrão 70/20/10 · mesa final até {defaults.finalTableMaxPlayers ?? 9} jogadores
+                        </div>
+
+                        <button type="submit" className="mt-5 w-full rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-violet-100">
+                            Criar torneio
+                        </button>
+                    </form>
+                </section>
+            </div>
+        </main>
+    );
+}

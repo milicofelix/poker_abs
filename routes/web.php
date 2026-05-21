@@ -26,6 +26,13 @@ use App\Http\Controllers\Poker\PokerPrivateTableInviteController;
 use App\Http\Controllers\Poker\PokerBankrollHistoryController;
 use App\Http\Controllers\Poker\PokerTableRebuyController;
 use App\Http\Controllers\Poker\PokerPlayerProfileController;
+use App\Http\Controllers\Poker\PokerTournamentController;
+use App\Http\Controllers\Poker\PokerTournamentRegistrationController;
+use App\Http\Controllers\Poker\PokerTournamentStartController;
+use App\Http\Controllers\Poker\PokerTournamentEliminationController;
+use App\Http\Controllers\Poker\PokerTournamentBotRegistrationController;
+use App\Http\Controllers\Poker\PokerTournamentBlindLevelController;
+use App\Http\Controllers\Poker\PokerTournamentFinalTableController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -49,6 +56,7 @@ Route::get('/poker/players/{user}', [PokerPlayerProfileController::class, 'show'
 Route::get('/poker/hands/{hand}', PokerHandShowController::class)->name('poker.hands.show');
 Route::get('/poker/hands/{hand}/replay', PokerHandReplayController::class)->name('poker.hands.replay');
 Route::get('/poker/statistics', PokerStatisticsController::class)->name('poker.statistics.index');
+Route::get('/poker/tournaments', [PokerTournamentController::class, 'index'])->name('poker.tournaments.index');
 Route::get('/poker/tables', fn () => redirect()->route('poker.lobby'))->name('poker.tables.index');
 Route::get('/poker/lobby', PokerLobbyController::class)->name('poker.lobby');
 
@@ -68,4 +76,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/poker/invite/{inviteCode}', PokerPrivateTableInviteController::class)->name('poker.private-tables.invite');
     Route::get('/poker/profile', [PokerPlayerProfileController::class, 'current'])->name('poker.profile.show');
     Route::get('/poker/bankroll', PokerBankrollHistoryController::class)->name('poker.bankroll.index');
+    Route::post('/poker/tournaments', [PokerTournamentController::class, 'store'])->name('poker.tournaments.store');
+    Route::post('/poker/tournaments/{tournament}/register', PokerTournamentRegistrationController::class)->name('poker.tournaments.register');
+    Route::post('/poker/tournaments/{tournament}/start', PokerTournamentStartController::class)->name('poker.tournaments.start');
+    Route::post('/poker/tournaments/{tournament}/bots', PokerTournamentBotRegistrationController::class)->name('poker.tournaments.bots');
+    Route::post('/poker/tournaments/{tournament}/blind-level', PokerTournamentBlindLevelController::class)->name('poker.tournaments.blind-level');
+    Route::post('/poker/tournaments/{tournament}/final-table', PokerTournamentFinalTableController::class)->name('poker.tournaments.final-table');
+    Route::post('/poker/tournaments/{tournament}/participants/{participant}/eliminate', PokerTournamentEliminationController::class)->name('poker.tournaments.participants.eliminate');
 });

@@ -118,6 +118,12 @@ export default function Lobby({ tables = [], tableCreation = {} }) {
                             >
                                 Ranking
                             </a>
+                            <a
+                                href="/poker/tournaments"
+                                className="rounded-xl border border-violet-300/30 bg-violet-300/10 px-3 py-2 text-xs font-black text-violet-100 transition hover:bg-violet-300/20"
+                            >
+                                Torneios
+                            </a>
                             {user && (
                                 <a
                                     href="/poker/bankroll"
