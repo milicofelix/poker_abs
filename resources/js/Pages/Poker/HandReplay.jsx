@@ -1,31 +1,49 @@
 import React, { useMemo, useState } from 'react';
+import {
+    PokerBadge,
+    PokerButton,
+    PokerEmptyState,
+    PokerSectionHeader,
+    PokerSurface,
+} from '@/Components/Poker/Ui/PokerDesignSystem';
 
 function formatMoney(value) {
     return Number(value || 0).toLocaleString('pt-BR');
 }
 
-function actionBadgeClass(action) {
+function actionTone(action) {
     if (action === 'Fold') {
-        return 'border-red-400/40 bg-red-400/10 text-red-100';
+        return 'danger';
     }
 
     if (action === 'Raise') {
-        return 'border-orange-400/40 bg-orange-400/10 text-orange-100';
+        return 'warning';
     }
 
     if (action === 'Call') {
-        return 'border-sky-400/40 bg-sky-400/10 text-sky-100';
+        return 'info';
     }
 
     if (action === 'Check') {
-        return 'border-emerald-400/40 bg-emerald-400/10 text-emerald-100';
+        return 'success';
     }
 
-    return 'border-slate-400/40 bg-slate-400/10 text-slate-100';
+    return 'neutral';
+}
+
+function ReplayMetric({ label, value, helper = null, tone = 'soft' }) {
+    return (
+        <PokerSurface tone={tone} className="p-5">
+            <p className="text-[0.62rem] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
+            <p className="mt-3 text-2xl font-black text-white">{value}</p>
+            {helper ? <p className="mt-2 text-xs font-semibold text-slate-400">{helper}</p> : null}
+        </PokerSurface>
+    );
 }
 
 export default function HandReplay({ replay }) {
-    const steps = replay.steps || [];
+    const safeReplay = replay || { hand: {}, summary: {}, streets: [], steps: [] };
+    const steps = safeReplay.steps || [];
     const [currentIndex, setCurrentIndex] = useState(0);
 
     const currentStep = steps[currentIndex] || null;
@@ -33,6 +51,8 @@ export default function HandReplay({ replay }) {
         () => steps.slice(0, currentIndex + 1),
         [steps, currentIndex],
     );
+
+    const progress = steps.length > 0 ? Math.round(((currentIndex + 1) / steps.length) * 100) : 0;
 
     function previous() {
         setCurrentIndex((index) => Math.max(0, index - 1));
@@ -47,186 +67,157 @@ export default function HandReplay({ replay }) {
     }
 
     return (
-        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-6 text-white">
+        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-4 text-white md:p-6">
             <div className="mx-auto flex max-w-6xl flex-col gap-6">
-                <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur md:flex-row md:items-center md:justify-between">
-                    <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-200">
-                            Poker ABS
-                        </p>
-                        <h1 className="mt-2 text-3xl font-black">Replay da mão</h1>
-                        <p className="mt-2 max-w-2xl break-all text-sm text-slate-300">
-                            Código: {replay.hand.code}
-                        </p>
+                <PokerSurface className="overflow-hidden p-0">
+                    <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.18),transparent_34%),rgba(15,23,42,0.68)] p-6 md:p-7">
+                        <PokerSectionHeader
+                            eyebrow="Poker ABS • FASE 13.1.6"
+                            title="Replay da mão"
+                            description={`Revise cada ação registrada com timeline, progresso e resumo financeiro. Código: ${safeReplay.hand?.code || '-'}`}
+                            action={(
+                                <div className="flex flex-wrap gap-2">
+                                    <PokerButton as="a" href="/poker/hands" tone="secondary">
+                                        Histórico
+                                    </PokerButton>
+                                    <PokerButton as="a" href="/poker" tone="primary">
+                                        Voltar para mesa
+                                    </PokerButton>
+                                </div>
+                            )}
+                        />
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                        <a
-                            href={`/poker/hands/${replay.hand.id}`}
-                            className="inline-flex w-fit rounded-xl border border-white/10 bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20"
-                        >
-                            Detalhe da mão
-                        </a>
-                        <a
-                            href="/poker/hands"
-                            className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
-                        >
-                            Histórico
-                        </a>
+                    <div className="grid gap-4 p-5 md:grid-cols-4 md:p-6">
+                        <ReplayMetric label="Mesa" value={safeReplay.hand?.table || '-'} />
+                        <ReplayMetric label="Status" value={safeReplay.hand?.statusLabel || '-'} />
+                        <ReplayMetric label="Ações" value={safeReplay.summary?.totalActions || 0} />
+                        <ReplayMetric label="Pote final" value={formatMoney(safeReplay.summary?.finalPot)} tone="emerald" />
                     </div>
-                </header>
+                </PokerSurface>
 
-                <section className="grid gap-4 md:grid-cols-4">
-                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Mesa</p>
-                        <p className="mt-3 text-2xl font-black">{replay.hand.table}</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Status</p>
-                        <p className="mt-3 text-2xl font-black">{replay.hand.statusLabel}</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Ações</p>
-                        <p className="mt-3 text-2xl font-black">{replay.summary.totalActions}</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Pote final</p>
-                        <p className="mt-3 text-2xl font-black">{formatMoney(replay.summary.finalPot)}</p>
-                    </div>
-                </section>
-
-                {replay.summary.winnerLabel && (
-                    <section className="rounded-3xl border border-amber-300/30 bg-amber-300/10 p-6 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-amber-100">Resultado final</p>
-                        <h2 className="mt-2 text-2xl font-black text-amber-50">
-                            Vencedor: {replay.summary.winnerLabel}
-                        </h2>
-                        {replay.summary.winningHandName && (
-                            <p className="mt-1 text-sm font-semibold text-amber-100">
-                                Mão vencedora: {replay.summary.winningHandName}
-                            </p>
-                        )}
-                    </section>
-                )}
+                {safeReplay.summary?.winnerLabel ? (
+                    <PokerSurface tone="amber" className="p-5 md:p-6">
+                        <PokerSectionHeader
+                            eyebrow="Resultado final"
+                            title={`Vencedor: ${safeReplay.summary.winnerLabel}`}
+                            description={safeReplay.summary.winningHandName ? `Mão vencedora: ${safeReplay.summary.winningHandName}` : 'Resultado registrado no encerramento da mão.'}
+                        />
+                    </PokerSurface>
+                ) : null}
 
                 {steps.length === 0 ? (
-                    <section className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-                        <h2 className="text-2xl font-black">Nenhuma ação para reproduzir</h2>
-                        <p className="mt-2 text-sm text-slate-300">
-                            Esta mão ainda não possui ações registradas no banco.
-                        </p>
-                    </section>
+                    <PokerEmptyState
+                        eyebrow="Replay indisponível"
+                        title="Nenhuma ação para reproduzir"
+                        description="Esta mão ainda não possui ações registradas no banco. Finalize uma mão com ações para habilitar a linha do tempo."
+                        action={(
+                            <PokerButton as="a" href="/poker/hands" tone="primary">
+                                Voltar ao histórico
+                            </PokerButton>
+                        )}
+                    />
                 ) : (
                     <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                        <article className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <PokerSurface as="article" className="p-5 md:p-6">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                 <div>
-                                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                                    <p className="text-[0.62rem] font-black uppercase tracking-[0.22em] text-slate-400">
                                         Passo {currentStep.number} de {steps.length}
                                     </p>
-                                    <h2 className="mt-1 text-2xl font-black">{currentStep.streetLabel}</h2>
+                                    <h2 className="mt-1 text-2xl font-black text-white">{currentStep.streetLabel}</h2>
                                 </div>
-                                <span className={`w-fit rounded-full border px-4 py-2 text-sm font-bold ${actionBadgeClass(currentStep.action)}`}>
+                                <PokerBadge tone={actionTone(currentStep.action)}>
                                     {currentStep.action}
-                                </span>
+                                </PokerBadge>
                             </div>
 
-                            <div className="mt-6 rounded-3xl border border-white/10 bg-slate-950/40 p-6">
-                                <p className="text-sm text-slate-400">Jogador da ação</p>
-                                <h3 className="mt-1 text-4xl font-black">{currentStep.player}</h3>
-                                {currentStep.message && (
-                                    <p className="mt-3 text-base text-slate-200">{currentStep.message}</p>
-                                )}
+                            <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-950/70">
+                                <div
+                                    className="h-full rounded-full bg-emerald-300 transition-all"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                            <p className="mt-2 text-xs font-semibold text-slate-400">{progress}% do replay reproduzido</p>
+
+                            <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-5 md:p-6">
+                                <p className="text-sm font-semibold text-slate-400">Jogador da ação</p>
+                                <h3 className="mt-1 text-3xl font-black text-white md:text-4xl">{currentStep.player}</h3>
+                                {currentStep.message ? (
+                                    <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-200 md:text-base">
+                                        {currentStep.message}
+                                    </p>
+                                ) : null}
 
                                 <div className="mt-6 grid gap-4 md:grid-cols-3">
-                                    <div className="rounded-2xl bg-white/10 p-4">
-                                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Valor</p>
-                                        <p className="mt-2 text-2xl font-black">{formatMoney(currentStep.amount)}</p>
-                                    </div>
-                                    <div className="rounded-2xl bg-white/10 p-4">
-                                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Pote após ação</p>
-                                        <p className="mt-2 text-2xl font-black text-emerald-100">
-                                            {formatMoney(currentStep.potAfterAction)}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl bg-white/10 p-4">
-                                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Horário</p>
-                                        <p className="mt-2 text-lg font-black">{currentStep.actedAt || '-'}</p>
-                                    </div>
+                                    <ReplayMetric label="Valor" value={formatMoney(currentStep.amount)} />
+                                    <ReplayMetric label="Pote após ação" value={formatMoney(currentStep.potAfterAction)} tone="emerald" />
+                                    <ReplayMetric label="Horário" value={currentStep.actedAt || '-'} />
                                 </div>
                             </div>
 
                             <div className="mt-6 flex flex-wrap gap-3">
-                                <button
-                                    type="button"
-                                    onClick={previous}
-                                    disabled={currentIndex === 0}
-                                    className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
+                                <PokerButton type="button" onClick={previous} disabled={currentIndex === 0} tone="secondary">
                                     Anterior
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={next}
-                                    disabled={currentIndex === steps.length - 1}
-                                    className="rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
+                                </PokerButton>
+                                <PokerButton type="button" onClick={next} disabled={currentIndex === steps.length - 1} tone="primary">
                                     Próxima ação
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={restart}
-                                    className="rounded-xl border border-white/10 bg-slate-950/40 px-5 py-3 font-bold text-white transition hover:bg-slate-950/70"
-                                >
+                                </PokerButton>
+                                <PokerButton type="button" onClick={restart} tone="ghost">
                                     Reiniciar replay
-                                </button>
+                                </PokerButton>
                             </div>
-                        </article>
+                        </PokerSurface>
 
-                        <aside className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Linha do tempo reproduzida</p>
-                            <h2 className="mt-1 text-2xl font-black">Ações até agora</h2>
+                        <PokerSurface as="aside" className="p-5 md:p-6">
+                            <PokerSectionHeader
+                                eyebrow="Linha do tempo"
+                                title="Ações reproduzidas"
+                                description="Toque em uma ação para voltar diretamente ao ponto desejado do replay."
+                            />
 
-                            <div className="mt-5 flex flex-col gap-3">
+                            <div className="mt-5 flex max-h-[34rem] flex-col gap-3 overflow-y-auto pr-1">
                                 {previousSteps.map((step) => (
                                     <button
                                         type="button"
                                         key={step.id}
                                         onClick={() => setCurrentIndex(step.number - 1)}
                                         className={`rounded-2xl border p-4 text-left transition ${step.number === currentStep.number
-                                            ? 'border-emerald-300/50 bg-emerald-300/10'
+                                            ? 'border-emerald-300/50 bg-emerald-300/10 shadow-lg shadow-emerald-950/20'
                                             : 'border-white/10 bg-slate-950/30 hover:bg-slate-950/50'
                                         }`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
-                                            <p className="text-sm font-black">#{step.number} {step.player}</p>
-                                            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${actionBadgeClass(step.action)}`}>
-                                                {step.action}
-                                            </span>
+                                            <p className="text-sm font-black text-white">#{step.number} {step.player}</p>
+                                            <PokerBadge tone={actionTone(step.action)}>{step.action}</PokerBadge>
                                         </div>
-                                        <p className="mt-2 text-xs text-slate-400">
+                                        <p className="mt-2 text-xs font-semibold text-slate-400">
                                             {step.streetLabel} • Pote: {formatMoney(step.potAfterAction)}
                                         </p>
                                     </button>
                                 ))}
                             </div>
-                        </aside>
+                        </PokerSurface>
                     </section>
                 )}
 
-                <section className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Resumo por street</p>
+                <PokerSurface className="p-5 md:p-6">
+                    <PokerSectionHeader
+                        eyebrow="Resumo por street"
+                        title="Evolução da mão"
+                        description="Resumo compacto para conferir a quantidade de ações e o pote final registrado em cada street."
+                    />
                     <div className="mt-4 grid gap-3 md:grid-cols-4">
-                        {replay.streets.map((street) => (
-                            <div key={street.street} className="rounded-2xl bg-slate-950/40 p-4">
-                                <p className="text-lg font-black">{street.label}</p>
-                                <p className="mt-1 text-sm text-slate-300">
+                        {(safeReplay.streets || []).map((street) => (
+                            <div key={street.street} className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                                <p className="text-lg font-black text-white">{street.label}</p>
+                                <p className="mt-1 text-sm font-semibold text-slate-300">
                                     {street.actionsCount} ações • pote {formatMoney(street.potAfterStreet)}
                                 </p>
                             </div>
                         ))}
                     </div>
-                </section>
+                </PokerSurface>
             </div>
         </main>
     );

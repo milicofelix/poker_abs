@@ -5,6 +5,52 @@ function formatChips(value) {
     return new Intl.NumberFormat('pt-BR').format(Number(value ?? 0));
 }
 
+
+function occupancyPercent(tournament) {
+    if (tournament?.lobbySummary?.occupancyPercent !== undefined) {
+        return Math.max(0, Math.min(100, Number(tournament.lobbySummary.occupancyPercent ?? 0)));
+    }
+
+    const registered = Number(tournament?.registeredPlayers ?? 0);
+    const maxPlayers = Math.max(1, Number(tournament?.maxPlayers ?? 1));
+
+    return Math.round((registered / maxPlayers) * 100);
+}
+
+function tournamentMomentum(tournament) {
+    if (tournament?.status === 'running') {
+        return 'Mesa em andamento';
+    }
+
+    if (tournament?.status === 'finished') {
+        return 'Resultado fechado';
+    }
+
+    const missing = Number(tournament?.lobbySummary?.playersNeededToStart ?? 0);
+
+    if (missing <= 0) {
+        return 'Pronto para iniciar';
+    }
+
+    return `Faltam ${formatChips(missing)} jogador(es)`;
+}
+
+function tournamentAccent(tournament) {
+    return {
+        registering: 'from-emerald-400/20 via-cyan-400/10 to-slate-950/30 border-emerald-200/25',
+        running: 'from-amber-400/20 via-orange-400/10 to-slate-950/30 border-amber-200/25',
+        finished: 'from-slate-300/15 via-slate-500/10 to-slate-950/30 border-slate-200/15',
+    }[tournament?.status] ?? 'from-violet-400/20 via-slate-500/10 to-slate-950/30 border-white/10';
+}
+
+function statusDotClass(status) {
+    return {
+        registering: 'bg-emerald-300 shadow-emerald-300/60',
+        running: 'bg-amber-300 shadow-amber-300/60',
+        finished: 'bg-slate-300 shadow-slate-300/40',
+    }[status] ?? 'bg-violet-300 shadow-violet-300/60';
+}
+
 function statusTone(status) {
     return {
         registering: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
@@ -123,42 +169,56 @@ export default function Tournaments({ tournamentCenter = {} }) {
                     </div>
                 )}
 
-                <section className="grid gap-3 md:grid-cols-4">
+                <section className="grid gap-4 md:grid-cols-4">
                     {[
-                        ['Total', summary.total],
-                        ['Inscrições abertas', summary.registering],
-                        ['Em andamento', summary.running],
-                        ['Finalizados', summary.finished],
-                    ].map(([label, value]) => (
-                        <article key={label} className="rounded-3xl border border-white/10 bg-slate-950/45 p-5 shadow-xl">
-                            <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">{label}</p>
-                            <strong className="mt-2 block text-3xl font-black text-white">{formatChips(value)}</strong>
+                        ['Total', summary.total, '♠', 'Todos os eventos cadastrados'],
+                        ['Inscrições abertas', summary.registering, '♣', 'Torneios recebendo jogadores'],
+                        ['Em andamento', summary.running, '♥', 'Mesas ativas agora'],
+                        ['Finalizados', summary.finished, '♦', 'Resultados disponíveis'],
+                    ].map(([label, value, icon, hint]) => (
+                        <article key={label} className="poker-premium-stat-card poker-soft-enter rounded-[2rem] border border-white/10 bg-slate-950/55 p-5 shadow-2xl">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">{label}</p>
+                                    <strong className="mt-2 block text-4xl font-black text-white">{formatChips(value)}</strong>
+                                    <span className="mt-2 block text-xs font-bold text-slate-400">{hint}</span>
+                                </div>
+                                <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/10 text-2xl shadow-inner">{icon}</span>
+                            </div>
                         </article>
                     ))}
                 </section>
 
-                <section className="rounded-3xl border border-sky-300/20 bg-sky-300/10 p-5 shadow-2xl">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <section className="poker-tournament-command-center overflow-hidden rounded-[2rem] border border-sky-200/20 bg-sky-300/10 p-5 shadow-2xl">
+                    <div className="relative z-10 grid gap-5 lg:grid-cols-[1fr_360px]">
                         <div>
                             <p className="text-xs font-black uppercase tracking-[0.25em] text-sky-100">{lobby.title ?? 'Lobby avançado de torneios'}</p>
-                            <h2 className="mt-1 text-xl font-black">Visão rápida do lobby</h2>
-                            <p className="mt-2 text-sm text-sky-50/80">
-                                Acompanhe quais torneios estão mais próximos de iniciar, ocupação, vagas e status operacional.
+                            <h2 className="mt-1 text-2xl font-black">Central visual de torneios</h2>
+                            <p className="mt-2 max-w-3xl text-sm text-sky-50/80">
+                                Esta etapa deixa a tela de torneios mais evidente: cards com ocupação visual, destaque do próximo torneio, mesa ilustrativa e ações mais fáceis de encontrar.
                             </p>
+                            <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-sky-50">
+                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2">Ocupação em tempo real</span>
+                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2">CTA destacado</span>
+                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2">Mobile first</span>
+                            </div>
                         </div>
-                        {lobby.nextToStart ? (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-sky-50">
-                                <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Próximo a iniciar</p>
-                                <strong className="mt-1 block text-lg text-white">{lobby.nextToStart.name}</strong>
-                                <span className="text-xs text-sky-100/80">
-                                    {lobby.nextToStart.occupancyPercent}% ocupado · faltam {lobby.nextToStart.playersNeeded} jogador(es)
-                                </span>
-                            </div>
-                        ) : (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-sky-50">
-                                Nenhum torneio aberto no momento.
-                            </div>
-                        )}
+                        <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4 text-sm text-sky-50 shadow-2xl">
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Próximo destaque</p>
+                            {lobby.nextToStart ? (
+                                <>
+                                    <strong className="mt-2 block text-xl text-white">{lobby.nextToStart.name}</strong>
+                                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-sky-300" style={{ width: `${Math.max(4, Number(lobby.nextToStart.occupancyPercent ?? 0))}%` }} />
+                                    </div>
+                                    <span className="mt-2 block text-xs text-sky-100/80">
+                                        {lobby.nextToStart.occupancyPercent}% ocupado · faltam {lobby.nextToStart.playersNeeded} jogador(es)
+                                    </span>
+                                </>
+                            ) : (
+                                <p className="mt-2 text-sky-100/80">Nenhum torneio aberto no momento.</p>
+                            )}
+                        </div>
                     </div>
                 </section>
 
@@ -190,19 +250,40 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                     Nenhum torneio encontrado para este filtro.
                                 </div>
                             ) : visibleTournaments.map((tournament) => (
-                                <article key={tournament.id} className="rounded-3xl border border-white/10 bg-slate-950/45 p-5 shadow-xl">
-                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                        <div>
-                                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${statusTone(tournament.status)}`}>
-                                                {tournament.statusLabel}
-                                            </span>
-                                            <h3 className="mt-3 text-2xl font-black">{tournament.name}</h3>
+                                <article key={tournament.id} className={`poker-tournament-card poker-soft-enter relative overflow-hidden rounded-[2rem] border bg-gradient-to-br ${tournamentAccent(tournament)} p-5 shadow-2xl`}>
+                                    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+                                    <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${statusTone(tournament.status)}`}>
+                                                    <span className={`h-2 w-2 rounded-full shadow-lg ${statusDotClass(tournament.status)}`} />
+                                                    {tournament.statusLabel}
+                                                </span>
+                                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-black text-white">
+                                                    {tournamentMomentum(tournament)}
+                                                </span>
+                                            </div>
+                                            <h3 className="mt-3 text-3xl font-black tracking-tight text-white">{tournament.name}</h3>
                                             <p className="mt-2 text-sm text-slate-300">
                                                 Buy-in {formatChips(tournament.buyIn)} · Stack inicial {formatChips(tournament.startingStack)} · Prize pool {formatChips(tournament.prizePool)}
                                             </p>
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                Inscritos: {formatChips(tournament.registeredPlayers)} / {formatChips(tournament.maxPlayers)}
-                                                {tournament.startsAt ? ` · Início previsto: ${tournament.startsAt}` : ''}
+                                            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px] md:items-center">
+                                                <div>
+                                                    <div className="flex items-center justify-between text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                                                        <span>Ocupação</span>
+                                                        <span>{formatChips(tournament.registeredPlayers)} / {formatChips(tournament.maxPlayers)}</span>
+                                                    </div>
+                                                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-black/30 ring-1 ring-white/10">
+                                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-sky-300 to-violet-300 shadow-[0_0_22px_rgba(125,211,252,0.35)]" style={{ width: `${Math.max(3, occupancyPercent(tournament))}%` }} />
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-right">
+                                                    <span className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Ocupado</span>
+                                                    <strong className="text-2xl font-black text-white">{occupancyPercent(tournament)}%</strong>
+                                                </div>
+                                            </div>
+                                            <p className="mt-2 text-xs text-slate-400">
+                                                {tournament.startsAt ? `Início previsto: ${tournament.startsAt}` : 'Início definido pelo estado do torneio'}
                                             </p>
                                             {tournament.lobbySummary && (
                                                 <div className="mt-3 grid gap-2 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-3 text-xs text-sky-50 sm:grid-cols-4">
@@ -299,7 +380,9 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                             )}
                                         </div>
 
-                                        <div className="flex flex-col gap-2 xl:items-end">
+                                        <div className="rounded-[1.5rem] border border-white/10 bg-black/25 p-3 shadow-inner xl:min-w-56">
+                                            <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-slate-400">Ações</p>
+                                            <div className="flex flex-col gap-2 xl:items-stretch">
                                             {tournament.isRegistered && (
                                                 <span className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-sm font-black text-emerald-100">
                                                     Você está inscrito
@@ -309,7 +392,7 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                 type="button"
                                                 disabled={! tournament.canRegister}
                                                 onClick={() => register(tournament)}
-                                                className={`rounded-xl px-5 py-3 text-sm font-black transition ${tournament.canRegister ? 'bg-white text-slate-950 hover:bg-violet-100' : 'cursor-not-allowed bg-white/10 text-slate-500'}`}
+                                                className={`rounded-2xl px-5 py-3 text-sm font-black shadow-lg transition ${tournament.canRegister ? 'bg-gradient-to-r from-emerald-300 to-sky-300 text-slate-950 hover:scale-[1.02]' : 'cursor-not-allowed bg-white/10 text-slate-500'}`}
                                             >
                                                 {tournament.canRegister ? 'Inscrever-se' : 'Inscrição indisponível'}
                                             </button>
@@ -360,8 +443,9 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                             )}
                                         </div>
                                     </div>
+                                    </div>
 
-                                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                                    <div className="relative z-10 mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                                         <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Participantes</p>
                                         {tournament.participants.length === 0 ? (
                                             <p className="mt-3 text-sm text-slate-400">Ainda não há inscritos.</p>

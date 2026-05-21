@@ -364,3 +364,78 @@ body {
         max-width: 3.75rem;
     }
 }
+
+@keyframes poker-premium-card-glow {
+    0%, 100% {
+        transform: translateY(0);
+        box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    50% {
+        transform: translateY(-2px);
+        box-shadow: 0 30px 90px rgba(14, 165, 233, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+}
+
+@keyframes poker-command-shimmer {
+    0% {
+        transform: translateX(-30%) rotate(8deg);
+        opacity: 0.12;
+    }
+    50% {
+        opacity: 0.24;
+    }
+    100% {
+        transform: translateX(58%) rotate(8deg);
+        opacity: 0.12;
+    }
+}
+
+.poker-premium-stat-card,
+.poker-tournament-card {
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.poker-premium-stat-card:hover,
+.poker-tournament-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.poker-tournament-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.16), transparent 26%),
+        radial-gradient(circle at 85% 22%, rgba(125, 211, 252, 0.18), transparent 30%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 38%);
+}
+
+.poker-tournament-command-center {
+    position: relative;
+}
+
+.poker-tournament-command-center::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    bottom: -40%;
+    left: -30%;
+    width: 55%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+    animation: poker-command-shimmer 5.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .poker-premium-stat-card:nth-child(1) { animation-delay: 0ms; }
+    .poker-premium-stat-card:nth-child(2) { animation-delay: 70ms; }
+    .poker-premium-stat-card:nth-child(3) { animation-delay: 140ms; }
+    .poker-premium-stat-card:nth-child(4) { animation-delay: 210ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poker-tournament-command-center::before {
+        animation: none !important;
+    }
+}

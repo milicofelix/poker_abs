@@ -1,5 +1,8 @@
 import React from 'react';
 import { usePage } from '@inertiajs/react';
+import { PokerBadge, PokerEmptyState, PokerSurface } from '../../Components/Poker/Ui/PokerDesignSystem';
+import { PokerInfoGrid, PokerResponsiveTable, PokerTimelineList } from '../../Components/Poker/Ui/PokerDataDisplay';
+import { PokerMetricCard, PokerNavButton, PokerPageHero, PokerPageShell } from '../../Components/Poker/Ui/PokerPageLayout';
 
 function formatChips(value) {
     return new Intl.NumberFormat('pt-BR').format(Number(value ?? 0));
@@ -9,108 +12,161 @@ function amountClass(amount) {
     return Number(amount) >= 0 ? 'text-emerald-200' : 'text-red-200';
 }
 
+function amountBadgeTone(amount) {
+    return Number(amount) >= 0 ? 'success' : 'danger';
+}
+
+function amountPrefix(amount) {
+    return Number(amount) > 0 ? '+' : '';
+}
+
+function summaryCards(summary = {}) {
+    return [
+        ['Saldo', summary.currentBalance, 'fichas disponíveis agora', 'emerald'],
+        ['Créditos', summary.credits, 'entradas no ledger', 'cyan'],
+        ['Débitos', summary.debits, 'saídas registradas', 'danger'],
+        ['Movimentações', summary.transactionsCount, 'registros financeiros', 'soft'],
+    ];
+}
+
+function transactionLabel(transaction) {
+    return transaction.tableName ? `Mesa: ${transaction.tableName}` : 'Sem mesa vinculada';
+}
+
 export default function Bankroll({ summary = {}, transactions = [] }) {
     const { auth } = usePage().props;
     const user = auth?.user;
 
+    const columns = [
+        { key: 'type', label: 'Tipo', width: '180px' },
+        { key: 'table', label: 'Mesa', width: 'minmax(200px,1fr)' },
+        { key: 'amount', label: 'Valor', width: '130px', align: 'right' },
+        { key: 'balance', label: 'Saldo', width: '200px', align: 'right' },
+        { key: 'created', label: 'Quando', width: '150px', align: 'right' },
+    ];
+
+    const lastTransactions = transactions.slice(0, 5);
+
     return (
-        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-6 text-white">
-            <div className="mx-auto flex max-w-6xl flex-col gap-6">
-                <header className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <p className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-300">Poker ABS</p>
-                            <h1 className="mt-2 text-3xl font-black">Histórico de fichas</h1>
-                            <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                                Acompanhe buy-ins, premiações e saldo atual do seu bankroll.
-                            </p>
-                        </div>
+        <PokerPageShell tone="emerald" maxWidth="max-w-7xl">
+            <PokerPageHero
+                eyebrow="Poker ABS · FASE 13.1.4"
+                title="Histórico de fichas"
+                description="Acompanhe buy-ins, premiações e saldo atual do seu bankroll com o mesmo padrão visual aplicado ao Lobby e ao Ranking."
+                actions={(
+                    <>
+                        <PokerNavButton href="/poker/lobby" tone="primary">Lobby</PokerNavButton>
+                        <PokerNavButton href="/poker/ranking" tone="warning">Ranking</PokerNavButton>
+                        <PokerNavButton href="/poker/hands">Histórico</PokerNavButton>
+                        <PokerNavButton href="/poker/statistics">Estatísticas</PokerNavButton>
+                    </>
+                )}
+                meta={(
+                    <>
+                        <PokerBadge tone="success">Ledger ativo</PokerBadge>
+                        <PokerBadge tone="neutral">{formatChips(transactions.length)} movimentações</PokerBadge>
+                    </>
+                )}
+            />
 
-                        <nav className="flex flex-wrap gap-3 lg:justify-end">
-                            <a href="/poker/lobby" className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20">
-                                Lobby
-                            </a>
-                            <a href="/poker/hands" className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/20">
-                                Histórico
-                            </a>
-                            <a href="/poker/statistics" className="rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/20">
-                                Estatísticas
-                            </a>
-                        </nav>
+            {user && (
+                <PokerSurface tone="emerald" className="p-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">Conta conectada</p>
+                            <h2 className="mt-1 text-xl font-black text-white">{user.name}</h2>
+                            <p className="mt-1 text-sm font-semibold text-slate-300">Seu saldo atual considera o ledger de bankroll e as premiações registradas.</p>
+                        </div>
+                        <PokerBadge tone="success">Saldo: {formatChips(summary.currentBalance ?? user.pokerBankroll)} fichas</PokerBadge>
                     </div>
 
-                    {user && (
-                        <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
-                            Logado como <strong className="text-white">{user.name}</strong> · Saldo atual: <strong className="text-white">{formatChips(summary.currentBalance ?? user.pokerBankroll)} fichas</strong>
+                    <PokerInfoGrid
+                        className="mt-4"
+                        columns="sm:grid-cols-2 lg:grid-cols-4"
+                        items={[
+                            { label: 'Saldo atual', value: formatChips(summary.currentBalance ?? user.pokerBankroll) },
+                            { label: 'Créditos', value: formatChips(summary.credits) },
+                            { label: 'Débitos', value: formatChips(summary.debits) },
+                            { label: 'Total de registros', value: formatChips(summary.transactionsCount) },
+                        ]}
+                    />
+                </PokerSurface>
+            )}
+
+            <section className="grid gap-3 md:grid-cols-4">
+                {summaryCards(summary).map(([label, value, description, tone]) => (
+                    <PokerMetricCard key={label} label={label} value={formatChips(value)} description={description} tone={tone} />
+                ))}
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
+                <PokerSurface className="p-5" tone="soft">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">Ledger</p>
+                            <h2 className="mt-1 text-2xl font-black text-white">Últimas movimentações</h2>
+                            <p className="mt-1 text-sm font-semibold text-slate-300">Entradas, saídas e saldos preservados em uma tabela responsiva.</p>
                         </div>
+                        <PokerBadge tone="info">{formatChips(transactions.length)} itens</PokerBadge>
+                    </div>
+
+                    <div className="mt-5">
+                        <PokerResponsiveTable
+                            columns={columns}
+                            rows={transactions}
+                            getRowKey={(transaction) => transaction.id}
+                            emptyState={(
+                                <PokerEmptyState
+                                    eyebrow="Bankroll vazio"
+                                    title="Nenhuma movimentação de fichas registrada ainda"
+                                    description="Quando houver buy-in, premiação ou ajuste financeiro, o histórico aparecerá aqui com saldo antes e depois."
+                                />
+                            )}
+                            renderRow={(transaction) => (
+                                <article className="grid grid-cols-[180px_minmax(200px,1fr)_130px_200px_150px] gap-3 px-4 py-3 text-sm transition hover:bg-white/5">
+                                    <div>
+                                        <strong className="block text-white">{transaction.typeLabel}</strong>
+                                        <PokerBadge tone={amountBadgeTone(transaction.amount)} className="mt-2">
+                                            {Number(transaction.amount) >= 0 ? 'Entrada' : 'Saída'}
+                                        </PokerBadge>
+                                    </div>
+                                    <span className="text-slate-300">{transaction.tableName ?? '—'}</span>
+                                    <strong className={`text-right ${amountClass(transaction.amount)}`}>
+                                        {amountPrefix(transaction.amount)}{formatChips(transaction.amount)}
+                                    </strong>
+                                    <span className="text-right text-slate-300">
+                                        {formatChips(transaction.balanceBefore)} → <strong className="text-white">{formatChips(transaction.balanceAfter)}</strong>
+                                    </span>
+                                    <span className="text-right text-slate-400">{transaction.createdAtLabel ?? '—'}</span>
+                                </article>
+                            )}
+                        />
+                    </div>
+                </PokerSurface>
+
+                <PokerTimelineList
+                    eyebrow="Resumo recente"
+                    title="Últimos eventos financeiros"
+                    description="Visão compacta para conferir rapidamente o que afetou seu saldo."
+                    items={lastTransactions}
+                    badge={`${formatChips(lastTransactions.length)} itens`}
+                    emptyText="Sem movimentações recentes."
+                    renderItem={(transaction) => (
+                        <article key={transaction.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <strong className="block text-white">{transaction.typeLabel}</strong>
+                                    <span className="text-xs text-slate-400">{transactionLabel(transaction)}</span>
+                                </div>
+                                <strong className={amountClass(transaction.amount)}>
+                                    {amountPrefix(transaction.amount)}{formatChips(transaction.amount)}
+                                </strong>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-400">Saldo final: {formatChips(transaction.balanceAfter)} · {transaction.createdAtLabel ?? '—'}</p>
+                        </article>
                     )}
-                </header>
-
-                <section className="grid gap-4 md:grid-cols-4">
-                    <div className="rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-5 shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Saldo</p>
-                        <p className="mt-2 text-3xl font-black">{formatChips(summary.currentBalance)}</p>
-                    </div>
-                    <div className="rounded-3xl border border-cyan-300/20 bg-cyan-300/10 p-5 shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Créditos</p>
-                        <p className="mt-2 text-3xl font-black">{formatChips(summary.credits)}</p>
-                    </div>
-                    <div className="rounded-3xl border border-red-300/20 bg-red-300/10 p-5 shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-[0.22em] text-red-200">Débitos</p>
-                        <p className="mt-2 text-3xl font-black">{formatChips(summary.debits)}</p>
-                    </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-200">Movimentações</p>
-                        <p className="mt-2 text-3xl font-black">{formatChips(summary.transactionsCount)}</p>
-                    </div>
-                </section>
-
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-xl">
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-300">Ledger</p>
-                            <h2 className="mt-1 text-xl font-black">Últimas movimentações</h2>
-                        </div>
-                    </div>
-
-                    <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-white/10 text-xs uppercase tracking-[0.16em] text-slate-300">
-                                <tr>
-                                    <th className="px-4 py-3">Tipo</th>
-                                    <th className="px-4 py-3">Mesa</th>
-                                    <th className="px-4 py-3">Valor</th>
-                                    <th className="px-4 py-3">Saldo</th>
-                                    <th className="px-4 py-3">Quando</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/10">
-                                {transactions.map((transaction) => (
-                                    <tr key={transaction.id} className="bg-slate-950/40">
-                                        <td className="px-4 py-3 font-bold text-white">{transaction.typeLabel}</td>
-                                        <td className="px-4 py-3 text-slate-300">{transaction.tableName ?? '—'}</td>
-                                        <td className={`px-4 py-3 font-black ${amountClass(transaction.amount)}`}>
-                                            {Number(transaction.amount) > 0 ? '+' : ''}{formatChips(transaction.amount)}
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-300">
-                                            {formatChips(transaction.balanceBefore)} → <strong className="text-white">{formatChips(transaction.balanceAfter)}</strong>
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-400">{transaction.createdAtLabel ?? '—'}</td>
-                                    </tr>
-                                ))}
-
-                                {transactions.length === 0 && (
-                                    <tr>
-                                        <td colSpan="5" className="px-4 py-8 text-center text-slate-400">
-                                            Nenhuma movimentação de fichas registrada ainda.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-        </main>
+                />
+            </section>
+        </PokerPageShell>
     );
 }

@@ -58,6 +58,7 @@ final class PokerPhaseThirteenDesignAuditServiceTest extends TestCase
         $this->assertSame('local-safe', $payload['checklist'][8]['status']);
         $this->assertStringContainsString('Modo local preparado', $payload['summary']);
         $this->assertContains('13.1.3 — Aplicar shell, hero, cards métricos e tabela responsiva no Ranking financeiro.', $payload['nextSteps']);
+        $this->assertContains('13.1.4 — Aplicar shell, cards, tabela responsiva e estados vazios em Bankroll.', $payload['nextSteps']);
         $this->assertContains('13.2 — Iniciar mesa premium com cartas, fichas, avatares, ação atual, animações e mobile.', $payload['nextSteps']);
     }
 }

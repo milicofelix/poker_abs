@@ -31,6 +31,7 @@ final class PokerPhaseThirteenDesignAuditService
             'nextSteps' => [
                 '13.1.2 — Aplicar shell de página, hero, navegação, flash e filtros no lobby como primeira tela-piloto.',
                 '13.1.3 — Aplicar shell, hero, cards métricos e tabela responsiva no Ranking financeiro.',
+                '13.1.4 — Aplicar shell, cards, tabela responsiva e estados vazios em Bankroll.',
                 '13.2 — Iniciar mesa premium com cartas, fichas, avatares, ação atual, animações e mobile.',
             ],
             'guardrails' => [
@@ -156,8 +157,8 @@ final class PokerPhaseThirteenDesignAuditService
             ],
             [
                 'area' => 'tables',
-                'status' => 'mapped',
-                'label' => 'Tabelas e listas ganharão cabeçalhos, linhas e células com o mesmo padrão das páginas Poker.',
+                'status' => 'pilot-ready',
+                'label' => 'Tabelas e listas ganharão cabeçalhos, linhas e células com o mesmo padrão das páginas Poker; Ranking e Bankroll já usam a tabela responsiva piloto.',
             ],
             [
                 'area' => 'badges',
@@ -167,7 +168,7 @@ final class PokerPhaseThirteenDesignAuditService
             [
                 'area' => 'poker-screens',
                 'status' => 'protected',
-                'label' => 'Lobby, mesa, torneios, bankroll, histórico, ranking e perfil entram na auditoria sem alterar regras.',
+                'label' => 'Lobby, mesa, torneios, bankroll, histórico, ranking e perfil entram na auditoria sem alterar regras; Bankroll já recebeu o padrão visual base.',
             ],
             [
                 'area' => 'responsive',
