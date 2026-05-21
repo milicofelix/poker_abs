@@ -266,6 +266,70 @@ final class PokerFaseDezAtivacaoMultiSeatTest extends TestCase
     }
 
 
+    public function test_river_multi_seat_com_todos_all_in_avanca_para_showdown_sem_travar(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa multi-seat all-in no river',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 4,
+        ]);
+        $users = User::factory()->count(3)->create();
+
+        foreach ($users as $index => $user) {
+            $this->actingAs($user)->postJson(route('poker.tables.join', $table))->assertOk();
+            $this->actingAs($user)->postJson(route('poker.tables.seat', $table), [
+                'seat_number' => $index + 1,
+            ])->assertOk();
+        }
+
+        $this->actingAs($users[0])
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
+        $hand = PokerHand::query()->where('poker_table_id', $table->id)->latest('id')->firstOrFail();
+        $state = $hand->state_payload;
+        $state['street'] = 'river';
+        $state['streetLabel'] = 'River';
+        $state['currentBet'] = 0;
+        $state['amountToCall'] = 0;
+        $state['multiSeat']['currentSeat'] = 1;
+        $state['currentTurn']['seatNumber'] = 1;
+        $state['currentTurn']['actor'] = 'seat:1';
+
+        foreach ([0, 1, 2] as $index) {
+            $state['multiSeat']['players'][$index]['stack'] = 0;
+            $state['multiSeat']['players'][$index]['streetBet'] = 0;
+            $state['multiSeat']['players'][$index]['hasActed'] = true;
+            $state['multiSeat']['players'][$index]['hasFolded'] = false;
+            $state['multiSeat']['players'][$index]['isAllIn'] = true;
+        }
+
+        $hand->forceFill([
+            'current_bet' => 0,
+            'state_payload' => $state,
+        ])->save();
+
+        $response = $this->actingAs($users[0])
+            ->postJson(route('poker.tables.actions', $table), [
+                'action' => 'check',
+                'raise_amount' => 0,
+            ])
+            ->assertOk()
+            ->assertJsonPath('state.street', 'showdown')
+            ->assertJsonPath('state.isFinished', true)
+            ->assertJsonPath('state.currentTurn.seatNumber', null)
+            ->assertJsonPath('state.multiSeat.showdownResolutionPhase', '10.12')
+            ->assertJsonPath('state.multiSeat.showdownEvaluator', 'real_hand_evaluator');
+
+        $this->assertNotEmpty($response->json('state.multiSeat.winnerSeats'));
+        $this->assertNotEmpty($response->json('state.conclusion.winner.seatNumber'));
+    }
+
+
+
 
     public function test_timeout_multi_seat_nao_usa_motor_heads_up_e_mantem_roleta_no_proximo_assento(): void
     {

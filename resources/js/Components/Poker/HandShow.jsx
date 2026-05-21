@@ -19,10 +19,6 @@ function actionBadgeClass(action) {
     return 'border-slate-400/40 bg-slate-400/10 text-slate-100';
 }
 
-function safeArray(payload) {
-    return Array.isArray(payload) ? payload : [];
-}
-
 function CardBadge({ card }) {
     return (
         <span className="inline-flex min-w-12 justify-center rounded-xl border border-white/10 bg-white px-3 py-2 text-sm font-black text-slate-950 shadow">
@@ -31,13 +27,7 @@ function CardBadge({ card }) {
     );
 }
 
-export default function HandShow({ hand = {} }) {
-    const board = safeArray(hand.board);
-    const players = safeArray(hand.players);
-    const actions = safeArray(hand.actions);
-    const sidePots = hand.sidePots || {};
-    const pots = safeArray(sidePots.pots);
-
+export default function HandShow({ hand }) {
     return (
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-6 text-white">
             <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -48,7 +38,7 @@ export default function HandShow({ hand = {} }) {
                         </p>
                         <h1 className="mt-2 text-3xl font-black">Detalhe da mão</h1>
                         <p className="mt-2 max-w-2xl break-all text-sm text-slate-300">
-                            Código: {hand.code || '-'}
+                            Código: {hand.code}
                         </p>
                     </div>
 
@@ -59,14 +49,12 @@ export default function HandShow({ hand = {} }) {
                         >
                             Histórico
                         </a>
-                        {hand.id && (
-                            <a
-                                href={`/poker/hands/${hand.id}/replay`}
-                                className="inline-flex w-fit rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 font-bold text-emerald-50 transition hover:bg-emerald-300/20"
-                            >
-                                Replay da mão
-                            </a>
-                        )}
+                        <a
+                            href={`/poker/hands/${hand.id}/replay`}
+                            className="inline-flex w-fit rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 font-bold text-emerald-50 transition hover:bg-emerald-300/20"
+                        >
+                            Replay da mão
+                        </a>
                         <a
                             href="/poker"
                             className="inline-flex w-fit rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100"
@@ -80,13 +68,13 @@ export default function HandShow({ hand = {} }) {
                     <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Status</p>
                         <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-bold ${statusClass(hand.status)}`}>
-                            {hand.statusLabel || '-'}
+                            {hand.statusLabel}
                         </span>
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Street</p>
-                        <p className="mt-3 text-2xl font-black">{hand.streetLabel || '-'}</p>
+                        <p className="mt-3 text-2xl font-black">{hand.streetLabel}</p>
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
@@ -95,8 +83,8 @@ export default function HandShow({ hand = {} }) {
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Aposta atual</p>
-                        <p className="mt-3 text-2xl font-black">{formatMoney(hand.currentBet)}</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Jogadores</p>
+                        <p className="mt-3 text-2xl font-black">{hand.players?.length || 0}</p>
                     </div>
                 </section>
 
@@ -119,8 +107,8 @@ export default function HandShow({ hand = {} }) {
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Board</p>
                         <h2 className="mt-1 text-2xl font-black">Cartas comunitárias</h2>
                         <div className="mt-4 flex flex-wrap gap-2">
-                            {board.length > 0 ? (
-                                board.map((card, index) => <CardBadge key={`${card.label}-${index}`} card={card} />)
+                            {(hand.board ?? []).length > 0 ? (
+                                hand.board.map((card, index) => <CardBadge key={`${card.label}-${index}`} card={card} />)
                             ) : (
                                 <p className="text-sm text-slate-300">Nenhuma carta comunitária registrada.</p>
                             )}
@@ -139,14 +127,14 @@ export default function HandShow({ hand = {} }) {
                 </section>
 
                 <section className="grid gap-4 md:grid-cols-2">
-                    {players.map((player, index) => (
+                    {(hand.players ?? []).map((player) => (
                         <article
-                            key={`${player.id || 'player'}-${player.seat || index}`}
+                            key={`${player.id}-${player.seat}`}
                             className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur"
                         >
                             <div className="flex items-start justify-between gap-4">
                                 <div>
-                                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Assento {player.seat || '-'}</p>
+                                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Assento {player.seat}</p>
                                     <h2 className="mt-2 text-2xl font-black">{player.name}</h2>
                                     <p className="mt-1 text-sm text-slate-300">{player.typeLabel}</p>
                                 </div>
@@ -169,10 +157,8 @@ export default function HandShow({ hand = {} }) {
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2">
-                                {safeArray(player.cards).length > 0 ? (
-                                    safeArray(player.cards).map((card, cardIndex) => (
-                                        <CardBadge key={`${player.id || index}-${card.label}-${cardIndex}`} card={card} />
-                                    ))
+                                {(player.cards ?? []).length > 0 ? (
+                                    player.cards.map((card, index) => <CardBadge key={`${player.id}-${card.label}-${index}`} card={card} />)
                                 ) : (
                                     <p className="text-sm text-slate-300">Cartas privadas não registradas no snapshot.</p>
                                 )}
@@ -181,22 +167,22 @@ export default function HandShow({ hand = {} }) {
                     ))}
                 </section>
 
-                {sidePots.hasSidePot && (
+                {hand.sidePots?.hasSidePot && (
                     <section className="rounded-3xl border border-amber-300/30 bg-amber-300/10 p-6 shadow-2xl backdrop-blur">
                         <p className="text-xs uppercase tracking-[0.2em] text-amber-100">Side pots</p>
                         <h2 className="mt-1 text-2xl font-black text-amber-50">Distribuição de potes</h2>
-                        <p className="mt-2 text-sm font-bold text-amber-100">Total: {formatMoney(sidePots.total)}</p>
+                        <p className="mt-2 text-sm font-bold text-amber-100">Total: {formatMoney(hand.sidePots.total)}</p>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {pots.map((pot, index) => (
+                            {(hand.sidePots.pots ?? []).map((pot, index) => (
                                 <div key={index} className="rounded-2xl border border-amber-200/20 bg-slate-950/40 p-4">
                                     <p className="text-xs uppercase tracking-[0.2em] text-amber-100">Pote {index + 1}</p>
                                     <p className="mt-1 text-xl font-black">{formatMoney(pot.amount ?? pot.total ?? 0)}</p>
                                     <p className="mt-2 text-sm text-amber-50">
-                                        Elegíveis: {safeArray(pot.eligibleSeats ?? pot.eligible_seats).join(', ') || '-'}
+                                        Elegíveis: {(pot.eligibleSeats ?? pot.eligible_seats ?? []).join(', ') || '-'}
                                     </p>
                                     <p className="mt-1 text-sm text-amber-50">
-                                        Vencedores: {safeArray(pot.winnerSeats ?? pot.winner_seats).join(', ') || '-'}
+                                        Vencedores: {(pot.winnerSeats ?? pot.winner_seats ?? []).join(', ') || '-'}
                                     </p>
                                 </div>
                             ))}
@@ -210,10 +196,10 @@ export default function HandShow({ hand = {} }) {
                             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Linha do tempo</p>
                             <h2 className="mt-1 text-2xl font-black">Ações da mão</h2>
                         </div>
-                        <p className="text-sm text-slate-300">{actions.length} ações registradas</p>
+                        <p className="text-sm text-slate-300">{hand.actions.length} ações registradas</p>
                     </div>
 
-                    {actions.length === 0 ? (
+                    {hand.actions.length === 0 ? (
                         <div className="mt-5 rounded-2xl bg-slate-950/40 p-5 text-sm text-slate-300">
                             Nenhuma ação registrada para esta mão.
                         </div>
@@ -231,7 +217,7 @@ export default function HandShow({ hand = {} }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/10">
-                                    {actions.map((action) => (
+                                    {hand.actions.map((action) => (
                                         <tr key={action.id} className="bg-slate-950/30 align-top">
                                             <td className="px-4 py-4 text-slate-300">{action.actedAt || '-'}</td>
                                             <td className="px-4 py-4 font-bold text-slate-100">{action.streetLabel}</td>

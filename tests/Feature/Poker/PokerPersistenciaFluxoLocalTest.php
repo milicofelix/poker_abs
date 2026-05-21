@@ -46,6 +46,36 @@ final class PokerPersistenciaFluxoLocalTest extends TestCase
         $this->assertArrayHasKey('tableSeats', session('poker.local_hand'));
     }
 
+
+    public function test_mesa_local_inicia_com_acoes_liberadas_para_o_jogador(): void
+    {
+        $response = $this->get('/poker');
+
+        $response->assertOk();
+
+        $hand = session('poker.local_hand');
+
+        $this->assertIsArray($hand);
+        $this->assertFalse((bool) ($hand['isFinished'] ?? true));
+        $this->assertTrue((bool) ($hand['canAct'] ?? false));
+        $this->assertTrue((bool) ($hand['canCall'] ?? false));
+        $this->assertFalse((bool) ($hand['canCheck'] ?? true));
+    }
+
+    public function test_mesa_local_mantem_acoes_liberadas_apos_jogada_nao_terminal(): void
+    {
+        $this->get('/poker')->assertOk();
+
+        $response = $this->postJson('/poker/actions', [
+            'action' => 'call',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('state.isFinished', false)
+            ->assertJsonPath('state.canAct', true);
+    }
+
     public function test_acao_do_jogador_e_resposta_do_oponente_sao_gravadas_no_historico_do_banco(): void
     {
         $this->get('/poker')->assertOk();

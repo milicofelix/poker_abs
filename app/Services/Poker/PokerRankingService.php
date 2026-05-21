@@ -105,6 +105,7 @@ final class PokerRankingService
         return [
             'userId' => $user->id,
             'name' => $user->name,
+            'profileUrl' => route('poker.players.show', $user),
             'bankroll' => (int) ($user->poker_bankroll ?? 0),
             'buyIns' => $buyIns,
             'payouts' => $stats['payouts'],

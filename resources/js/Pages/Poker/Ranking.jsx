@@ -47,6 +47,9 @@ export default function Ranking({ ranking = {} }) {
                         <a href="/poker/lobby" className="inline-flex rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:bg-emerald-100">
                             Lobby
                         </a>
+                        <a href="/poker/profile" className="inline-flex rounded-xl border border-amber-200/20 bg-amber-300/10 px-5 py-3 font-bold text-amber-100 transition hover:bg-amber-300/20">
+                            Meu perfil
+                        </a>
                         <a href="/poker/bankroll" className="inline-flex rounded-xl border border-white/10 bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20">
                             Minhas fichas
                         </a>
@@ -101,7 +104,9 @@ export default function Ranking({ ranking = {} }) {
                                     <article key={row.userId} className="grid grid-cols-[64px_1fr_120px_110px_90px] gap-3 border-t border-white/10 px-4 py-3 text-sm transition hover:bg-white/5">
                                         <strong className="text-amber-200">{row.podiumLabel}</strong>
                                         <div>
-                                            <strong className="block text-white">{row.name}</strong>
+                                            <a href={`/poker/players/${row.userId}`} className="block font-black text-white transition hover:text-emerald-200">
+                                                {row.name}
+                                            </a>
                                             <span className="text-xs text-slate-400">Vitórias: {formatNumber(row.wins)} · Movs: {formatNumber(row.transactions)}</span>
                                         </div>
                                         <strong className="text-right text-white">{formatNumber(row.bankroll)}</strong>

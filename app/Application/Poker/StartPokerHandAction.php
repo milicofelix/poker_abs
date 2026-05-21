@@ -62,6 +62,7 @@ final readonly class StartPokerHandAction
             'canCheck' => false,
             'canCall' => true,
             'canRaise' => true,
+            'canAct' => true,
             'bettingSummary' => [
                 'playerCommitted' => $smallBlind,
                 'opponentCommitted' => $bigBlind,

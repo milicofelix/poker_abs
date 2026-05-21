@@ -25,6 +25,7 @@ use App\Http\Controllers\Poker\PokerPrivateTableJoinController;
 use App\Http\Controllers\Poker\PokerPrivateTableInviteController;
 use App\Http\Controllers\Poker\PokerBankrollHistoryController;
 use App\Http\Controllers\Poker\PokerTableRebuyController;
+use App\Http\Controllers\Poker\PokerPlayerProfileController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -42,8 +43,9 @@ Route::post('/logout', [LoginController::class, 'destroy'])
 
 Route::get('/poker', PokerPlayController::class)->name('poker.play');
 Route::post('/poker/actions', PokerRoundActionController::class)->name('poker.actions');
-Route::get('/poker/hands', PokerHandHistoryController::class)->name('poker.hands.index');
+Route::get('/poker/hands', [PokerHandHistoryController::class, 'index'])->name('poker.hands.index');
 Route::get('/poker/ranking', PokerRankingController::class)->name('poker.ranking.index');
+Route::get('/poker/players/{user}', [PokerPlayerProfileController::class, 'show'])->name('poker.players.show');
 Route::get('/poker/hands/{hand}', PokerHandShowController::class)->name('poker.hands.show');
 Route::get('/poker/hands/{hand}/replay', PokerHandReplayController::class)->name('poker.hands.replay');
 Route::get('/poker/statistics', PokerStatisticsController::class)->name('poker.statistics.index');
@@ -64,5 +66,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/poker/tables/{table}/bots', PokerTableBotController::class)->name('poker.tables.bots');
     Route::post('/poker/private-tables/join', PokerPrivateTableJoinController::class)->name('poker.private-tables.join');
     Route::get('/poker/invite/{inviteCode}', PokerPrivateTableInviteController::class)->name('poker.private-tables.invite');
+    Route::get('/poker/profile', [PokerPlayerProfileController::class, 'current'])->name('poker.profile.show');
     Route::get('/poker/bankroll', PokerBankrollHistoryController::class)->name('poker.bankroll.index');
 });

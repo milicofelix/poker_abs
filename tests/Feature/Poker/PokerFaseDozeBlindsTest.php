@@ -4,6 +4,7 @@ namespace Tests\Feature\Poker;
 
 use App\Models\Poker\PokerHand;
 use App\Models\Poker\PokerTable;
+use App\Models\Poker\PokerTablePlayer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -122,4 +123,50 @@ final class PokerFaseDozeBlindsTest extends TestCase
             ->assertJsonPath('state.multiSeat.players.2.status', 'all_in')
             ->assertJsonPath('state.pot', 15);
     }
+
+    public function test_bot_sem_stack_reentra_com_buy_in_na_nova_mao_multi_seat(): void
+    {
+        $table = PokerTable::query()->create([
+            'name' => 'Mesa fase 12 bots rebuy automatico',
+            'status' => 'waiting',
+            'small_blind' => 10,
+            'big_blind' => 20,
+            'max_players' => 4,
+        ]);
+        $user = User::factory()->create();
+        $bots = User::factory()->count(3)->create();
+
+        $this->actingAs($user)->postJson(route('poker.tables.join', $table))->assertOk();
+        $this->actingAs($user)->postJson(route('poker.tables.seat', $table), [
+            'seat_number' => 1,
+        ])->assertOk();
+
+        foreach ($bots as $index => $botUser) {
+            PokerTablePlayer::query()->create([
+                'poker_table_id' => $table->id,
+                'user_id' => $botUser->id,
+                'nickname' => 'Bot teste '.($index + 2),
+                'stack' => $index < 2 ? 0 : 3000,
+                'buy_in_amount' => 1000,
+                'buy_in_paid_at' => now(),
+                'seat_number' => $index + 2,
+                'status' => 'online',
+                'is_bot' => true,
+                'joined_at' => now(),
+                'last_seen_at' => now(),
+            ]);
+        }
+
+        $response = $this->actingAs($user)
+            ->postJson(route('poker.tables.new-hand', $table))
+            ->assertOk()
+            ->assertJsonPath('state.multiSeat.enabled', true);
+
+        $players = collect($response->json('state.multiSeat.players'));
+
+        $this->assertSame([1, 2, 3, 4], $players->pluck('seatNumber')->all());
+        $this->assertGreaterThan(0, (int) $players->firstWhere('seatNumber', 2)['stack']);
+        $this->assertGreaterThan(0, (int) $players->firstWhere('seatNumber', 3)['stack']);
+    }
+
 }

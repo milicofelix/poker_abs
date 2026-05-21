@@ -11,26 +11,12 @@ function formatMoney(value) {
     return Number(value || 0).toLocaleString('pt-BR');
 }
 
-function paginatorItems(payload) {
-    if (Array.isArray(payload)) {
-        return payload;
-    }
-
-    if (Array.isArray(payload?.data)) {
-        return payload.data;
-    }
-
-    return [];
-}
-
-function safeOptions(payload) {
-    return Array.isArray(payload) ? payload : [];
+function dataFromPaginator(hands) {
+    return Array.isArray(hands) ? hands : hands?.data ?? [];
 }
 
 export default function History({ hands = [], filters = {}, tables = [], players = [] }) {
-    const items = paginatorItems(hands);
-    const tableOptions = safeOptions(tables);
-    const playerOptions = safeOptions(players);
+    const items = dataFromPaginator(hands);
 
     function updateFilter(field, value) {
         router.get('/poker/hands', { ...filters, [field]: value }, {
@@ -50,8 +36,8 @@ export default function History({ hands = [], filters = {}, tables = [], players
                         </p>
                         <h1 className="mt-2 text-3xl font-black">Histórico detalhado de mãos</h1>
                         <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                            Consulte mãos finalizadas ou em andamento com mesa, pote, vencedor,
-                            side pots e última ação registrada.
+                            Consulte mãos finalizadas ou em andamento com jogadores, mesa, board,
+                            pote, vencedor, side pots e linha do tempo das ações.
                         </p>
                     </div>
 
@@ -73,7 +59,7 @@ export default function History({ hands = [], filters = {}, tables = [], players
                                 className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none"
                             >
                                 <option value="">Todos</option>
-                                {playerOptions.map((player) => (
+                                {players.map((player) => (
                                     <option key={player.id} value={player.id}>{player.name}</option>
                                 ))}
                             </select>
@@ -87,7 +73,7 @@ export default function History({ hands = [], filters = {}, tables = [], players
                                 className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none"
                             >
                                 <option value="">Todas</option>
-                                {tableOptions.map((table) => (
+                                {tables.map((table) => (
                                     <option key={table.id} value={table.id}>{table.name}</option>
                                 ))}
                             </select>
@@ -186,17 +172,17 @@ export default function History({ hands = [], filters = {}, tables = [], players
 
                                     <div className="rounded-2xl bg-slate-950/40 p-4">
                                         <p className="text-xs text-slate-400">Jogadores</p>
-                                        <p className="mt-1 text-2xl font-black">{hand.playersCount || 0}</p>
+                                        <p className="mt-1 text-2xl font-black">{hand.playersCount}</p>
                                     </div>
 
                                     <div className="rounded-2xl bg-slate-950/40 p-4">
                                         <p className="text-xs text-slate-400">Board</p>
-                                        <p className="mt-1 text-2xl font-black">{hand.boardCount || 0}/5</p>
+                                        <p className="mt-1 text-2xl font-black">{hand.boardCount}/5</p>
                                     </div>
 
                                     <div className="rounded-2xl bg-slate-950/40 p-4">
                                         <p className="text-xs text-slate-400">Ações</p>
-                                        <p className="mt-1 text-2xl font-black">{hand.actionsCount || 0}</p>
+                                        <p className="mt-1 text-2xl font-black">{hand.actionsCount}</p>
                                     </div>
 
                                     <div className="rounded-2xl bg-slate-950/40 p-4">

@@ -473,8 +473,17 @@ export default function Play({ hand, table = null }) {
             autoProcessBotTurns: Boolean(
                 state?.botVsBotSimulation
                 || state?.turnTimer?.autoProcessCurrentBot
+                || state?.turnTimer?.currentSeatIsBot
                 || state?.multiSeat?.autoProcessCurrentBot
+                || state?.multiSeat?.currentSeatIsBot
             ),
+            turnKey: [
+                state?.persistence?.syncVersion ?? 0,
+                state?.currentTurn?.seatNumber ?? state?.currentTurn?.actor ?? 'local',
+                state?.currentTurn?.canonicalActor ?? state?.currentTurn?.actor ?? 'actor',
+                state?.multiSeat?.currentSeat ?? 'heads-up',
+                state?.actionHistory?.length ?? 0,
+            ].join('|'),
         },
     );
 

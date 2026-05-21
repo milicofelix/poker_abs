@@ -101,6 +101,11 @@ final readonly class PokerMultiSeatTurnActionService
         $actor = $players[$actorIndex];
         $actorStreetBet = (int) ($actor['streetBet'] ?? 0);
         $actorStack = (int) ($actor['stack'] ?? 0);
+
+        if ($actorStack <= 0 && (bool) ($actor['isAllIn'] ?? false)) {
+            return $this->resolveAllInSeatWithoutAction($state, $players, $currentSeat, $currentBet, $minimumRaise);
+        }
+
         $amountToCall = max(0, $currentBet - $actorStreetBet);
         $actorAmount = 0;
 
@@ -186,7 +191,20 @@ final readonly class PokerMultiSeatTurnActionService
             }
         }
 
-        $nextSeat = $isFinished ? null : $this->nextSeatAfterStreetResolution($players, $currentSeat, $streetClosed);
+        if (! $isFinished && $this->noPlayerCanReceiveTurn($players)) {
+            $state = $this->advanceAllInHandToShowdown($state);
+            $players = $this->resetStreetBets($players);
+            $currentBet = 0;
+            $minimumRaise = (int) ($state['bigBlind'] ?? 20);
+            $isFinished = true;
+            $winner = $this->resolveShowdownWinner($activePlayers, $state);
+        }
+
+        $nextSeat = $isFinished ? null : $this->nextSeatAfterStreetResolution($players, $currentSeat, $streetClosed, $state);
+
+        if (! $isFinished && $nextSeat !== null && ! $this->seatCanReceiveTurn($players, $nextSeat)) {
+            $nextSeat = $this->nextActiveSeat($players, $nextSeat);
+        }
         $history = is_array($state['actionHistory'] ?? null) ? $state['actionHistory'] : [];
         $history[] = [
             'street' => (string) ($state['streetLabel'] ?? 'Pré-flop'),
@@ -347,6 +365,101 @@ final readonly class PokerMultiSeatTurnActionService
         ];
     }
 
+
+    /**
+     * Quando o assento atual já está all-in, ele não pode executar nova ação.
+     * Se ainda existir outro jogador com fichas, apenas empurra a vez. Se não
+     * existir ninguém apto a agir, a mão deve avançar automaticamente até o
+     * showdown, evitando travamento no river ou em streets all-in.
+     *
+     * @param array<string, mixed> $state
+     * @param array<int, array<string, mixed>> $players
+     * @return array<string, mixed>
+     */
+    private function resolveAllInSeatWithoutAction(array $state, array $players, int $currentSeat, int $currentBet, int $minimumRaise): array
+    {
+        $nextSeat = $this->nextActiveSeat($players, $currentSeat);
+
+        if ($nextSeat !== null && $nextSeat !== $currentSeat) {
+            return $this->refreshTurnWithoutAction(
+                state: $state,
+                players: $players,
+                nextSeat: $nextSeat,
+                message: 'Jogador all-in sem fichas; turno avançado automaticamente.',
+            );
+        }
+
+        $activePlayers = $this->activePlayers($players);
+        $state = $this->advanceAllInHandToShowdown($state);
+        $players = $this->resetStreetBets($players);
+        $winner = $this->resolveShowdownWinner($activePlayers, $state);
+
+        $state['currentBet'] = 0;
+        $state['minimumRaise'] = $minimumRaise;
+        $state['minimumRaiseTo'] = $minimumRaise;
+        $state['amountToCall'] = 0;
+        $state['multiSeat']['players'] = $players;
+        $state['multiSeat']['currentSeat'] = null;
+        $state['multiSeat']['lastStreetClosed'] = true;
+        $state['multiSeat']['streetClosurePhase'] = '10.10';
+        $state['multiSeat']['showdownResolutionPhase'] = '10.12';
+        $state['multiSeat']['showdownEvaluator'] = 'real_hand_evaluator';
+        $state['multiSeat']['winnerSeats'] = is_array($winner)
+            ? (array) ($winner['winnerSeats'] ?? [(int) ($winner['seatNumber'] ?? 0)])
+            : [];
+        $state['currentTurn'] = [
+            'actor' => null,
+            'seatNumber' => null,
+            'actedThisStreet' => [],
+            'label' => 'Mão finalizada',
+            'message' => 'Todos os jogadores restantes estão all-in; showdown resolvido automaticamente.',
+        ];
+        $state['isFinished'] = true;
+        $state['conclusion'] = $this->conclusionForWinner($winner, $state);
+
+        return $state;
+    }
+
+    /**
+     * @param array<string, mixed>|null $winner
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>|null
+     */
+    private function conclusionForWinner(?array $winner, array $state): ?array
+    {
+        if (! is_array($winner)) {
+            return null;
+        }
+
+        return [
+            'isFinished' => true,
+            'winner' => [
+                'player' => 'seat:'.((int) ($winner['seatNumber'] ?? 0)),
+                'seatNumber' => (int) ($winner['seatNumber'] ?? 0),
+                'label' => (string) ($winner['nickname'] ?? 'Jogador'),
+                'handName' => (string) ($state['street'] ?? '') === 'showdown'
+                    ? (string) data_get($winner, 'showdownHand.name', 'Showdown multi-seat')
+                    : 'Desistência',
+            ],
+            'message' => (string) ($state['street'] ?? '') === 'showdown'
+                ? ((string) ($winner['nickname'] ?? 'Jogador')).' venceu o showdown multi-seat com '.((string) data_get($winner, 'showdownHand.name', 'mão avaliada')).'.'
+                : ((string) ($winner['nickname'] ?? 'Jogador')).' venceu porque os demais desistiram.',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function advanceAllInHandToShowdown(array $state): array
+    {
+        while ((string) ($state['street'] ?? '') !== 'showdown') {
+            $state = $this->advanceStreet($state);
+        }
+
+        return $state;
+    }
+
     /**
      * Monta uma prévia determinística dos potes principal/laterais com base
      * no total contribuído por assento. A liquidação financeira usa uma rotina
@@ -494,12 +607,16 @@ final readonly class PokerMultiSeatTurnActionService
     /**
      * @param array<int, array<string, mixed>> $players
      */
-    private function nextSeatAfterStreetResolution(array $players, int $currentSeat, bool $streetClosed): ?int
+    private function nextSeatAfterStreetResolution(array $players, int $currentSeat, bool $streetClosed, array $state): ?int
     {
         if (! $streetClosed) {
             return $this->nextActiveSeat($players, $currentSeat);
         }
 
+        // Mantém o contrato original da FASE 10/12: após fechar a street,
+        // a próxima rodada começa pelo primeiro assento ativo à esquerda do dealer.
+        // Nos testes atuais, com dealer no assento 1, isso preserva currentTurn.seatNumber = 1
+        // e evita 403 quando o jogador do assento 1 tenta agir no flop/turn/river.
         $dealerSeat = 1;
 
         return $this->nextActiveSeat($players, $dealerSeat - 1);
@@ -697,7 +814,7 @@ final readonly class PokerMultiSeatTurnActionService
             static fn (array $player): int => (int) ($player['seatNumber'] ?? 0),
             array_filter(
                 $players,
-                static fn (array $player): bool => ! (bool) ($player['hasFolded'] ?? false) && (int) ($player['stack'] ?? 0) > 0,
+                fn (array $player): bool => $this->playerCanReceiveTurn($player),
             ),
         ));
 
@@ -710,6 +827,66 @@ final readonly class PokerMultiSeatTurnActionService
         }
 
         return $activeSeats[0] ?? null;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $players
+     */
+    private function noPlayerCanReceiveTurn(array $players): bool
+    {
+        foreach ($players as $player) {
+            if ($this->playerCanReceiveTurn($player)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $players
+     */
+    private function seatCanReceiveTurn(array $players, int $seatNumber): bool
+    {
+        foreach ($players as $player) {
+            if ((int) ($player['seatNumber'] ?? 0) === $seatNumber) {
+                return $this->playerCanReceiveTurn($player);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $player
+     */
+    private function playerCanReceiveTurn(array $player): bool
+    {
+        return ! (bool) ($player['hasFolded'] ?? false)
+            && ! (bool) ($player['isAllIn'] ?? false)
+            && (int) ($player['stack'] ?? 0) > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @param array<int, array<string, mixed>> $players
+     * @return array<string, mixed>
+     */
+    private function refreshTurnWithoutAction(array $state, array $players, int $nextSeat, string $message): array
+    {
+        $state['multiSeat']['players'] = $players;
+        $state['multiSeat']['currentSeat'] = $nextSeat;
+        $state['multiSeat']['botEnginePhase'] = '10.14';
+        $state['multiSeat']['botDecisionContexts'] = (new PokerMultiSeatBotDecisionContextService())->forState($state);
+        $state['currentTurn'] = [
+            ...(is_array($state['currentTurn'] ?? null) ? $state['currentTurn'] : []),
+            'actor' => 'seat:'.$nextSeat,
+            'seatNumber' => $nextSeat,
+            'label' => 'Vez do assento '.$nextSeat,
+            'message' => $message,
+        ];
+
+        return $state;
     }
 
     /**

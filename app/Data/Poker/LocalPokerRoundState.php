@@ -82,7 +82,8 @@ final readonly class LocalPokerRoundState
             'dealerPosition' => $this->dealerPosition,
             'canCheck' => $this->amountToCall === 0,
             'canCall' => $this->amountToCall > 0 && $this->playerStack > 0,
-            'canRaise' => $this->playerStack > $this->amountToCall,
+            'canRaise' => $this->playerStack > $this->amountToCall && ! $this->isFinished,
+            'canAct' => ! $this->isFinished,
             'bettingSummary' => [
                 'playerCommitted' => $this->playerStreetBet,
                 'opponentCommitted' => $this->opponentStreetBet,

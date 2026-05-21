@@ -22,7 +22,8 @@ final readonly class StartMultiSeatPokerHandAction
      */
     public function execute(PokerTable $table): array
     {
-        $players = $this->blindRotation->seatedPlayers($table);
+        $players = $this->playablePlayersForNewHand($table);
+        $table->unsetRelation('realPlayers');
         $blindPositions = $this->blindRotation->positionsForNewHand($table);
 
         $deck = Deck::standard()->shuffle();
@@ -143,6 +144,38 @@ final readonly class StartMultiSeatPokerHandAction
                 'label' => 'Vez do assento '.$firstPreFlopSeat,
             ],
         ];
+    }
+
+
+    /**
+     * Garante que a nova mão multi-seat só considere assentos realmente jogáveis.
+     *
+     * Bots que quebraram são recarregados automaticamente com o buy-in da mesa
+     * para manter a simulação fluindo. Jogadores reais sem stack permanecem
+     * sentados, mas precisam fazer rebuy antes de participar de uma nova mão.
+     *
+     * @return \Illuminate\Support\Collection<int, PokerTablePlayer>
+     */
+    private function playablePlayersForNewHand(PokerTable $table)
+    {
+        $buyIn = $table->buyInAmount();
+
+        $this->blindRotation->seatedPlayers($table)
+            ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot && (int) $player->stack <= 0)
+            ->each(static function (PokerTablePlayer $player) use ($buyIn): void {
+                $player->forceFill([
+                    'stack' => $buyIn,
+                    'buy_in_amount' => max($buyIn, (int) $player->buy_in_amount),
+                    'buy_in_paid_at' => $player->buy_in_paid_at ?? now(),
+                    'status' => 'online',
+                    'left_at' => null,
+                    'last_seen_at' => now(),
+                ])->save();
+            });
+
+        return $this->blindRotation->seatedPlayers($table)
+            ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot || (int) $player->stack > 0)
+            ->values();
     }
 
     /**

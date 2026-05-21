@@ -105,10 +105,14 @@ final class MultiplayerPokerPrivateStateService
         $state['opponentStreetBet'] = (int) ($currentSeatActor['streetBet'] ?? 0);
         $state['amountToCall'] = $amountToCall;
         $state['maximumRaiseTo'] = $playerStack + $currentStreetBet;
-        $state['canCheck'] = $isCurrentUserTurn && $amountToCall === 0;
-        $state['canCall'] = $isCurrentUserTurn && $amountToCall > 0 && $playerStack > 0;
-        $state['canRaise'] = $isCurrentUserTurn && $playerStack > $amountToCall;
-        $state['canAct'] = $isCurrentUserTurn;
+        $currentSeatIsAllIn = is_array($currentSeatState)
+            && ((bool) ($currentSeatState['isAllIn'] ?? false) || $playerStack <= 0);
+        $currentUserCanAct = $isCurrentUserTurn && ! $currentSeatIsAllIn && $playerStack > 0;
+
+        $state['canCheck'] = $currentUserCanAct && $amountToCall === 0;
+        $state['canCall'] = $currentUserCanAct && $amountToCall > 0;
+        $state['canRaise'] = $currentUserCanAct && $playerStack > $amountToCall;
+        $state['canAct'] = $currentUserCanAct;
         $currentSeatIsBot = is_array($currentSeatActor) && (bool) ($currentSeatActor['isBot'] ?? $currentSeatActor['is_bot'] ?? false);
         $state['botVsBotSimulation'] = false;
         $state['multiSeat']['currentSeatIsBot'] = $currentSeatIsBot;
@@ -149,20 +153,23 @@ final class MultiplayerPokerPrivateStateService
             'canonicalActor' => $isFinished ? null : 'seat:'.$currentSeat,
             'actor' => $isFinished ? null : ($isCurrentUserTurn ? 'player' : 'opponent'),
             'seatNumber' => $isFinished ? null : $currentSeat,
-            'actorLabel' => $isFinished ? 'Mão finalizada' : ($isCurrentUserTurn ? 'Você' : $actorLabel),
+            'actorLabel' => $isFinished ? 'Mão finalizada' : ($isCurrentUserTurn ? ($currentSeatIsAllIn ? 'Você (all-in)' : 'Você') : $actorLabel),
             'isCurrentUserTurn' => $isCurrentUserTurn,
             'message' => $isFinished
                 ? 'Mão multi-seat finalizada.'
                 : ($isCurrentUserTurn
-                    ? 'Sua vez de agir na mesa multi-seat.'
+                    ? ($currentSeatIsAllIn
+                        ? 'Você está all-in e sem fichas para agir. Aguardando os demais jogadores.'
+                        : 'Sua vez de agir na mesa multi-seat.')
                     : 'Aguardando ação de '.$actorLabel.'.'),
         ];
 
         if (isset($state['turnTimer']) && is_array($state['turnTimer'])) {
             $state['turnTimer']['label'] = $state['currentTurn']['actorLabel'];
-            $state['turnTimer']['isCurrentUserTurn'] = $isCurrentUserTurn;
+            $state['turnTimer']['isCurrentUserTurn'] = $isCurrentUserTurn && ! $currentSeatIsAllIn;
             $state['turnTimer']['currentSeatIsBot'] = $currentSeatIsBot;
             $state['turnTimer']['autoProcessCurrentBot'] = $currentSeatIsBot && ! $isFinished;
+            $state['turnTimer']['currentSeatIsAllIn'] = $currentSeatIsAllIn;
         }
 
         if (isset($state['bettingSummary']) && is_array($state['bettingSummary'])) {
