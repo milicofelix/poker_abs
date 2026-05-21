@@ -378,6 +378,14 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                     )}
                                                 </div>
                                             )}
+                                            {tournament.runtimeTable?.enabled && (
+                                                <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-xs text-emerald-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-emerald-100">Mesa real conectada</p>
+                                                    <p className="mt-1 text-emerald-50/80">
+                                                        {tournament.runtimeTable.message} · {formatChips(tournament.runtimeTable.playersSeated)} jogadores sentados · blinds {formatChips(tournament.runtimeTable.smallBlind)} / {formatChips(tournament.runtimeTable.bigBlind)}.
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="rounded-[1.5rem] border border-white/10 bg-black/25 p-3 shadow-inner xl:min-w-56">
@@ -413,6 +421,14 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                 >
                                                     Iniciar torneio
                                                 </button>
+                                            )}
+                                            {tournament.runtimeTable?.enabled && tournament.runtimeTable?.tableUrl && (
+                                                <a
+                                                    href={tournament.runtimeTable.tableUrl}
+                                                    className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-center text-sm font-black text-emerald-100 transition hover:bg-emerald-300/20"
+                                                >
+                                                    Abrir mesa real
+                                                </a>
                                             )}
                                             {tournament.canAdvanceBlind && (
                                                 <button

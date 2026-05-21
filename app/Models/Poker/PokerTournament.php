@@ -4,6 +4,7 @@ namespace App\Models\Poker;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PokerTournament extends Model
@@ -32,6 +33,7 @@ final class PokerTournament extends Model
     public const DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL = 3;
 
     protected $fillable = [
+        'poker_table_id',
         'name',
         'status',
         'buy_in',
@@ -66,6 +68,7 @@ final class PokerTournament extends Model
     ];
 
     protected $casts = [
+        'poker_table_id' => 'integer',
         'buy_in' => 'integer',
         'starting_stack' => 'integer',
         'max_players' => 'integer',
@@ -95,6 +98,15 @@ final class PokerTournament extends Model
         'resume_snapshot' => 'array',
         'last_snapshot_at' => 'datetime',
     ];
+
+
+    /**
+     * @return BelongsTo<PokerTable, $this>
+     */
+    public function runtimeTable(): BelongsTo
+    {
+        return $this->belongsTo(PokerTable::class, 'poker_table_id');
+    }
 
     /**
      * @return HasMany<PokerTournamentParticipant, $this>

@@ -735,6 +735,49 @@ final class PokerTorneiosFaseDozeTest extends TestCase
         $this->assertSame(0, $tournament->resume_snapshot['activePlayers']);
     }
 
+
+    public function test_ponte_torneio_engine_real_cria_mesa_e_primeira_mao_ao_iniciar(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(3, 1000);
+
+        $this->actingAs(User::factory()->create(['poker_bankroll' => 5000]))
+            ->post(route('poker.tournaments.start', $tournament))
+            ->assertRedirect();
+
+        $tournament->refresh();
+
+        $this->assertNotNull($tournament->poker_table_id);
+        $this->assertDatabaseHas('poker_tables', [
+            'id' => $tournament->poker_table_id,
+            'status' => 'playing',
+            'small_blind' => 25,
+            'big_blind' => 50,
+            'buy_in' => 5000,
+        ]);
+
+        $this->assertDatabaseCount('poker_table_players', 3);
+        $this->assertDatabaseHas('poker_table_players', [
+            'poker_table_id' => $tournament->poker_table_id,
+            'seat_number' => 1,
+            'stack' => 5000,
+            'buy_in_amount' => 5000,
+        ]);
+
+        $this->assertDatabaseHas('poker_hands', [
+            'poker_table_id' => $tournament->poker_table_id,
+            'status' => 'running',
+            'street' => 'pre_flop',
+        ]);
+
+        $this->get(route('poker.tournaments.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('tournamentCenter.tournaments.0.runtimeTable.phase', '13.2.1')
+                ->where('tournamentCenter.tournaments.0.runtimeTable.enabled', true)
+                ->where('tournamentCenter.tournaments.0.runtimeTable.playersSeated', 3)
+            );
+    }
+
     private function createTournamentWithParticipants(int $participants, int $buyIn): PokerTournament
     {
         $tournament = PokerTournament::query()->create([

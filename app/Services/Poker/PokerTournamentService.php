@@ -16,7 +16,7 @@ final class PokerTournamentService
     public function indexPayload(?User $user = null): array
     {
         $tournaments = PokerTournament::query()
-            ->with(['participants.user'])
+            ->with(['participants.user', 'runtimeTable'])
             ->withCount('participants')
             ->latest()
             ->get()
@@ -219,7 +219,9 @@ final class PokerTournamentService
 
             $this->prepareFinalTableIfEligible($lockedTournament);
 
-            $freshTournament = $lockedTournament->fresh(['participants.user']);
+            $freshTournament = $lockedTournament->fresh(['participants.user', 'runtimeTable']);
+            app(PokerTournamentTableBridgeService::class)->ensureRuntimeTable($freshTournament);
+            $freshTournament = $lockedTournament->fresh(['participants.user', 'runtimeTable']);
             $this->refreshResumeSnapshot($freshTournament);
 
             return $freshTournament;
@@ -780,6 +782,7 @@ final class PokerTournamentService
 
         return [
             'id' => $tournament->id,
+            'runtimeTable' => app(PokerTournamentTableBridgeService::class)->runtimePayloadFor($tournament),
             'name' => $tournament->name,
             'status' => $tournament->status,
             'statusLabel' => $this->statusLabel((string) $tournament->status),
