@@ -191,7 +191,7 @@ final readonly class PokerMultiSeatTurnActionService
             }
         }
 
-        if (! $isFinished && $this->noPlayerCanReceiveTurn($players)) {
+        if (! $isFinished && $this->handCannotHaveMoreBetting($players, $currentBet)) {
             $state = $this->advanceAllInHandToShowdown($state);
             $players = $this->resetStreetBets($players);
             $currentBet = 0;
@@ -841,6 +841,56 @@ final readonly class PokerMultiSeatTurnActionService
         }
 
         return true;
+    }
+
+    /**
+     * Retorna verdadeiro quando a mão não pode ter novas apostas reais.
+     *
+     * Cenário crítico: um jogador fica all-in e sobra apenas um participante
+     * com fichas. Nesse caso não existe disputa de aposta entre dois stacks
+     * vivos; o board deve correr até o showdown, evitando a mão morrer no river
+     * esperando uma ação que não muda mais o pote.
+     *
+     * @param array<int, array<string, mixed>> $players
+     */
+    private function handCannotHaveMoreBetting(array $players, int $currentBet): bool
+    {
+        $playersAbleToBet = array_values(array_filter(
+            $players,
+            fn (array $player): bool => $this->playerCanReceiveTurn($player),
+        ));
+
+        if (count($playersAbleToBet) === 0) {
+            return true;
+        }
+
+        if (count($playersAbleToBet) === 1 && $this->hasAllInOpponentStillEligible($players)) {
+            $singlePlayer = $playersAbleToBet[0];
+            $streetBet = (int) ($singlePlayer['streetBet'] ?? 0);
+            $hasActed = (bool) ($singlePlayer['hasActed'] ?? false);
+
+            return $currentBet === 0 || ($hasActed && $streetBet >= $currentBet);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $players
+     */
+    private function hasAllInOpponentStillEligible(array $players): bool
+    {
+        foreach ($players as $player) {
+            if ((bool) ($player['hasFolded'] ?? false)) {
+                continue;
+            }
+
+            if ((bool) ($player['isAllIn'] ?? false) || (int) ($player['stack'] ?? 0) <= 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
