@@ -15,6 +15,7 @@ use App\Services\Poker\PokerPhaseNineResponsiveUxService;
 use App\Services\Poker\PokerPhaseNineFinalPolishService;
 use App\Services\Poker\PokerPhaseNineVisualAuditService;
 use App\Services\Poker\PokerPhaseTenHeadsUpAuditService;
+use App\Services\Poker\PokerPhaseThirteenDesignAuditService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableReadinessService;
 use App\Services\Poker\PokerTableStateContractService;
@@ -44,6 +45,7 @@ final class PokerTablePlayController extends Controller
         PokerPhaseNineResponsiveUxService $responsiveUx,
         PokerPhaseNineFinalPolishService $finalPolish,
         PokerPhaseTenHeadsUpAuditService $phaseTenAudit,
+        PokerPhaseThirteenDesignAuditService $phaseThirteenDesignAudit,
         PokerTableStateContractService $stateContracts,
     ): Response {
         $presence->markCurrentUserOnline($table, $request->user());
@@ -93,6 +95,7 @@ final class PokerTablePlayController extends Controller
                 'responsiveUx' => $responsiveUx->forTable($table, false),
                 'finalPolish' => $finalPolish->forTable($table, false),
                 'phaseTenAudit' => $phaseTenAudit->forTable($table, false),
+                'phaseThirteenDesignAudit' => $phaseThirteenDesignAudit->forTable($table, false),
                 'stateContracts' => $stateContractPayload,
                 'realPlayers' => $this->serializeRealPlayers($table),
                 'seatSlots' => $this->serializeSeatSlots($table),

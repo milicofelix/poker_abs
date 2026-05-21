@@ -15,6 +15,7 @@ import PokerMotionUxPanel from '../../Components/Poker/PokerMotionUxPanel';
 import PokerResponsiveUxPanel from '../../Components/Poker/PokerResponsiveUxPanel';
 import PokerFinalPolishPanel from '../../Components/Poker/PokerFinalPolishPanel';
 import PokerPhaseTenAuditPanel from '../../Components/Poker/PokerPhaseTenAuditPanel';
+import PokerPhaseThirteenDesignAuditPanel from '../../Components/Poker/PokerPhaseThirteenDesignAuditPanel';
 import PokerMultiSeatIntegrationPanel from '../../Components/Poker/PokerMultiSeatIntegrationPanel';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
@@ -854,6 +855,7 @@ export default function Play({ hand, table = null }) {
                         <PokerResponsiveUxPanel responsive={table?.responsiveUx} />
                         <PokerFinalPolishPanel polish={table?.finalPolish} />
                         <PokerPhaseTenAuditPanel audit={table?.phaseTenAudit} />
+                        <PokerPhaseThirteenDesignAuditPanel audit={table?.phaseThirteenDesignAudit} />
                         <PokerMultiSeatIntegrationPanel
                             contracts={stateContracts}
                             players={realPlayers}
