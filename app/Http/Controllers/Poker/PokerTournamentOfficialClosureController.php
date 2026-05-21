@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Http\Controllers\Poker;
+
+use App\Http\Controllers\Controller;
+use App\Models\Poker\PokerTournament;
+use App\Services\Poker\PokerTournamentService;
+use DomainException;
+use Illuminate\Http\RedirectResponse;
+
+final class PokerTournamentOfficialClosureController extends Controller
+{
+    public function __invoke(PokerTournament $tournament, PokerTournamentService $service): RedirectResponse
+    {
+        try {
+            $service->closeOfficially($tournament);
+
+            return redirect()
+                ->route('poker.tournaments.index')
+                ->with('success', 'Torneio encerrado oficialmente com resultado preservado.');
+        } catch (DomainException $exception) {
+            return redirect()
+                ->route('poker.tournaments.index')
+                ->with('error', $exception->getMessage());
+        }
+    }
+}

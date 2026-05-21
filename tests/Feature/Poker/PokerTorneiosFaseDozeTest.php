@@ -20,7 +20,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.9')
+                ->where('tournamentCenter.phase', '12.12.10')
                 ->where('tournamentCenter.summary.total', 0)
                 ->where('tournamentCenter.defaults.buyIn', 1000)
                 ->where('tournamentCenter.defaults.smallBlind', 25)
@@ -391,7 +391,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.9')
+                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.10')
                 ->where('tournamentCenter.tournaments.0.blindStructure.currentLevel', 2)
                 ->where('tournamentCenter.tournaments.0.blindStructure.smallBlind', 50)
                 ->where('tournamentCenter.tournaments.0.blindStructure.bigBlind', 100)
@@ -488,7 +488,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.9')
+                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.10')
                 ->where('tournamentCenter.tournaments.0.finalTable.enabled', true)
                 ->where('tournamentCenter.tournaments.0.finalTable.maxPlayers', 9)
                 ->has('tournamentCenter.tournaments.0.finalTable.seatMap', 4)
@@ -591,8 +591,8 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.9')
-                ->where('tournamentCenter.tournaments.0.reentryAddon.phase', '12.12.9')
+                ->where('tournamentCenter.phase', '12.12.10')
+                ->where('tournamentCenter.tournaments.0.reentryAddon.phase', '12.12.10')
                 ->where('tournamentCenter.tournaments.0.reentryAddon.allowReentry', true)
                 ->where('tournamentCenter.tournaments.0.reentryAddon.addonEnabled', true)
                 ->where('tournamentCenter.tournaments.0.participants.0.canReenter', true)
@@ -632,11 +632,11 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.9')
-                ->where('tournamentCenter.lobby.phase', '12.12.9')
+                ->where('tournamentCenter.phase', '12.12.10')
+                ->where('tournamentCenter.lobby.phase', '12.12.10')
                 ->where('tournamentCenter.lobby.nextToStart.name', 'Lobby Avançado ABS')
                 ->where('tournamentCenter.lobby.nextToStart.occupancyPercent', 50)
-                ->where('tournamentCenter.tournaments.0.lobbySummary.phase', '12.12.9')
+                ->where('tournamentCenter.tournaments.0.lobbySummary.phase', '12.12.10')
                 ->where('tournamentCenter.tournaments.0.lobbySummary.occupancyPercent', 50)
                 ->where('tournamentCenter.tournaments.0.lobbySummary.availableSeats', 2)
                 ->where('tournamentCenter.tournaments.0.lobbySummary.playersNeededToStart', 0)
@@ -657,7 +657,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
 
         $this->assertNotNull($tournament->resume_token);
         $this->assertNotNull($tournament->last_snapshot_at);
-        $this->assertSame('12.12.9', $tournament->resume_snapshot['phase']);
+        $this->assertSame('12.12.10', $tournament->resume_snapshot['phase']);
         $this->assertSame(PokerTournament::STATUS_RUNNING, $tournament->resume_snapshot['status']);
         $this->assertSame(2, $tournament->resume_snapshot['currentBlindLevel']);
         $this->assertSame(50, $tournament->resume_snapshot['smallBlind']);
@@ -673,12 +673,66 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.9')
-                ->where('tournamentCenter.tournaments.0.resumeState.phase', '12.12.9')
+                ->where('tournamentCenter.phase', '12.12.10')
+                ->where('tournamentCenter.tournaments.0.resumeState.phase', '12.12.10')
                 ->where('tournamentCenter.tournaments.0.resumeState.isRestorable', true)
                 ->where('tournamentCenter.tournaments.0.resumeState.snapshot.status', PokerTournament::STATUS_RUNNING)
                 ->where('tournamentCenter.tournaments.0.resumeState.snapshot.activePlayers', 3)
             );
+    }
+
+
+    public function test_central_exibe_resultado_oficial_do_torneio_finalizado(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(3, 1000);
+        $service = app(\App\Services\Poker\PokerTournamentService::class);
+        $service->start($tournament);
+
+        $participants = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->orderBy('id')
+            ->get();
+
+        $service->eliminate($tournament->fresh(), $participants[0]);
+        $service->eliminate($tournament->fresh(), $participants[1]);
+
+        $this->get(route('poker.tournaments.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Poker/Tournaments')
+                ->where('tournamentCenter.phase', '12.12.10')
+                ->where('tournamentCenter.tournaments.0.officialResult.phase', '12.12.10')
+                ->where('tournamentCenter.tournaments.0.officialResult.isFinished', true)
+                ->where('tournamentCenter.tournaments.0.officialResult.champion.name', 'Jogador 3')
+                ->where('tournamentCenter.tournaments.0.officialResult.prizePool', 3000)
+                ->where('tournamentCenter.tournaments.0.officialResult.totalPaid', 3000)
+                ->where('tournamentCenter.tournaments.0.resumeState.isRestorable', false)
+            );
+    }
+
+    public function test_encerramento_oficial_preserva_snapshot_e_resultado_do_campeao(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(2, 1000);
+        $service = app(\App\Services\Poker\PokerTournamentService::class);
+        $service->start($tournament);
+
+        $loser = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $service->eliminate($tournament->fresh(), $loser);
+
+        $this->actingAs(User::factory()->create(['poker_bankroll' => 5000]))
+            ->post(route('poker.tournaments.official-close', $tournament->fresh()))
+            ->assertRedirect(route('poker.tournaments.index'));
+
+        $tournament->refresh();
+
+        $this->assertSame(PokerTournament::STATUS_FINISHED, $tournament->status);
+        $this->assertSame('12.12.10', $tournament->resume_snapshot['phase']);
+        $this->assertSame(PokerTournament::STATUS_FINISHED, $tournament->resume_snapshot['status']);
+        $this->assertSame(0, $tournament->resume_snapshot['activePlayers']);
     }
 
     private function createTournamentWithParticipants(int $participants, int $buyIn): PokerTournament

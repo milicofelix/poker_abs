@@ -94,15 +94,19 @@ export default function Tournaments({ tournamentCenter = {} }) {
         router.post(`/poker/tournaments/${tournament.id}/participants/${participant.id}/addon`);
     }
 
+    function closeOfficially(tournament) {
+        router.post(`/poker/tournaments/${tournament.id}/official-close`);
+    }
+
     return (
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 p-6 text-white">
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.9'}</p>
+                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.10'}</p>
                         <h1 className="mt-2 text-3xl font-black">Central de torneios</h1>
                         <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada, add-on e lobby avançado, persistência e retomada segura.
+                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada, add-on e lobby avançado, persistência, retomada segura e encerramento oficial.
                         </p>
                     </div>
 
@@ -255,6 +259,28 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                     </div>
                                                 </div>
                                             )}
+                                            {tournament.officialResult && (
+                                                <div className="mt-3 rounded-2xl border border-lime-300/20 bg-lime-300/10 p-3 text-xs text-lime-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-lime-100">Resultado oficial</p>
+                                                    <p className="mt-1 text-lime-50/80">{tournament.officialResult.summaryLabel}</p>
+                                                    <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Campeão</strong><br />{tournament.officialResult.champion?.name ?? 'A definir'}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Prize pool</strong><br />{formatChips(tournament.officialResult.prizePool)}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Pago</strong><br />{formatChips(tournament.officialResult.totalPaid)}</span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2"><strong>Finalizado</strong><br />{tournament.officialResult.finishedAt ?? 'Pendente'}</span>
+                                                    </div>
+                                                    {Array.isArray(tournament.officialResult.podium) && tournament.officialResult.podium.length > 0 && (
+                                                        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                                            {tournament.officialResult.podium.map((result) => (
+                                                                <span key={`${tournament.id}-official-${result.position}`} className="rounded-xl bg-slate-950/35 px-3 py-2">
+                                                                    <strong>{result.position}º lugar</strong><br />
+                                                                    {result.name} · {formatChips(result.prizeAmount)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                             {tournament.finalTable?.enabled && (
                                                 <div className="mt-3 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/10 p-3 text-xs text-fuchsia-50">
                                                     <p className="font-black uppercase tracking-[0.18em] text-fuchsia-100">Mesa final</p>
@@ -321,6 +347,15 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                     className="rounded-xl border border-fuchsia-300/30 bg-fuchsia-300/10 px-5 py-3 text-sm font-black text-fuchsia-100 transition hover:bg-fuchsia-300/20"
                                                 >
                                                     Organizar mesa final
+                                                </button>
+                                            )}
+                                            {tournament.canCloseOfficially && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => closeOfficially(tournament)}
+                                                    className="rounded-xl border border-lime-300/30 bg-lime-300/10 px-5 py-3 text-sm font-black text-lime-100 transition hover:bg-lime-300/20"
+                                                >
+                                                    Encerrar oficialmente
                                                 </button>
                                             )}
                                         </div>

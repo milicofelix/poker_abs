@@ -35,6 +35,7 @@ use App\Http\Controllers\Poker\PokerTournamentBlindLevelController;
 use App\Http\Controllers\Poker\PokerTournamentFinalTableController;
 use App\Http\Controllers\Poker\PokerTournamentReentryController;
 use App\Http\Controllers\Poker\PokerTournamentAddonController;
+use App\Http\Controllers\Poker\PokerTournamentOfficialClosureController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -87,4 +88,5 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/poker/tournaments/{tournament}/participants/{participant}/reentry', PokerTournamentReentryController::class)->name('poker.tournaments.participants.reentry');
     Route::post('/poker/tournaments/{tournament}/participants/{participant}/addon', PokerTournamentAddonController::class)->name('poker.tournaments.participants.addon');
     Route::post('/poker/tournaments/{tournament}/participants/{participant}/eliminate', PokerTournamentEliminationController::class)->name('poker.tournaments.participants.eliminate');
+    Route::post('/poker/tournaments/{tournament}/official-close', PokerTournamentOfficialClosureController::class)->name('poker.tournaments.official-close');
 });

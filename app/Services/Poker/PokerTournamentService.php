@@ -25,7 +25,7 @@ final class PokerTournamentService
             ->all();
 
         return [
-            'phase' => '12.12.9',
+            'phase' => '12.12.10',
             'summary' => [
                 'total' => count($tournaments),
                 'registering' => collect($tournaments)->where('status', PokerTournament::STATUS_REGISTERING)->count(),
@@ -142,7 +142,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.7',
+                    'phase' => '12.12.10',
                     'reason' => 'Inscrição em torneio de poker.',
                     'poker_tournament_id' => $lockedTournament->id,
                     'tournament_name' => $lockedTournament->name,
@@ -296,7 +296,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.7',
+                    'phase' => '12.12.10',
                     'reason' => 'Reentrada em torneio de poker.',
                     'poker_tournament_id' => $lockedTournament->id,
                     'poker_tournament_participant_id' => $lockedParticipant->id,
@@ -381,7 +381,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.7',
+                    'phase' => '12.12.10',
                     'reason' => 'Add-on em torneio de poker.',
                     'poker_tournament_id' => $lockedTournament->id,
                     'poker_tournament_participant_id' => $lockedParticipant->id,
@@ -512,6 +512,32 @@ final class PokerTournamentService
             }
 
             return $lockedTournament->fresh(['participants.user']);
+        });
+    }
+
+
+    public function closeOfficially(PokerTournament $tournament): PokerTournament
+    {
+        return DB::transaction(function () use ($tournament): PokerTournament {
+            /** @var PokerTournament $lockedTournament */
+            $lockedTournament = PokerTournament::query()
+                ->whereKey($tournament->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedTournament->status === PokerTournament::STATUS_RUNNING) {
+                $this->finishIfOnlyOneActive($lockedTournament);
+                $lockedTournament->refresh();
+            }
+
+            if ($lockedTournament->status !== PokerTournament::STATUS_FINISHED) {
+                throw new DomainException('O torneio ainda não possui campeão definido para encerramento oficial.');
+            }
+
+            $freshTournament = $lockedTournament->fresh(['participants.user']);
+            $this->refreshResumeSnapshot($freshTournament);
+
+            return $freshTournament;
         });
     }
 
@@ -651,7 +677,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.7',
+                    'phase' => '12.12.10',
                     'reason' => 'Premiação de torneio de poker.',
                     'poker_tournament_id' => $tournament->id,
                     'tournament_name' => $tournament->name,
@@ -761,7 +787,7 @@ final class PokerTournamentService
             'startingStack' => (int) $tournament->starting_stack,
             'maxPlayers' => (int) $tournament->max_players,
             'blindStructure' => [
-                'phase' => '12.12.9',
+                'phase' => '12.12.10',
                 'currentLevel' => max(1, (int) $tournament->current_blind_level),
                 'smallBlind' => max(1, (int) $tournament->small_blind),
                 'bigBlind' => max(2, (int) $tournament->big_blind),
@@ -775,7 +801,7 @@ final class PokerTournamentService
             'payoutPlan' => $this->payoutPlanFor($tournament, max(1, count($participants))),
             'paidPlacesCount' => max(1, min(count($participants) ?: (int) $tournament->max_players, count($tournament->payout_structure ?: PokerTournament::DEFAULT_PAYOUT_STRUCTURE))),
             'reentryAddon' => [
-                'phase' => '12.12.9',
+                'phase' => '12.12.10',
                 'allowReentry' => (bool) $tournament->allow_reentry,
                 'maxReentriesPerPlayer' => (int) $tournament->max_reentries_per_player,
                 'reentryBuyIn' => (int) ($tournament->reentry_buy_in ?: $tournament->buy_in),
@@ -786,13 +812,14 @@ final class PokerTournamentService
                 'addonAvailableUntilBlindLevel' => (int) ($tournament->addon_available_until_blind_level ?: PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL),
             ],
             'finalTable' => [
-                'phase' => '12.12.9',
+                'phase' => '12.12.10',
                 'enabled' => (bool) $tournament->is_final_table,
                 'maxPlayers' => PokerTournament::FINAL_TABLE_MAX_PLAYERS,
                 'startedAt' => $tournament->final_table_started_at?->format('d/m/Y H:i'),
                 'seatMap' => $tournament->final_table_seat_map ?: [],
             ],
             'lobbySummary' => $this->tournamentLobbySummaryFor($tournament, $participants),
+            'officialResult' => $this->officialResultFor($tournament, $participants),
             'startsAt' => $tournament->starts_at?->format('d/m/Y H:i'),
             'startedAt' => $tournament->started_at?->format('d/m/Y H:i'),
             'finishedAt' => $tournament->finished_at?->format('d/m/Y H:i'),
@@ -809,11 +836,60 @@ final class PokerTournamentService
                 && ! (bool) $tournament->is_final_table
                 && collect($participants)->where('status', PokerTournamentParticipant::STATUS_ACTIVE)->count() >= 2
                 && collect($participants)->where('status', PokerTournamentParticipant::STATUS_ACTIVE)->count() <= PokerTournament::FINAL_TABLE_MAX_PLAYERS,
+            'canCloseOfficially' => $tournament->status === PokerTournament::STATUS_FINISHED
+                || ($tournament->status === PokerTournament::STATUS_RUNNING && collect($participants)->where('status', PokerTournamentParticipant::STATUS_ACTIVE)->count() === 1),
             'participants' => $participants,
             'ranking' => collect($participants)
                 ->filter(static fn (array $participant): bool => $participant['finishPosition'] !== null || $participant['status'] === PokerTournamentParticipant::STATUS_ACTIVE)
                 ->values()
                 ->all(),
+        ];
+    }
+
+
+    /**
+     * @param array<int, array<string, mixed>> $participants
+     * @return array<string, mixed>
+     */
+    private function officialResultFor(PokerTournament $tournament, array $participants): array
+    {
+        $collection = collect($participants);
+        $champion = $collection->first(static fn (array $participant): bool => $participant['status'] === PokerTournamentParticipant::STATUS_WINNER)
+            ?? $collection->firstWhere('finishPosition', 1);
+
+        $podium = $collection
+            ->filter(static fn (array $participant): bool => $participant['finishPosition'] !== null)
+            ->sortBy('finishPosition')
+            ->take(3)
+            ->values()
+            ->map(static fn (array $participant): array => [
+                'position' => (int) $participant['finishPosition'],
+                'name' => $participant['name'],
+                'userId' => $participant['userId'],
+                'prizeAmount' => (int) $participant['prizeAmount'],
+                'status' => $participant['status'],
+            ])
+            ->all();
+
+        $totalPaid = (int) $collection->sum(static fn (array $participant): int => (int) $participant['prizeAmount']);
+        $isFinished = $tournament->status === PokerTournament::STATUS_FINISHED;
+
+        return [
+            'phase' => '12.12.10',
+            'isFinished' => $isFinished,
+            'champion' => $champion ? [
+                'name' => $champion['name'],
+                'userId' => $champion['userId'],
+                'prizeAmount' => (int) $champion['prizeAmount'],
+            ] : null,
+            'podium' => $podium,
+            'prizePool' => (int) $tournament->prize_pool,
+            'totalPaid' => $totalPaid,
+            'paidPlaces' => collect($podium)->where('prizeAmount', '>', 0)->count(),
+            'finishedAt' => $tournament->finished_at?->format('d/m/Y H:i'),
+            'summaryLabel' => $isFinished
+                ? sprintf('Campeão definido%s.', $champion ? ': '.$champion['name'] : '')
+                : 'Resultado oficial ainda pendente.',
         ];
     }
 
@@ -830,8 +906,8 @@ final class PokerTournamentService
             ->first();
 
         return [
-            'phase' => '12.12.9',
-            'title' => 'Lobby avançado de torneios',
+            'phase' => '12.12.10',
+            'title' => 'Lobby avançado de torneios e resultados oficiais',
             'nextToStart' => $nextToStart ? [
                 'id' => $nextToStart['id'],
                 'name' => $nextToStart['name'],
@@ -864,7 +940,7 @@ final class PokerTournamentService
         }
 
         return [
-            'phase' => '12.12.9',
+            'phase' => '12.12.10',
             'occupancyPercent' => min(100, (int) round(($registeredPlayers / $maxPlayers) * 100)),
             'availableSeats' => max(0, $maxPlayers - $registeredPlayers),
             'playersNeededToStart' => $tournament->status === PokerTournament::STATUS_REGISTERING ? max(0, 2 - $registeredPlayers) : 0,
@@ -888,7 +964,7 @@ final class PokerTournamentService
         $activePlayers = $participants->where('status', PokerTournamentParticipant::STATUS_ACTIVE)->count();
         $registeredPlayers = $participants->count();
         $snapshot = [
-            'phase' => '12.12.9',
+            'phase' => '12.12.10',
             'tournamentId' => $tournament->id,
             'status' => $tournament->status,
             'registeredPlayers' => $registeredPlayers,
@@ -923,7 +999,7 @@ final class PokerTournamentService
 
         if (! is_array($snapshot)) {
             $snapshot = [
-                'phase' => '12.12.9',
+                'phase' => '12.12.10',
                 'tournamentId' => $tournament->id,
                 'status' => $tournament->status,
                 'registeredPlayers' => count($participants),
@@ -939,7 +1015,7 @@ final class PokerTournamentService
         }
 
         return [
-            'phase' => '12.12.9',
+            'phase' => '12.12.10',
             'token' => $tournament->resume_token,
             'isRestorable' => $tournament->status !== PokerTournament::STATUS_FINISHED,
             'lastSnapshotAt' => $tournament->last_snapshot_at?->format('d/m/Y H:i'),
