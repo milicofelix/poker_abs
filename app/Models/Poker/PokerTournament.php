@@ -26,6 +26,10 @@ final class PokerTournament extends Model
         ['position' => 3, 'percent' => 10],
     ];
     public const FINAL_TABLE_MAX_PLAYERS = 9;
+    public const DEFAULT_MAX_REENTRIES_PER_PLAYER = 1;
+    public const DEFAULT_REENTRY_STACK_RATIO = 1.0;
+    public const DEFAULT_ADDON_STACK_RATIO = 0.5;
+    public const DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL = 3;
 
     protected $fillable = [
         'name',
@@ -48,6 +52,14 @@ final class PokerTournament extends Model
         'is_final_table',
         'final_table_started_at',
         'final_table_seat_map',
+        'allow_reentry',
+        'max_reentries_per_player',
+        'reentry_buy_in',
+        'reentry_stack',
+        'addon_enabled',
+        'addon_buy_in',
+        'addon_stack',
+        'addon_available_until_blind_level',
     ];
 
     protected $casts = [
@@ -69,6 +81,14 @@ final class PokerTournament extends Model
         'is_final_table' => 'boolean',
         'final_table_started_at' => 'datetime',
         'final_table_seat_map' => 'array',
+        'allow_reentry' => 'boolean',
+        'max_reentries_per_player' => 'integer',
+        'reentry_buy_in' => 'integer',
+        'reentry_stack' => 'integer',
+        'addon_enabled' => 'boolean',
+        'addon_buy_in' => 'integer',
+        'addon_stack' => 'integer',
+        'addon_available_until_blind_level' => 'integer',
     ];
 
     /**

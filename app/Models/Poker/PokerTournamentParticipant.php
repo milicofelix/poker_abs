@@ -24,7 +24,11 @@ final class PokerTournamentParticipant extends Model
         'current_stack',
         'finish_position',
         'prize_amount',
+        'reentries_count',
+        'addons_count',
         'registered_at',
+        'reentered_at',
+        'addon_taken_at',
         'eliminated_at',
     ];
 
@@ -35,7 +39,11 @@ final class PokerTournamentParticipant extends Model
         'current_stack' => 'integer',
         'finish_position' => 'integer',
         'prize_amount' => 'integer',
+        'reentries_count' => 'integer',
+        'addons_count' => 'integer',
         'registered_at' => 'datetime',
+        'reentered_at' => 'datetime',
+        'addon_taken_at' => 'datetime',
         'eliminated_at' => 'datetime',
     ];
 

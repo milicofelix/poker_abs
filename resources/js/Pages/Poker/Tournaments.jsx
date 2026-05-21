@@ -79,6 +79,14 @@ export default function Tournaments({ tournamentCenter = {} }) {
         router.post(`/poker/tournaments/${tournament.id}/final-table`);
     }
 
+    function reenterParticipant(tournament, participant) {
+        router.post(`/poker/tournaments/${tournament.id}/participants/${participant.id}/reentry`);
+    }
+
+    function addonParticipant(tournament, participant) {
+        router.post(`/poker/tournaments/${tournament.id}/participants/${participant.id}/addon`);
+    }
+
     return (
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 p-6 text-white">
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -87,7 +95,7 @@ export default function Tournaments({ tournamentCenter = {} }) {
                         <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.1'}</p>
                         <h1 className="mt-2 text-3xl font-black">Central de torneios</h1>
                         <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática e mesa final.
+                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada e add-on.
                         </p>
                     </div>
 
@@ -186,6 +194,21 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                     </div>
                                                 </div>
                                             )}
+                                            {tournament.reentryAddon && (
+                                                <div className="mt-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-xs text-cyan-50">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-cyan-100">Reentrada / Add-on</p>
+                                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2">
+                                                            <strong>Reentrada</strong><br />
+                                                            {tournament.reentryAddon.allowReentry ? `${formatChips(tournament.reentryAddon.reentryBuyIn)} · ${formatChips(tournament.reentryAddon.reentryStack)} fichas · máx. ${tournament.reentryAddon.maxReentriesPerPlayer}` : 'Desativada'}
+                                                        </span>
+                                                        <span className="rounded-xl bg-slate-950/35 px-3 py-2">
+                                                            <strong>Add-on</strong><br />
+                                                            {tournament.reentryAddon.addonEnabled ? `${formatChips(tournament.reentryAddon.addonBuyIn)} · +${formatChips(tournament.reentryAddon.addonStack)} fichas · até nível ${tournament.reentryAddon.addonAvailableUntilBlindLevel}` : 'Desativado'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {tournament.finalTable?.enabled && (
                                                 <div className="mt-3 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/10 p-3 text-xs text-fuchsia-50">
                                                     <p className="font-black uppercase tracking-[0.18em] text-fuchsia-100">Mesa final</p>
@@ -266,6 +289,16 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                 {tournament.participants.map((participant) => (
                                                     <span key={participant.id} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-bold text-slate-200">
                                                         <span>{participant.finishPosition ? `${participant.finishPosition}º · ` : ''}{participant.name} · {participant.statusLabel ?? participant.status} · {formatChips(participant.stack)} fichas{participant.prizeAmount > 0 ? ` · prêmio ${formatChips(participant.prizeAmount)}` : ''}</span>
+                                                        {participant.canAddon && (
+                                                            <button type="button" onClick={() => addonParticipant(tournament, participant)} className="rounded-full bg-cyan-400/20 px-2 py-1 text-[10px] font-black text-cyan-100 hover:bg-cyan-400/30">
+                                                                Add-on
+                                                            </button>
+                                                        )}
+                                                        {participant.canReenter && (
+                                                            <button type="button" onClick={() => reenterParticipant(tournament, participant)} className="rounded-full bg-indigo-400/20 px-2 py-1 text-[10px] font-black text-indigo-100 hover:bg-indigo-400/30">
+                                                                Reentrada
+                                                            </button>
+                                                        )}
                                                         {tournament.status === 'running' && participant.status === 'active' && (
                                                             <button type="button" onClick={() => eliminateParticipant(tournament, participant)} className="rounded-full bg-red-400/20 px-2 py-1 text-[10px] font-black text-red-100 hover:bg-red-400/30">
                                                                 Eliminar
@@ -301,7 +334,7 @@ export default function Tournaments({ tournamentCenter = {} }) {
                         <input id="tournament-max-players" type="number" min="2" max="200" value={maxPlayers} onChange={(event) => setMaxPlayers(event.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-violet-300" />
 
                         <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-                            Blinds padrão: {formatChips(defaults.smallBlind ?? 25)} / {formatChips(defaults.bigBlind ?? 50)} · níveis de {defaults.blindLevelMinutes ?? 10} min · payout padrão 70/20/10 · mesa final até {defaults.finalTableMaxPlayers ?? 9} jogadores
+                            Blinds padrão: {formatChips(defaults.smallBlind ?? 25)} / {formatChips(defaults.bigBlind ?? 50)} · níveis de {defaults.blindLevelMinutes ?? 10} min · payout padrão 70/20/10 · mesa final até {defaults.finalTableMaxPlayers ?? 9} jogadores · reentrada máx. {defaults.maxReentriesPerPlayer ?? 1}x · add-on até nível {defaults.addonAvailableUntilBlindLevel ?? 3}
                         </div>
 
                         <button type="submit" className="mt-5 w-full rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-violet-100">

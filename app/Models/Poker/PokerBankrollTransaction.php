@@ -17,6 +17,8 @@ final class PokerBankrollTransaction extends Model
     public const TYPE_STACK_RETURN = 'stack_return';
     public const TYPE_TOURNAMENT_BUY_IN = 'tournament_buy_in';
     public const TYPE_TOURNAMENT_PAYOUT = 'tournament_payout';
+    public const TYPE_TOURNAMENT_REENTRY = 'tournament_reentry';
+    public const TYPE_TOURNAMENT_ADDON = 'tournament_addon';
 
     protected $fillable = [
         'user_id',

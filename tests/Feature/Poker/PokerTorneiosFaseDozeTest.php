@@ -20,7 +20,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.6')
+                ->where('tournamentCenter.phase', '12.12.7')
                 ->where('tournamentCenter.summary.total', 0)
                 ->where('tournamentCenter.defaults.buyIn', 1000)
                 ->where('tournamentCenter.defaults.smallBlind', 25)
@@ -391,7 +391,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.6')
+                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.7')
                 ->where('tournamentCenter.tournaments.0.blindStructure.currentLevel', 2)
                 ->where('tournamentCenter.tournaments.0.blindStructure.smallBlind', 50)
                 ->where('tournamentCenter.tournaments.0.blindStructure.bigBlind', 100)
@@ -488,11 +488,114 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.6')
+                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.7')
                 ->where('tournamentCenter.tournaments.0.finalTable.enabled', true)
                 ->where('tournamentCenter.tournaments.0.finalTable.maxPlayers', 9)
                 ->has('tournamentCenter.tournaments.0.finalTable.seatMap', 4)
                 ->where('tournamentCenter.tournaments.0.canPrepareFinalTable', false)
+            );
+    }
+
+
+    public function test_reentrada_reativa_jogador_eliminado_e_incrementa_prize_pool(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(3, 1000);
+        app(\App\Services\Poker\PokerTournamentService::class)->start($tournament);
+
+        /** @var PokerTournamentParticipant $participant */
+        $participant = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        app(\App\Services\Poker\PokerTournamentService::class)->eliminate($tournament->fresh(), $participant);
+
+        $this->actingAs($participant->user)
+            ->post(route('poker.tournaments.participants.reentry', [$tournament->fresh(), $participant->fresh()]))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('poker_tournament_participants', [
+            'id' => $participant->id,
+            'status' => PokerTournamentParticipant::STATUS_ACTIVE,
+            'current_stack' => 5000,
+            'finish_position' => null,
+            'reentries_count' => 1,
+        ]);
+
+        $this->assertDatabaseHas('poker_tournaments', [
+            'id' => $tournament->id,
+            'prize_pool' => 4000,
+        ]);
+
+        $this->assertDatabaseHas('poker_bankroll_transactions', [
+            'user_id' => $participant->user_id,
+            'type' => PokerBankrollTransaction::TYPE_TOURNAMENT_REENTRY,
+            'amount' => -1000,
+        ]);
+    }
+
+    public function test_addon_aumenta_stack_do_jogador_ativo_uma_unica_vez(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(2, 1000);
+        app(\App\Services\Poker\PokerTournamentService::class)->start($tournament);
+
+        /** @var PokerTournamentParticipant $participant */
+        $participant = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->actingAs($participant->user)
+            ->post(route('poker.tournaments.participants.addon', [$tournament->fresh(), $participant]))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('poker_tournament_participants', [
+            'id' => $participant->id,
+            'status' => PokerTournamentParticipant::STATUS_ACTIVE,
+            'current_stack' => 7500,
+            'addons_count' => 1,
+        ]);
+
+        $this->assertDatabaseHas('poker_tournaments', [
+            'id' => $tournament->id,
+            'prize_pool' => 3000,
+        ]);
+
+        $this->assertDatabaseHas('poker_bankroll_transactions', [
+            'user_id' => $participant->user_id,
+            'type' => PokerBankrollTransaction::TYPE_TOURNAMENT_ADDON,
+            'amount' => -1000,
+        ]);
+    }
+
+    public function test_central_exibe_controles_de_reentrada_e_addon(): void
+    {
+        $tournament = $this->createTournamentWithParticipants(3, 1000);
+        app(\App\Services\Poker\PokerTournamentService::class)->start($tournament);
+
+        /** @var PokerTournamentParticipant $activeParticipant */
+        $activeParticipant = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->where('status', PokerTournamentParticipant::STATUS_ACTIVE)
+            ->firstOrFail();
+
+        /** @var PokerTournamentParticipant $eliminatedParticipant */
+        $eliminatedParticipant = PokerTournamentParticipant::query()
+            ->where('poker_tournament_id', $tournament->id)
+            ->where('id', '!=', $activeParticipant->id)
+            ->firstOrFail();
+
+        app(\App\Services\Poker\PokerTournamentService::class)->eliminate($tournament->fresh(), $eliminatedParticipant);
+
+        $this->get(route('poker.tournaments.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Poker/Tournaments')
+                ->where('tournamentCenter.phase', '12.12.7')
+                ->where('tournamentCenter.tournaments.0.reentryAddon.phase', '12.12.7')
+                ->where('tournamentCenter.tournaments.0.reentryAddon.allowReentry', true)
+                ->where('tournamentCenter.tournaments.0.reentryAddon.addonEnabled', true)
+                ->where('tournamentCenter.tournaments.0.participants.0.canReenter', true)
             );
     }
 

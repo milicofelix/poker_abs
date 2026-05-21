@@ -33,6 +33,8 @@ use App\Http\Controllers\Poker\PokerTournamentEliminationController;
 use App\Http\Controllers\Poker\PokerTournamentBotRegistrationController;
 use App\Http\Controllers\Poker\PokerTournamentBlindLevelController;
 use App\Http\Controllers\Poker\PokerTournamentFinalTableController;
+use App\Http\Controllers\Poker\PokerTournamentReentryController;
+use App\Http\Controllers\Poker\PokerTournamentAddonController;
 
 Route::get('/', fn () => redirect()->route('poker.play'));
 
@@ -82,5 +84,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/poker/tournaments/{tournament}/bots', PokerTournamentBotRegistrationController::class)->name('poker.tournaments.bots');
     Route::post('/poker/tournaments/{tournament}/blind-level', PokerTournamentBlindLevelController::class)->name('poker.tournaments.blind-level');
     Route::post('/poker/tournaments/{tournament}/final-table', PokerTournamentFinalTableController::class)->name('poker.tournaments.final-table');
+    Route::post('/poker/tournaments/{tournament}/participants/{participant}/reentry', PokerTournamentReentryController::class)->name('poker.tournaments.participants.reentry');
+    Route::post('/poker/tournaments/{tournament}/participants/{participant}/addon', PokerTournamentAddonController::class)->name('poker.tournaments.participants.addon');
     Route::post('/poker/tournaments/{tournament}/participants/{participant}/eliminate', PokerTournamentEliminationController::class)->name('poker.tournaments.participants.eliminate');
 });

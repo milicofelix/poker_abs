@@ -25,7 +25,7 @@ final class PokerTournamentService
             ->all();
 
         return [
-            'phase' => '12.12.6',
+            'phase' => '12.12.7',
             'summary' => [
                 'total' => count($tournaments),
                 'registering' => collect($tournaments)->where('status', PokerTournament::STATUS_REGISTERING)->count(),
@@ -41,6 +41,8 @@ final class PokerTournamentService
                 'blindLevelMinutes' => PokerTournament::DEFAULT_BLIND_LEVEL_MINUTES,
                 'payoutStructure' => PokerTournament::DEFAULT_PAYOUT_STRUCTURE,
                 'finalTableMaxPlayers' => PokerTournament::FINAL_TABLE_MAX_PLAYERS,
+                'maxReentriesPerPlayer' => PokerTournament::DEFAULT_MAX_REENTRIES_PER_PLAYER,
+                'addonAvailableUntilBlindLevel' => PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL,
             ],
             'tournaments' => $tournaments,
         ];
@@ -63,6 +65,14 @@ final class PokerTournamentService
             'paid_places_count' => count($data['payout_structure'] ?? PokerTournament::DEFAULT_PAYOUT_STRUCTURE),
             'starts_at' => $data['starts_at'] ?? null,
             'is_final_table' => false,
+            'allow_reentry' => (bool) ($data['allow_reentry'] ?? true),
+            'max_reentries_per_player' => (int) ($data['max_reentries_per_player'] ?? PokerTournament::DEFAULT_MAX_REENTRIES_PER_PLAYER),
+            'reentry_buy_in' => (int) ($data['reentry_buy_in'] ?? ($data['buy_in'] ?? PokerTournament::DEFAULT_BUY_IN)),
+            'reentry_stack' => (int) ($data['reentry_stack'] ?? ($data['starting_stack'] ?? PokerTournament::DEFAULT_STARTING_STACK)),
+            'addon_enabled' => (bool) ($data['addon_enabled'] ?? true),
+            'addon_buy_in' => (int) ($data['addon_buy_in'] ?? ($data['buy_in'] ?? PokerTournament::DEFAULT_BUY_IN)),
+            'addon_stack' => (int) ($data['addon_stack'] ?? max(1, (int) floor(((int) ($data['starting_stack'] ?? PokerTournament::DEFAULT_STARTING_STACK)) * PokerTournament::DEFAULT_ADDON_STACK_RATIO))),
+            'addon_available_until_blind_level' => (int) ($data['addon_available_until_blind_level'] ?? PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL),
         ]);
     }
 
@@ -110,6 +120,8 @@ final class PokerTournamentService
                 'starting_stack' => (int) $lockedTournament->starting_stack,
                 'current_stack' => (int) $lockedTournament->starting_stack,
                 'registered_at' => now(),
+                'reentries_count' => 0,
+                'addons_count' => 0,
             ]);
 
             $lockedTournament->forceFill([
@@ -124,7 +136,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.1',
+                    'phase' => '12.12.7',
                     'reason' => 'Inscrição em torneio de poker.',
                     'poker_tournament_id' => $lockedTournament->id,
                     'tournament_name' => $lockedTournament->name,
@@ -200,6 +212,171 @@ final class PokerTournamentService
             $this->prepareFinalTableIfEligible($lockedTournament);
 
             return $lockedTournament->fresh(['participants.user']);
+        });
+    }
+
+
+    public function reenter(PokerTournament $tournament, PokerTournamentParticipant $participant): PokerTournamentParticipant
+    {
+        return DB::transaction(function () use ($tournament, $participant): PokerTournamentParticipant {
+            /** @var PokerTournament $lockedTournament */
+            $lockedTournament = PokerTournament::query()
+                ->whereKey($tournament->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedTournament->status !== PokerTournament::STATUS_RUNNING) {
+                throw new DomainException('Reentrada só pode ser registrada com o torneio em andamento.');
+            }
+
+            if (! (bool) $lockedTournament->allow_reentry) {
+                throw new DomainException('Este torneio não permite reentrada.');
+            }
+
+            /** @var PokerTournamentParticipant $lockedParticipant */
+            $lockedParticipant = PokerTournamentParticipant::query()
+                ->where('poker_tournament_id', $lockedTournament->id)
+                ->whereKey($participant->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedParticipant->status !== PokerTournamentParticipant::STATUS_ELIMINATED) {
+                throw new DomainException('Reentrada só pode ser usada por jogador eliminado.');
+            }
+
+            $maxReentries = max(0, (int) $lockedTournament->max_reentries_per_player);
+
+            if ((int) $lockedParticipant->reentries_count >= $maxReentries) {
+                throw new DomainException('Limite de reentradas atingido para este jogador.');
+            }
+
+            $buyIn = (int) ($lockedTournament->reentry_buy_in ?: $lockedTournament->buy_in);
+            $stack = (int) ($lockedTournament->reentry_stack ?: $lockedTournament->starting_stack);
+
+            /** @var User $user */
+            $user = User::query()->whereKey($lockedParticipant->user_id)->lockForUpdate()->firstOrFail();
+
+            if ((int) $user->poker_bankroll < $buyIn) {
+                throw new DomainException('Bankroll insuficiente para pagar a reentrada.');
+            }
+
+            $balanceBefore = (int) $user->poker_bankroll;
+            $balanceAfter = $balanceBefore - $buyIn;
+
+            $user->forceFill(['poker_bankroll' => $balanceAfter])->save();
+
+            $lockedParticipant->forceFill([
+                'status' => PokerTournamentParticipant::STATUS_ACTIVE,
+                'current_stack' => $stack,
+                'finish_position' => null,
+                'eliminated_at' => null,
+                'reentered_at' => now(),
+                'reentries_count' => (int) $lockedParticipant->reentries_count + 1,
+            ])->save();
+
+            $lockedTournament->forceFill([
+                'prize_pool' => (int) $lockedTournament->prize_pool + $buyIn,
+            ])->save();
+
+            PokerBankrollTransaction::query()->create([
+                'user_id' => $user->id,
+                'type' => PokerBankrollTransaction::TYPE_TOURNAMENT_REENTRY,
+                'amount' => -$buyIn,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'metadata' => [
+                    'phase' => '12.12.7',
+                    'reason' => 'Reentrada em torneio de poker.',
+                    'poker_tournament_id' => $lockedTournament->id,
+                    'poker_tournament_participant_id' => $lockedParticipant->id,
+                    'stack_received' => $stack,
+                    'reentries_count' => (int) $lockedParticipant->reentries_count,
+                ],
+            ]);
+
+            return $lockedParticipant->fresh(['tournament', 'user']);
+        });
+    }
+
+    public function addOn(PokerTournament $tournament, PokerTournamentParticipant $participant): PokerTournamentParticipant
+    {
+        return DB::transaction(function () use ($tournament, $participant): PokerTournamentParticipant {
+            /** @var PokerTournament $lockedTournament */
+            $lockedTournament = PokerTournament::query()
+                ->whereKey($tournament->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedTournament->status !== PokerTournament::STATUS_RUNNING) {
+                throw new DomainException('Add-on só pode ser registrado com o torneio em andamento.');
+            }
+
+            if (! (bool) $lockedTournament->addon_enabled) {
+                throw new DomainException('Este torneio não permite add-on.');
+            }
+
+            $limitLevel = (int) ($lockedTournament->addon_available_until_blind_level ?: PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL);
+
+            if ((int) $lockedTournament->current_blind_level > $limitLevel) {
+                throw new DomainException('A janela de add-on já foi encerrada.');
+            }
+
+            /** @var PokerTournamentParticipant $lockedParticipant */
+            $lockedParticipant = PokerTournamentParticipant::query()
+                ->where('poker_tournament_id', $lockedTournament->id)
+                ->whereKey($participant->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedParticipant->status !== PokerTournamentParticipant::STATUS_ACTIVE) {
+                throw new DomainException('Add-on só pode ser usado por jogador ativo.');
+            }
+
+            if ((int) $lockedParticipant->addons_count >= 1) {
+                throw new DomainException('Este jogador já usou o add-on neste torneio.');
+            }
+
+            $buyIn = (int) ($lockedTournament->addon_buy_in ?: $lockedTournament->buy_in);
+            $stack = (int) ($lockedTournament->addon_stack ?: max(1, (int) floor((int) $lockedTournament->starting_stack * PokerTournament::DEFAULT_ADDON_STACK_RATIO)));
+
+            /** @var User $user */
+            $user = User::query()->whereKey($lockedParticipant->user_id)->lockForUpdate()->firstOrFail();
+
+            if ((int) $user->poker_bankroll < $buyIn) {
+                throw new DomainException('Bankroll insuficiente para pagar o add-on.');
+            }
+
+            $balanceBefore = (int) $user->poker_bankroll;
+            $balanceAfter = $balanceBefore - $buyIn;
+
+            $user->forceFill(['poker_bankroll' => $balanceAfter])->save();
+
+            $lockedParticipant->forceFill([
+                'current_stack' => (int) $lockedParticipant->current_stack + $stack,
+                'addons_count' => (int) $lockedParticipant->addons_count + 1,
+                'addon_taken_at' => now(),
+            ])->save();
+
+            $lockedTournament->forceFill([
+                'prize_pool' => (int) $lockedTournament->prize_pool + $buyIn,
+            ])->save();
+
+            PokerBankrollTransaction::query()->create([
+                'user_id' => $user->id,
+                'type' => PokerBankrollTransaction::TYPE_TOURNAMENT_ADDON,
+                'amount' => -$buyIn,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'metadata' => [
+                    'phase' => '12.12.7',
+                    'reason' => 'Add-on em torneio de poker.',
+                    'poker_tournament_id' => $lockedTournament->id,
+                    'poker_tournament_participant_id' => $lockedParticipant->id,
+                    'stack_received' => $stack,
+                ],
+            ]);
+
+            return $lockedParticipant->fresh(['tournament', 'user']);
         });
     }
 
@@ -453,7 +630,7 @@ final class PokerTournamentService
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
                 'metadata' => [
-                    'phase' => '12.12.6',
+                    'phase' => '12.12.7',
                     'reason' => 'Premiação de torneio de poker.',
                     'poker_tournament_id' => $tournament->id,
                     'tournament_name' => $tournament->name,
@@ -516,7 +693,7 @@ final class PokerTournamentService
                 $participant->finish_position ?? 999,
                 $participant->registered_at?->timestamp ?? 0,
             ])
-            ->map(static fn (PokerTournamentParticipant $participant): array => [
+            ->map(fn (PokerTournamentParticipant $participant): array => [
                 'id' => $participant->id,
                 'userId' => $participant->user_id,
                 'name' => $participant->user?->name ?? 'Jogador',
@@ -531,8 +708,21 @@ final class PokerTournamentService
                 'stack' => (int) $participant->current_stack,
                 'finishPosition' => $participant->finish_position,
                 'prizeAmount' => (int) $participant->prize_amount,
+                'reentriesCount' => (int) $participant->reentries_count,
+                'addonsCount' => (int) $participant->addons_count,
+                'reenteredAt' => $participant->reentered_at?->format('d/m/Y H:i'),
+                'addonTakenAt' => $participant->addon_taken_at?->format('d/m/Y H:i'),
                 'registeredAt' => $participant->registered_at?->format('d/m/Y H:i'),
                 'eliminatedAt' => $participant->eliminated_at?->format('d/m/Y H:i'),
+                'canReenter' => $tournament->status === PokerTournament::STATUS_RUNNING
+                    && (bool) $tournament->allow_reentry
+                    && $participant->status === PokerTournamentParticipant::STATUS_ELIMINATED
+                    && (int) $participant->reentries_count < max(0, (int) $tournament->max_reentries_per_player),
+                'canAddon' => $tournament->status === PokerTournament::STATUS_RUNNING
+                    && (bool) $tournament->addon_enabled
+                    && $participant->status === PokerTournamentParticipant::STATUS_ACTIVE
+                    && (int) $participant->addons_count < 1
+                    && (int) $tournament->current_blind_level <= (int) ($tournament->addon_available_until_blind_level ?: PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL),
             ])
             ->values()
             ->all();
@@ -550,7 +740,7 @@ final class PokerTournamentService
             'startingStack' => (int) $tournament->starting_stack,
             'maxPlayers' => (int) $tournament->max_players,
             'blindStructure' => [
-                'phase' => '12.12.6',
+                'phase' => '12.12.7',
                 'currentLevel' => max(1, (int) $tournament->current_blind_level),
                 'smallBlind' => max(1, (int) $tournament->small_blind),
                 'bigBlind' => max(2, (int) $tournament->big_blind),
@@ -563,8 +753,19 @@ final class PokerTournamentService
             'prizePool' => (int) $tournament->prize_pool,
             'payoutPlan' => $this->payoutPlanFor($tournament, max(1, count($participants))),
             'paidPlacesCount' => max(1, min(count($participants) ?: (int) $tournament->max_players, count($tournament->payout_structure ?: PokerTournament::DEFAULT_PAYOUT_STRUCTURE))),
+            'reentryAddon' => [
+                'phase' => '12.12.7',
+                'allowReentry' => (bool) $tournament->allow_reentry,
+                'maxReentriesPerPlayer' => (int) $tournament->max_reentries_per_player,
+                'reentryBuyIn' => (int) ($tournament->reentry_buy_in ?: $tournament->buy_in),
+                'reentryStack' => (int) ($tournament->reentry_stack ?: $tournament->starting_stack),
+                'addonEnabled' => (bool) $tournament->addon_enabled,
+                'addonBuyIn' => (int) ($tournament->addon_buy_in ?: $tournament->buy_in),
+                'addonStack' => (int) ($tournament->addon_stack ?: max(1, (int) floor((int) $tournament->starting_stack * PokerTournament::DEFAULT_ADDON_STACK_RATIO))),
+                'addonAvailableUntilBlindLevel' => (int) ($tournament->addon_available_until_blind_level ?: PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL),
+            ],
             'finalTable' => [
-                'phase' => '12.12.6',
+                'phase' => '12.12.7',
                 'enabled' => (bool) $tournament->is_final_table,
                 'maxPlayers' => PokerTournament::FINAL_TABLE_MAX_PLAYERS,
                 'startedAt' => $tournament->final_table_started_at?->format('d/m/Y H:i'),
