@@ -11,10 +11,10 @@ use Inertia\Response;
 
 final class PokerPlayerProfileController extends Controller
 {
-    public function show(User $user, PokerPlayerProfileService $profile): Response
+    public function show(User $user, Request $request, PokerPlayerProfileService $profile): Response
     {
         return Inertia::render('Poker/Profile', [
-            'profile' => $profile->profile($user),
+            'profile' => $profile->profile($user, (string) $request->query('advanced_period', '30d')),
         ]);
     }
 
@@ -24,7 +24,7 @@ final class PokerPlayerProfileController extends Controller
         $user = $request->user();
 
         return Inertia::render('Poker/Profile', [
-            'profile' => $profile->profile($user),
+            'profile' => $profile->profile($user, (string) $request->query('advanced_period', '30d')),
         ]);
     }
 }

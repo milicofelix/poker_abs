@@ -7,12 +7,16 @@ use App\Models\User;
 
 final class PokerPlayerProfileService
 {
+    public function __construct(private readonly PokerPlayerAdvancedStatisticsService $advancedStatistics)
+    {
+    }
+
     /**
      * FASE 12.9 — perfil público/financeiro do jogador.
      *
      * @return array<string, mixed>
      */
-    public function profile(User $user): array
+    public function profile(User $user, string $advancedPeriod = '30d'): array
     {
         $freshUser = $user->fresh() ?? $user;
         $stats = $this->statsFor($freshUser);
@@ -30,6 +34,7 @@ final class PokerPlayerProfileService
             'stats' => $stats,
             'recentTransactions' => $this->recentTransactions($freshUser),
             'recentHands' => $this->recentHands($freshUser),
+            'advancedStatistics' => $this->advancedStatistics->calculate($freshUser, $advancedPeriod),
         ];
     }
 
