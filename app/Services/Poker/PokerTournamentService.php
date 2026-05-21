@@ -25,13 +25,14 @@ final class PokerTournamentService
             ->all();
 
         return [
-            'phase' => '12.12.7',
+            'phase' => '12.12.8',
             'summary' => [
                 'total' => count($tournaments),
                 'registering' => collect($tournaments)->where('status', PokerTournament::STATUS_REGISTERING)->count(),
                 'running' => collect($tournaments)->where('status', PokerTournament::STATUS_RUNNING)->count(),
                 'finished' => collect($tournaments)->where('status', PokerTournament::STATUS_FINISHED)->count(),
             ],
+            'lobby' => $this->lobbyPayloadFor($tournaments),
             'defaults' => [
                 'buyIn' => PokerTournament::DEFAULT_BUY_IN,
                 'startingStack' => PokerTournament::DEFAULT_STARTING_STACK,
@@ -740,7 +741,7 @@ final class PokerTournamentService
             'startingStack' => (int) $tournament->starting_stack,
             'maxPlayers' => (int) $tournament->max_players,
             'blindStructure' => [
-                'phase' => '12.12.7',
+                'phase' => '12.12.8',
                 'currentLevel' => max(1, (int) $tournament->current_blind_level),
                 'smallBlind' => max(1, (int) $tournament->small_blind),
                 'bigBlind' => max(2, (int) $tournament->big_blind),
@@ -754,7 +755,7 @@ final class PokerTournamentService
             'payoutPlan' => $this->payoutPlanFor($tournament, max(1, count($participants))),
             'paidPlacesCount' => max(1, min(count($participants) ?: (int) $tournament->max_players, count($tournament->payout_structure ?: PokerTournament::DEFAULT_PAYOUT_STRUCTURE))),
             'reentryAddon' => [
-                'phase' => '12.12.7',
+                'phase' => '12.12.8',
                 'allowReentry' => (bool) $tournament->allow_reentry,
                 'maxReentriesPerPlayer' => (int) $tournament->max_reentries_per_player,
                 'reentryBuyIn' => (int) ($tournament->reentry_buy_in ?: $tournament->buy_in),
@@ -765,12 +766,13 @@ final class PokerTournamentService
                 'addonAvailableUntilBlindLevel' => (int) ($tournament->addon_available_until_blind_level ?: PokerTournament::DEFAULT_ADDON_AVAILABLE_UNTIL_BLIND_LEVEL),
             ],
             'finalTable' => [
-                'phase' => '12.12.7',
+                'phase' => '12.12.8',
                 'enabled' => (bool) $tournament->is_final_table,
                 'maxPlayers' => PokerTournament::FINAL_TABLE_MAX_PLAYERS,
                 'startedAt' => $tournament->final_table_started_at?->format('d/m/Y H:i'),
                 'seatMap' => $tournament->final_table_seat_map ?: [],
             ],
+            'lobbySummary' => $this->tournamentLobbySummaryFor($tournament, $participants),
             'startsAt' => $tournament->starts_at?->format('d/m/Y H:i'),
             'startedAt' => $tournament->started_at?->format('d/m/Y H:i'),
             'finishedAt' => $tournament->finished_at?->format('d/m/Y H:i'),
@@ -791,6 +793,68 @@ final class PokerTournamentService
                 ->filter(static fn (array $participant): bool => $participant['finishPosition'] !== null || $participant['status'] === PokerTournamentParticipant::STATUS_ACTIVE)
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tournaments
+     * @return array<string, mixed>
+     */
+    private function lobbyPayloadFor(array $tournaments): array
+    {
+        $collection = collect($tournaments);
+        $nextToStart = $collection
+            ->where('status', PokerTournament::STATUS_REGISTERING)
+            ->sortByDesc(static fn (array $tournament): int => (int) ($tournament['lobbySummary']['occupancyPercent'] ?? 0))
+            ->first();
+
+        return [
+            'phase' => '12.12.8',
+            'title' => 'Lobby avançado de torneios',
+            'nextToStart' => $nextToStart ? [
+                'id' => $nextToStart['id'],
+                'name' => $nextToStart['name'],
+                'playersNeeded' => $nextToStart['lobbySummary']['playersNeededToStart'] ?? 0,
+                'occupancyPercent' => $nextToStart['lobbySummary']['occupancyPercent'] ?? 0,
+            ] : null,
+            'quickFilters' => [
+                ['value' => 'all', 'label' => 'Todos', 'count' => $collection->count()],
+                ['value' => PokerTournament::STATUS_REGISTERING, 'label' => 'Abertos', 'count' => $collection->where('status', PokerTournament::STATUS_REGISTERING)->count()],
+                ['value' => PokerTournament::STATUS_RUNNING, 'label' => 'Em andamento', 'count' => $collection->where('status', PokerTournament::STATUS_RUNNING)->count()],
+                ['value' => PokerTournament::STATUS_FINISHED, 'label' => 'Finalizados', 'count' => $collection->where('status', PokerTournament::STATUS_FINISHED)->count()],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $participants
+     * @return array<string, mixed>
+     */
+    private function tournamentLobbySummaryFor(PokerTournament $tournament, array $participants): array
+    {
+        $registeredPlayers = count($participants);
+        $maxPlayers = max(1, (int) $tournament->max_players);
+        $activePlayers = collect($participants)->where('status', PokerTournamentParticipant::STATUS_ACTIVE)->count();
+        $elapsedMinutes = null;
+
+        if ($tournament->started_at !== null) {
+            $end = $tournament->finished_at ?? now();
+            $elapsedMinutes = max(0, $tournament->started_at->diffInMinutes($end));
+        }
+
+        return [
+            'phase' => '12.12.8',
+            'occupancyPercent' => min(100, (int) round(($registeredPlayers / $maxPlayers) * 100)),
+            'availableSeats' => max(0, $maxPlayers - $registeredPlayers),
+            'playersNeededToStart' => $tournament->status === PokerTournament::STATUS_REGISTERING ? max(0, 2 - $registeredPlayers) : 0,
+            'activePlayers' => $activePlayers,
+            'elapsedMinutes' => $elapsedMinutes,
+            'headline' => match ($tournament->status) {
+                PokerTournament::STATUS_REGISTERING => $registeredPlayers >= 2 ? 'Pronto para iniciar' : 'Aguardando jogadores',
+                PokerTournament::STATUS_RUNNING => 'Torneio em andamento',
+                PokerTournament::STATUS_FINISHED => 'Torneio finalizado',
+                default => 'Status do torneio',
+            },
         ];
     }
 

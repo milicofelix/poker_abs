@@ -19,6 +19,13 @@ export default function Tournaments({ tournamentCenter = {} }) {
     const defaults = tournamentCenter.defaults ?? {};
     const tournaments = tournamentCenter.tournaments ?? [];
     const summary = tournamentCenter.summary ?? {};
+    const lobby = tournamentCenter.lobby ?? {};
+    const quickFilters = lobby.quickFilters ?? [
+        { value: 'all', label: 'Todos', count: summary.total ?? 0 },
+        { value: 'registering', label: 'Abertos', count: summary.registering ?? 0 },
+        { value: 'running', label: 'Em andamento', count: summary.running ?? 0 },
+        { value: 'finished', label: 'Finalizados', count: summary.finished ?? 0 },
+    ];
 
     const [name, setName] = useState('Torneio Sit & Go ABS');
     const [buyIn, setBuyIn] = useState(defaults.buyIn ?? 1000);
@@ -92,10 +99,10 @@ export default function Tournaments({ tournamentCenter = {} }) {
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.1'}</p>
+                        <p className="text-sm font-black uppercase tracking-[0.35em] text-violet-200">Poker ABS · FASE {tournamentCenter.phase ?? '12.12.8'}</p>
                         <h1 className="mt-2 text-3xl font-black">Central de torneios</h1>
                         <p className="mt-2 max-w-3xl text-sm text-slate-300">
-                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada e add-on.
+                            Torneios com inscrição, buy-in, ranking, eliminação manual, blinds progressivos, premiação automática, mesa final, reentrada, add-on e lobby avançado.
                         </p>
                     </div>
 
@@ -126,6 +133,31 @@ export default function Tournaments({ tournamentCenter = {} }) {
                     ))}
                 </section>
 
+                <section className="rounded-3xl border border-sky-300/20 bg-sky-300/10 p-5 shadow-2xl">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.25em] text-sky-100">{lobby.title ?? 'Lobby avançado de torneios'}</p>
+                            <h2 className="mt-1 text-xl font-black">Visão rápida do lobby</h2>
+                            <p className="mt-2 text-sm text-sky-50/80">
+                                Acompanhe quais torneios estão mais próximos de iniciar, ocupação, vagas e status operacional.
+                            </p>
+                        </div>
+                        {lobby.nextToStart ? (
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-sky-50">
+                                <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Próximo a iniciar</p>
+                                <strong className="mt-1 block text-lg text-white">{lobby.nextToStart.name}</strong>
+                                <span className="text-xs text-sky-100/80">
+                                    {lobby.nextToStart.occupancyPercent}% ocupado · faltam {lobby.nextToStart.playersNeeded} jogador(es)
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-sky-50">
+                                Nenhum torneio aberto no momento.
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
                     <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
                         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -135,19 +167,14 @@ export default function Tournaments({ tournamentCenter = {} }) {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                                {[
-                                    ['all', 'Todos'],
-                                    ['registering', 'Abertos'],
-                                    ['running', 'Em andamento'],
-                                    ['finished', 'Finalizados'],
-                                ].map(([value, label]) => (
+                                {quickFilters.map((filter) => (
                                     <button
-                                        key={value}
+                                        key={filter.value}
                                         type="button"
-                                        onClick={() => setStatusFilter(value)}
-                                        className={`rounded-full px-4 py-2 text-xs font-black transition ${statusFilter === value ? 'bg-violet-300 text-violet-950' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
+                                        onClick={() => setStatusFilter(filter.value)}
+                                        className={`rounded-full px-4 py-2 text-xs font-black transition ${statusFilter === filter.value ? 'bg-violet-300 text-violet-950' : 'bg-white/10 text-slate-200 hover:bg-white/20'}`}
                                     >
-                                        {label}
+                                        {filter.label} ({formatChips(filter.count)})
                                     </button>
                                 ))}
                             </div>
@@ -173,6 +200,14 @@ export default function Tournaments({ tournamentCenter = {} }) {
                                                 Inscritos: {formatChips(tournament.registeredPlayers)} / {formatChips(tournament.maxPlayers)}
                                                 {tournament.startsAt ? ` · Início previsto: ${tournament.startsAt}` : ''}
                                             </p>
+                                            {tournament.lobbySummary && (
+                                                <div className="mt-3 grid gap-2 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-3 text-xs text-sky-50 sm:grid-cols-4">
+                                                    <span><strong>Status do lobby</strong><br />{tournament.lobbySummary.headline}</span>
+                                                    <span><strong>Ocupação</strong><br />{tournament.lobbySummary.occupancyPercent}%</span>
+                                                    <span><strong>Vagas</strong><br />{formatChips(tournament.lobbySummary.availableSeats)}</span>
+                                                    <span><strong>Para iniciar</strong><br />{formatChips(tournament.lobbySummary.playersNeededToStart)} jogador(es)</span>
+                                                </div>
+                                            )}
                                             {tournament.blindStructure && (
                                                 <div className="mt-3 grid gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-50 sm:grid-cols-4">
                                                     <span><strong>Nível</strong><br />{tournament.blindStructure.currentLevel}</span>
@@ -318,7 +353,7 @@ export default function Tournaments({ tournamentCenter = {} }) {
                         <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-100">Criar torneio</p>
                         <h2 className="mt-1 text-xl font-black">Sit & Go básico</h2>
                         <p className="mt-2 text-sm text-violet-100/80">
-                            Nesta etapa, a criação deixa o torneio em inscrições abertas. Após iniciar, já é possível acompanhar e avançar níveis de blinds progressivos.
+                            Nesta etapa, a criação deixa o torneio em inscrições abertas. O lobby mostra ocupação, vagas, status, premiação, reentrada e add-on em tempo real.
                         </p>
 
                         <label className="mt-4 block text-sm font-bold text-slate-200" htmlFor="tournament-name">Nome</label>

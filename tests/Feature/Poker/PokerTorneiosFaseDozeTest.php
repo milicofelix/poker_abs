@@ -20,7 +20,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.7')
+                ->where('tournamentCenter.phase', '12.12.8')
                 ->where('tournamentCenter.summary.total', 0)
                 ->where('tournamentCenter.defaults.buyIn', 1000)
                 ->where('tournamentCenter.defaults.smallBlind', 25)
@@ -391,7 +391,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.7')
+                ->where('tournamentCenter.tournaments.0.blindStructure.phase', '12.12.8')
                 ->where('tournamentCenter.tournaments.0.blindStructure.currentLevel', 2)
                 ->where('tournamentCenter.tournaments.0.blindStructure.smallBlind', 50)
                 ->where('tournamentCenter.tournaments.0.blindStructure.bigBlind', 100)
@@ -488,7 +488,7 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.7')
+                ->where('tournamentCenter.tournaments.0.finalTable.phase', '12.12.8')
                 ->where('tournamentCenter.tournaments.0.finalTable.enabled', true)
                 ->where('tournamentCenter.tournaments.0.finalTable.maxPlayers', 9)
                 ->has('tournamentCenter.tournaments.0.finalTable.seatMap', 4)
@@ -591,11 +591,56 @@ final class PokerTorneiosFaseDozeTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Poker/Tournaments')
-                ->where('tournamentCenter.phase', '12.12.7')
-                ->where('tournamentCenter.tournaments.0.reentryAddon.phase', '12.12.7')
+                ->where('tournamentCenter.phase', '12.12.8')
+                ->where('tournamentCenter.tournaments.0.reentryAddon.phase', '12.12.8')
                 ->where('tournamentCenter.tournaments.0.reentryAddon.allowReentry', true)
                 ->where('tournamentCenter.tournaments.0.reentryAddon.addonEnabled', true)
                 ->where('tournamentCenter.tournaments.0.participants.0.canReenter', true)
+            );
+    }
+
+
+    public function test_lobby_avancado_exibe_ocupacao_vagas_e_proximo_torneio_para_iniciar(): void
+    {
+        $tournament = PokerTournament::query()->create([
+            'name' => 'Lobby Avançado ABS',
+            'status' => PokerTournament::STATUS_REGISTERING,
+            'buy_in' => 1000,
+            'starting_stack' => 5000,
+            'max_players' => 4,
+            'registered_players_count' => 2,
+            'prize_pool' => 2000,
+        ]);
+
+        for ($index = 1; $index <= 2; $index++) {
+            $user = User::factory()->create([
+                'name' => 'Jogador Lobby '.$index,
+                'poker_bankroll' => 10000,
+            ]);
+
+            PokerTournamentParticipant::query()->create([
+                'poker_tournament_id' => $tournament->id,
+                'user_id' => $user->id,
+                'status' => PokerTournamentParticipant::STATUS_REGISTERED,
+                'starting_stack' => 5000,
+                'current_stack' => 5000,
+                'registered_at' => now()->subMinutes($index),
+            ]);
+        }
+
+        $this->get(route('poker.tournaments.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Poker/Tournaments')
+                ->where('tournamentCenter.phase', '12.12.8')
+                ->where('tournamentCenter.lobby.phase', '12.12.8')
+                ->where('tournamentCenter.lobby.nextToStart.name', 'Lobby Avançado ABS')
+                ->where('tournamentCenter.lobby.nextToStart.occupancyPercent', 50)
+                ->where('tournamentCenter.tournaments.0.lobbySummary.phase', '12.12.8')
+                ->where('tournamentCenter.tournaments.0.lobbySummary.occupancyPercent', 50)
+                ->where('tournamentCenter.tournaments.0.lobbySummary.availableSeats', 2)
+                ->where('tournamentCenter.tournaments.0.lobbySummary.playersNeededToStart', 0)
+                ->where('tournamentCenter.tournaments.0.lobbySummary.headline', 'Pronto para iniciar')
             );
     }
 
