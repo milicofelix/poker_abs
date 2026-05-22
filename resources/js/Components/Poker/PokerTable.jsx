@@ -11,10 +11,15 @@ function visibleCommunityCards(state) {
         showdown: 5,
     };
 
-    const amount = amountByStreet[state.street] ?? 0;
+    const players = Array.isArray(state?.multiSeat?.players) ? state.multiSeat.players : [];
+    const hasAllInPlayer = players.some((player) => Boolean(player?.isAllIn) || Number(player?.stack ?? 0) <= 0);
+    const shouldRevealFinishedBoard = Boolean(state?.isFinished)
+        && (state?.street === 'showdown' || Boolean(state?.multiSeat?.allInRunoutCompleted) || hasAllInPlayer);
+
+    const amount = shouldRevealFinishedBoard ? 5 : (amountByStreet[state?.street] ?? 0);
 
     return {
-        visible: (state.communityCards ?? []).slice(0, amount),
+        visible: (state?.communityCards ?? []).slice(0, amount),
         hiddenCount: Math.max(0, 5 - amount),
     };
 }
@@ -145,14 +150,8 @@ function seatBadgeClasses(state, seat) {
 }
 
 
-function isTournamentRuntime(state) {
-    return Boolean(state?.tournamentRuntime?.tournamentId ?? state?.tournamentRuntime?.id);
-}
-
 function isMultiSeatLayout(state) {
-    const players = Array.isArray(state?.multiSeat?.players) ? state.multiSeat.players : [];
-
-    return Boolean(state?.multiSeat?.enabled) && players.length >= 2 && (players.length > 2 || isTournamentRuntime(state));
+    return Boolean(state?.multiSeat?.enabled) && Array.isArray(state?.multiSeat?.players) && state.multiSeat.players.length > 2;
 }
 
 function multiSeatPlayers(state) {
@@ -208,84 +207,6 @@ function multiSeatPositionBadges(player, state) {
     ].filter((badge) => badge.active);
 }
 
-function normalizeActionLabel(action) {
-    const label = String(action?.label ?? action?.action ?? action?.type ?? '').toLowerCase();
-
-    if (label.includes('raise') || label.includes('aument')) {
-        return 'Raise';
-    }
-
-    if (label.includes('call') || label.includes('pag')) {
-        return 'Call';
-    }
-
-    if (label.includes('check') || label.includes('mesa')) {
-        return 'Check';
-    }
-
-    if (label.includes('fold') || label.includes('desist')) {
-        return 'Fold';
-    }
-
-    return action?.label ?? action?.action ?? action?.type ?? 'Aguardando';
-}
-
-function multiSeatLastActionForSeat(state, seatNumber) {
-    const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
-
-    return [...history]
-        .reverse()
-        .find((action) => Number(action?.seatNumber ?? 0) === Number(seatNumber)) ?? null;
-}
-
-function multiSeatLastActionText(state, player) {
-    const seatNumber = Number(player?.seatNumber ?? 0);
-    const lastAction = multiSeatLastActionForSeat(state, seatNumber);
-
-    if (!lastAction) {
-        if (Boolean(player?.isAllIn)) {
-            return 'All-in aguardando showdown';
-        }
-
-        return 'Aguardando ação';
-    }
-
-    const label = normalizeActionLabel(lastAction);
-    const amount = Number(lastAction?.amount ?? 0);
-
-    return amount > 0 ? `${label} ${amount}` : label;
-}
-
-function multiSeatPlayerStatusLabel(player) {
-    const stack = Number(player?.stack ?? 0);
-
-    if (Boolean(player?.hasFolded) || player?.status === 'folded') {
-        return 'Fold';
-    }
-
-    if (Boolean(player?.isAllIn) || player?.status === 'all_in') {
-        return 'All-in';
-    }
-
-    if (stack <= 0) {
-        return 'Sem fichas';
-    }
-
-    return 'Ativo';
-}
-
-function isTournamentSpectator(state, currentSeat, currentPlayer) {
-    if (!isTournamentRuntime(state)) {
-        return false;
-    }
-
-    if (!currentPlayer) {
-        return true;
-    }
-
-    return Number(currentPlayer?.stack ?? 0) <= 0 || Boolean(currentPlayer?.isEliminated);
-}
-
 function multiSeatBlindSummary(state) {
     const positions = multiSeatSeatPositionNumbers(state);
     const parts = [
@@ -318,22 +239,19 @@ function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed)
     return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
 }
 
-function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index, spectatorMode = false }) {
+function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index }) {
     const seatNumber = Number(player?.seatNumber ?? 0);
     const isCurrentUserSeat = seatNumber === currentUserSeat;
     const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
     const isWinner = isMultiSeatWinner(state, seatNumber);
     const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
     const cards = isCurrentUserSeat ? (state?.playerCards ?? []) : (player?.cards ?? []);
-    const shouldRevealCards = Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed) || (spectatorMode && Boolean(player?.isBot));
+    const shouldRevealCards = Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed);
     const visibleCards = shouldRevealCards ? cards : [];
     const hiddenCount = Math.max(0, (cards?.length || 2) - visibleCards.length);
     const displayName = isCurrentUserSeat ? 'Você' : (player?.nickname ?? player?.displayName ?? `Jogador ${seatNumber}`);
     const bestHand = isCurrentUserSeat ? state?.bestHand : player?.bestHand;
     const positionBadges = multiSeatPositionBadges(player, state);
-    const lastActionText = multiSeatLastActionText(state, player);
-    const statusLabel = multiSeatPlayerStatusLabel(player);
-    const committedAmount = Number(player?.handContribution ?? player?.totalCommitted ?? 0);
 
     return (
         <article
@@ -372,14 +290,6 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                     {isWinner && <span className="rounded-full border border-amber-100/70 bg-amber-300 px-2 py-0.5 text-amber-950">Vencedor</span>}
                     {hasFolded && <span className="rounded-full border border-slate-400/30 bg-slate-950/80 px-2 py-0.5 text-slate-200">Fold</span>}
                 </div>
-            </div>
-
-            <div className="mb-2 rounded-xl border border-cyan-200/20 bg-cyan-300/10 px-2 py-1.5 shadow-inner shadow-black/25">
-                <p className="text-[0.52rem] font-black uppercase tracking-[0.18em] text-cyan-100/70">Última ação</p>
-                <strong className="block truncate text-[0.72rem] font-black text-cyan-50">{lastActionText}</strong>
-                {committedAmount > 0 && (
-                    <span className="text-[0.58rem] font-bold text-cyan-100/65">Total colocado na mão: {committedAmount}</span>
-                )}
             </div>
 
             <button
@@ -421,7 +331,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
             <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[0.62rem] font-bold text-slate-200/85">
                 <span className="rounded-lg bg-black/30 px-2 py-1">Stack<br /><strong className="text-white">{player?.stack ?? 0}</strong></span>
                 <span className="rounded-lg bg-black/30 px-2 py-1">Aposta<br /><strong className="text-white">{player?.streetBet ?? 0}</strong></span>
-                <span className="rounded-lg bg-black/30 px-2 py-1">Status<br /><strong className="text-white">{statusLabel}</strong></span>
+                <span className="rounded-lg bg-black/30 px-2 py-1">Status<br /><strong className="text-white">{hasFolded ? 'Fold' : 'Ativo'}</strong></span>
             </div>
 
             {(state?.isFinished || isCurrentUserSeat) && bestHand?.name && (
@@ -439,8 +349,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
     const currentTurnSeat = multiSeatCurrentTurnSeat(state);
     const currentTurnPlayer = players.find((player) => Number(player.seatNumber ?? 0) === currentTurnSeat);
     const currentPlayer = players.find((player) => Number(player.seatNumber ?? 0) === currentSeat);
-    const spectatorMode = isTournamentSpectator(state, currentSeat, currentPlayer);
-    const opponents = spectatorMode ? players : players.filter((player) => Number(player.seatNumber ?? 0) !== currentSeat);
+    const opponents = players.filter((player) => Number(player.seatNumber ?? 0) !== currentSeat);
     const maxPlayers = Number(state?.multiSeat?.maxPlayers ?? state?.tableCapacity?.maxPlayers ?? players.length ?? 0);
 
     return (
@@ -454,11 +363,6 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                     <div className="text-left">
                         <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Mesa multi-seat</p>
                         <strong className="block text-lg font-black text-white">{players.length}/{maxPlayers} jogadores</strong>
-                        {spectatorMode && (
-                            <span className="mt-1 inline-flex rounded-full border border-amber-200/35 bg-amber-300/15 px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.16em] text-amber-100">
-                                Modo assistido do torneio
-                            </span>
-                        )}
                     </div>
 
                     <div className="rounded-full border border-amber-200/40 bg-amber-300/15 px-4 py-2 shadow-xl shadow-amber-950/25">
@@ -487,7 +391,6 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                 playerCardsRevealed={playerCardsRevealed}
                                 onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                 index={index}
-                                spectatorMode={spectatorMode}
                             />
                         ))}
                     </div>
@@ -506,7 +409,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                     </div>
 
                     <div className="mx-auto w-full max-w-4xl xl:self-end">
-                        {currentPlayer && !spectatorMode && (
+                        {currentPlayer && (
                             <MultiSeatPlayerSpot
                                 key={`current-${currentPlayer.seatNumber}`}
                                 player={currentPlayer}
@@ -516,18 +419,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                 playerCardsRevealed={playerCardsRevealed}
                                 onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                 index={8}
-                                spectatorMode={spectatorMode}
                             />
-                        )}
-
-                        {spectatorMode && (
-                            <div className="rounded-2xl border border-amber-200/30 bg-black/35 p-4 text-center shadow-2xl shadow-black/35">
-                                <p className="text-[0.62rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Você foi eliminado</p>
-                                <strong className="mt-1 block text-lg font-black text-white">Acompanhe os bots restantes até o campeão</strong>
-                                <p className="mt-1 text-sm font-semibold text-emerald-100/75">
-                                    As fichas e a última ação de cada assento ficam nos cards superiores.
-                                </p>
-                            </div>
                         )}
                     </div>
                 </div>

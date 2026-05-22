@@ -457,6 +457,9 @@ final readonly class PokerMultiSeatTurnActionService
             $state = $this->advanceStreet($state);
         }
 
+        $state['multiSeat']['allInRunoutCompleted'] = true;
+        $state['multiSeat']['allInRunoutMessage'] = 'Board aberto automaticamente após all-in sem novas apostas possíveis.';
+
         return $state;
     }
 
