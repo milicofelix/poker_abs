@@ -142,6 +142,8 @@ final class LocalPokerPersistenceService
     public function startMultiSeatOnTable(PokerTable $table, array $state): array
     {
         return DB::transaction(function () use ($table, $state): array {
+            $this->closeTerminalRunningHandsForTable($table);
+
             $table->forceFill(['status' => 'playing'])->save();
 
             $players = $state['multiSeat']['players'] ?? [];
@@ -203,6 +205,39 @@ final class LocalPokerPersistenceService
 
             return $state;
         });
+    }
+
+    /**
+     * Fecha mãos antigas que ficaram com status running, mas payload terminal.
+     *
+     * Esse cenário aparece principalmente no torneio quando a mão termina em
+     * showdown/all-in, o frontend reidrata o estado final e o jogador aciona
+     * "Iniciar nova mão". Se a mão antiga continuar marcada como running,
+     * o polling pode voltar para o snapshot final e parecer que o botão não fez
+     * nada.
+     */
+    public function closeTerminalRunningHandsForTable(PokerTable $table): void
+    {
+        PokerHand::query()
+            ->where('poker_table_id', $table->id)
+            ->where('status', 'running')
+            ->orderBy('id')
+            ->get()
+            ->each(static function (PokerHand $hand): void {
+                $payload = $hand->state_payload;
+
+                if (! is_array($payload) || ! (bool) ($payload['isFinished'] ?? false)) {
+                    return;
+                }
+
+                $hand->forceFill([
+                    'status' => 'finished',
+                    'street' => (string) ($payload['street'] ?? $hand->street ?? 'showdown'),
+                    'pot' => (int) ($payload['pot'] ?? $hand->pot ?? 0),
+                    'current_bet' => (int) ($payload['currentBet'] ?? $hand->current_bet ?? 0),
+                    'finished_at' => $hand->finished_at ?? now(),
+                ])->save();
+            });
     }
 
     /**

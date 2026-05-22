@@ -33,7 +33,7 @@ final class PokerMultiSeatBlindRotationService
     public function positionsForNewHand(PokerTable $table): array
     {
         $players = $this->seatedPlayers($table)
-            ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot || (int) $player->stack > 0)
+            ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
             ->values();
         $seats = $players
             ->pluck('seat_number')

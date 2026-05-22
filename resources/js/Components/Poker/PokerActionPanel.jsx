@@ -78,7 +78,6 @@ export default function PokerActionPanel({
     thinking = false,
     thinkingLabel = 'Oponente pensando...',
     errorMessage = null,
-    actionUx = null,
     onAction,
 }) {
     const minRaiseTo = Math.max(Number(minimumRaiseTo ?? 0), 0);
@@ -117,7 +116,6 @@ export default function PokerActionPanel({
     const lockLabel = thinking
         ? thinkingLabel
         : (panelLocked ? (actingAction ? `Executando ${actingAction}...` : 'Aguarde sua vez.') : 'Sua vez: escolha uma ação.');
-    const actionUxChecklist = actionUx?.checklist ?? [];
 
     function handleRaiseChange(value) {
         const nextAmount = normalizeAmount(value, minRaiseTo);
@@ -260,17 +258,6 @@ export default function PokerActionPanel({
                     )}
                 </div>
 
-                {actionUxChecklist.length > 0 && (
-                    <div className="mt-2 rounded-xl border border-emerald-200/15 bg-emerald-300/10 px-3 py-2 text-[0.65rem] font-bold text-emerald-50 sm:text-xs">
-                        <div className="flex items-start gap-2">
-                            <span className="mt-0.5">✓</span>
-                            <p>
-                                <strong className="text-emerald-100">{actionUx?.title ?? 'UX das ações revisada'}:</strong>{' '}
-                                {actionUx?.summary ?? 'Botões mais claros sem alterar as regras da mão.'}
-                            </p>
-                        </div>
-                    </div>
-                )}
             </div>
         </section>
     );

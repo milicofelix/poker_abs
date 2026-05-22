@@ -53,6 +53,48 @@ final class PokerTournamentTableBridgeService
         return $table->fresh(['realPlayers.user', 'hands']);
     }
 
+
+    public function prepareRuntimeTableForNextHand(PokerTournament $tournament): ?PokerTable
+    {
+        /** @var PokerTournament $tournament */
+        $tournament = $tournament->fresh(['participants.user', 'runtimeTable']);
+        $table = $tournament->runtimeTable;
+
+        if (! $table) {
+            return null;
+        }
+
+        $table->forceFill([
+            'small_blind' => max(1, (int) $tournament->small_blind),
+            'big_blind' => max(2, (int) $tournament->big_blind),
+            'max_players' => max(2, min((int) $tournament->max_players, PokerTournament::FINAL_TABLE_MAX_PLAYERS)),
+        ])->save();
+
+        $this->syncParticipantsIntoSeats($tournament, $table->fresh());
+        $this->persistence->closeTerminalRunningHandsForTable($table->fresh());
+
+        return $table->fresh(['realPlayers.user', 'hands']);
+    }
+
+
+    public function syncRuntimeTableBlindLevel(PokerTournament $tournament): ?PokerTable
+    {
+        /** @var PokerTournament $tournament */
+        $tournament = $tournament->fresh(['runtimeTable']);
+        $table = $tournament->runtimeTable;
+
+        if (! $table) {
+            return null;
+        }
+
+        $table->forceFill([
+            'small_blind' => max(1, (int) $tournament->small_blind),
+            'big_blind' => max(2, (int) $tournament->big_blind),
+        ])->save();
+
+        return $table->fresh();
+    }
+
     public function runtimePayloadFor(PokerTournament $tournament): array
     {
         $table = $tournament->runtimeTable;
@@ -78,9 +120,18 @@ final class PokerTournamentTableBridgeService
     private function syncParticipantsIntoSeats(PokerTournament $tournament, PokerTable $table): void
     {
         $activeParticipants = $tournament->participants
-            ->filter(static fn (PokerTournamentParticipant $participant): bool => $participant->status === PokerTournamentParticipant::STATUS_ACTIVE)
+            ->filter(static fn (PokerTournamentParticipant $participant): bool => $participant->status === PokerTournamentParticipant::STATUS_ACTIVE && (int) $participant->current_stack > 0)
             ->sortByDesc(static fn (PokerTournamentParticipant $participant): int => (int) $participant->current_stack)
             ->values();
+
+        $activeUserIds = $activeParticipants
+            ->map(static fn (PokerTournamentParticipant $participant): int => (int) $participant->user_id)
+            ->filter(static fn (int $userId): bool => $userId > 0)
+            ->values()
+            ->all();
+
+        $this->releaseInactiveParticipantSeats($tournament, $table, $activeUserIds);
+        $this->releaseActiveSeatsBeforeReseating($table, $activeUserIds);
 
         foreach ($activeParticipants as $index => $participant) {
             $seatNumber = $index + 1;
@@ -108,6 +159,74 @@ final class PokerTournamentTableBridgeService
             );
         }
     }
+
+    /**
+     * @param array<int, int> $activeUserIds
+     */
+    private function releaseInactiveParticipantSeats(PokerTournament $tournament, PokerTable $table, array $activeUserIds): void
+    {
+        $participantUserIds = $tournament->participants
+            ->map(static fn (PokerTournamentParticipant $participant): int => (int) $participant->user_id)
+            ->filter(static fn (int $userId): bool => $userId > 0)
+            ->values()
+            ->all();
+
+        $inactiveUserIds = $tournament->participants
+            ->filter(static fn (PokerTournamentParticipant $participant): bool => $participant->status !== PokerTournamentParticipant::STATUS_ACTIVE || (int) $participant->current_stack <= 0)
+            ->map(static fn (PokerTournamentParticipant $participant): int => (int) $participant->user_id)
+            ->filter(static fn (int $userId): bool => $userId > 0)
+            ->values()
+            ->all();
+
+        $query = PokerTablePlayer::query()->where('poker_table_id', $table->id);
+
+        if ($participantUserIds !== []) {
+            $query->where(function ($nested) use ($inactiveUserIds, $activeUserIds, $participantUserIds): void {
+                if ($inactiveUserIds !== []) {
+                    $nested->whereIn('user_id', $inactiveUserIds);
+                }
+
+                $nested->orWhereNotIn('user_id', $activeUserIds !== [] ? $activeUserIds : $participantUserIds);
+            });
+        }
+
+        if ($participantUserIds === [] && $inactiveUserIds === []) {
+            return;
+        }
+
+        $query->update([
+            'stack' => 0,
+            'seat_number' => null,
+            'status' => 'offline',
+            'left_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+    }
+
+    /**
+     * Libera temporariamente os assentos dos jogadores ainda ativos antes de
+     * reencaixá-los. Isso evita colisão quando o torneio passa de mesa 3+
+     * para heads-up e os seats precisam ser compactados para 1/2.
+     *
+     * @param array<int, int> $activeUserIds
+     */
+    private function releaseActiveSeatsBeforeReseating(PokerTable $table, array $activeUserIds): void
+    {
+        if ($activeUserIds === []) {
+            return;
+        }
+
+        PokerTablePlayer::query()
+            ->where('poker_table_id', $table->id)
+            ->whereIn('user_id', $activeUserIds)
+            ->update([
+                'seat_number' => null,
+                'left_at' => null,
+                'status' => 'online',
+                'last_seen_at' => now(),
+            ]);
+    }
+
 
     private function startFirstHandWhenReady(PokerTable $table): void
     {

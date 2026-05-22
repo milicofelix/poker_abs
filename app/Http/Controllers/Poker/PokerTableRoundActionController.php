@@ -11,6 +11,7 @@ use App\Services\Poker\MultiplayerPokerTableStateBroadcaster;
 use App\Services\Poker\PokerTableTurnActionService;
 use App\Services\Poker\PokerBotTurnProcessor;
 use App\Services\Poker\PokerMultiSeatTurnActionService;
+use App\Services\Poker\PokerTournamentRuntimeSyncService;
 use Illuminate\Http\JsonResponse;
 
 final class PokerTableRoundActionController extends Controller
@@ -24,6 +25,7 @@ final class PokerTableRoundActionController extends Controller
         PokerTableTurnActionService $turnAction,
         PokerBotTurnProcessor $botTurnProcessor,
         PokerMultiSeatTurnActionService $multiSeatTurnAction,
+        PokerTournamentRuntimeSyncService $tournamentRuntimeSync,
     ): JsonResponse {
         $currentState = $pokerPersistence->currentStateForTable($table);
 
@@ -50,6 +52,7 @@ final class PokerTableRoundActionController extends Controller
         }
 
         $nextState = $pokerPersistence->persist($nextState);
+        $tournamentRuntimeSync->syncAfterStateChange($table, $nextState);
 
         $tableBroadcaster->broadcast($nextState);
 

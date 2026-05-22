@@ -5,23 +5,15 @@ import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
 import PokerBotThinkingIndicator from '../../Components/Poker/PokerBotThinkingIndicator';
-import PokerFinalReviewChecklist from '../../Components/Poker/PokerFinalReviewChecklist';
 import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
 import PokerInterfaceStateBanner from '../../Components/Poker/PokerInterfaceStateBanner';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
-import PokerStateFeedbackPanel from '../../Components/Poker/PokerStateFeedbackPanel';
-import PokerMotionUxPanel from '../../Components/Poker/PokerMotionUxPanel';
-import PokerResponsiveUxPanel from '../../Components/Poker/PokerResponsiveUxPanel';
-import PokerFinalPolishPanel from '../../Components/Poker/PokerFinalPolishPanel';
-import PokerPhaseTenAuditPanel from '../../Components/Poker/PokerPhaseTenAuditPanel';
-import PokerPhaseThirteenDesignAuditPanel from '../../Components/Poker/PokerPhaseThirteenDesignAuditPanel';
-import PokerMultiSeatIntegrationPanel from '../../Components/Poker/PokerMultiSeatIntegrationPanel';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
 import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
-import PokerVisualAuditPanel from '../../Components/Poker/PokerVisualAuditPanel';
+import PokerTournamentRuntimePanel from '../../Components/Poker/PokerTournamentRuntimePanel';
 import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
 import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
 import PokerPresenceMiniPanel from '../../Components/Poker/PokerPresenceMiniPanel';
@@ -427,7 +419,7 @@ export default function Play({ hand, table = null }) {
     const [startingNewHand, setStartingNewHand] = useState(false);
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
-    const [stateContracts, setStateContracts] = useState(table?.stateContracts ?? null);
+    const [tournamentRuntime, setTournamentRuntime] = useState(table?.tournamentRuntime ?? null);
     const [joinMessage, setJoinMessage] = useState(null);
     const [handRankHelpOpen, setHandRankHelpOpen] = useState(false);
     const soundEffects = usePokerSoundEffects(state);
@@ -443,8 +435,8 @@ export default function Play({ hand, table = null }) {
             setSeatSlots(payload.seatSlots);
         }
 
-        if (payload?.stateContracts) {
-            setStateContracts(payload.stateContracts);
+        if (payload?.tournamentRuntime !== undefined) {
+            setTournamentRuntime(payload.tournamentRuntime);
         }
     }, []);
 
@@ -785,7 +777,6 @@ export default function Play({ hand, table = null }) {
                 )}
 
                 <PokerInterfaceStateBanner state={interfaceState} />
-                <PokerStateFeedbackPanel state={state} feedback={table?.stateFeedback} />
                 <HandConclusionBanner conclusion={state.conclusion} />
                 <LastActionAlert action={state.lastAction} />
                 <PokerBotThinkingIndicator active={botThinking} label={currentBotThinkingLabel} />
@@ -812,6 +803,10 @@ export default function Play({ hand, table = null }) {
                         </div>
 
                         <PokerTable state={state} />
+
+                        <div className="xl:hidden">
+                            <PokerTournamentRuntimePanel runtime={tournamentRuntime} compact />
+                        </div>
 
                         {!table?.isLocalMode && (
                             <div className="xl:hidden">
@@ -849,18 +844,6 @@ export default function Play({ hand, table = null }) {
 
                         <PokerActionHistory history={state.actionHistory} compact />
 
-                        <PokerFinalReviewChecklist table={table} />
-                        <PokerVisualAuditPanel audit={table?.visualAudit} />
-                        <PokerMotionUxPanel motion={table?.motionUx} />
-                        <PokerResponsiveUxPanel responsive={table?.responsiveUx} />
-                        <PokerFinalPolishPanel polish={table?.finalPolish} />
-                        <PokerPhaseTenAuditPanel audit={table?.phaseTenAudit} />
-                        <PokerPhaseThirteenDesignAuditPanel audit={table?.phaseThirteenDesignAudit} />
-                        <PokerMultiSeatIntegrationPanel
-                            contracts={stateContracts}
-                            players={realPlayers}
-                            maxPlayers={table?.maxPlayers}
-                        />
 
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">
@@ -936,6 +919,7 @@ export default function Play({ hand, table = null }) {
                             />
                         )}
 
+                        <PokerTournamentRuntimePanel runtime={tournamentRuntime} compact />
                         <PokerTableStatus state={state} compact />
                         <PokerTurnTimer timer={turnTimer} compact />
 

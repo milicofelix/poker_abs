@@ -428,7 +428,8 @@ final class PokerTournamentService
 
             $this->markFinalTable($lockedTournament);
 
-            $freshTournament = $lockedTournament->fresh(['participants.user']);
+            $freshTournament = $lockedTournament->fresh(['participants.user', 'runtimeTable']);
+            app(PokerTournamentTableBridgeService::class)->syncRuntimeTableBlindLevel($freshTournament);
             $this->refreshResumeSnapshot($freshTournament);
 
             return $freshTournament;
@@ -460,7 +461,8 @@ final class PokerTournamentService
                 'next_blind_at' => now()->addMinutes($levelMinutes),
             ])->save();
 
-            $freshTournament = $lockedTournament->fresh(['participants.user']);
+            $freshTournament = $lockedTournament->fresh(['participants.user', 'runtimeTable']);
+            app(PokerTournamentTableBridgeService::class)->syncRuntimeTableBlindLevel($freshTournament);
             $this->refreshResumeSnapshot($freshTournament);
 
             return $freshTournament;

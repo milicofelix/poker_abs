@@ -8,6 +8,7 @@ use App\Services\Poker\LocalPokerPersistenceService;
 use App\Services\Poker\MultiplayerPokerPrivateStateService;
 use App\Services\Poker\PokerTablePresenceService;
 use App\Services\Poker\PokerTableRuntimeStateService;
+use App\Services\Poker\PokerTournamentRuntimeSyncService;
 use App\Support\Poker\SerializesPokerTablePlayers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ final class PokerTableStateController extends Controller
         MultiplayerPokerPrivateStateService $privateState,
         PokerTablePresenceService $presence,
         PokerTableRuntimeStateService $runtimeState,
+        PokerTournamentRuntimeSyncService $tournamentRuntimeSync,
     ): JsonResponse {
         $presence->markCurrentUserOnline($table, $request->user());
 
@@ -36,6 +38,7 @@ final class PokerTableStateController extends Controller
             'stateContracts' => $runtime['stateContracts'],
             'engineMode' => $runtime['engineMode'],
             'multiSeatEnabled' => $runtime['multiSeatEnabled'],
+            'tournamentRuntime' => $tournamentRuntimeSync->runtimePayload($table, $state),
         ]);
     }
 }

@@ -84,7 +84,7 @@ export default function PokerHeader({ compact = false, table = null, rightSlot =
                 </h1>
 
                 <p className="mt-3 max-w-3xl text-slate-300">
-                    Fase 7.9: revisão final da mesa, alinhamento entre modo local e lobby, estabilidade de fluxo e preparação para lobby/salas.
+                    Mesa de poker em tempo real com foco em jogadores, ações, fichas e andamento da mão.
                 </p>
             </div>
 

@@ -7,6 +7,7 @@ use App\Domain\Poker\Cards\Deck;
 use App\Domain\Poker\Hands\HandEvaluator;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
+use App\Models\Poker\PokerTournament;
 use App\Services\Poker\PokerMultiSeatBlindRotationService;
 
 final readonly class StartMultiSeatPokerHandAction
@@ -159,23 +160,35 @@ final readonly class StartMultiSeatPokerHandAction
     private function playablePlayersForNewHand(PokerTable $table)
     {
         $buyIn = $table->buyInAmount();
+        $isTournamentTable = $this->isTournamentRuntimeTable($table);
 
-        $this->blindRotation->seatedPlayers($table)
-            ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot && (int) $player->stack <= 0)
-            ->each(static function (PokerTablePlayer $player) use ($buyIn): void {
-                $player->forceFill([
-                    'stack' => $buyIn,
-                    'buy_in_amount' => max($buyIn, (int) $player->buy_in_amount),
-                    'buy_in_paid_at' => $player->buy_in_paid_at ?? now(),
-                    'status' => 'online',
-                    'left_at' => null,
-                    'last_seen_at' => now(),
-                ])->save();
-            });
+        if (! $isTournamentTable) {
+            $this->blindRotation->seatedPlayers($table)
+                ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot && (int) $player->stack <= 0)
+                ->each(static function (PokerTablePlayer $player) use ($buyIn): void {
+                    $player->forceFill([
+                        'stack' => $buyIn,
+                        'buy_in_amount' => max($buyIn, (int) $player->buy_in_amount),
+                        'buy_in_paid_at' => $player->buy_in_paid_at ?? now(),
+                        'status' => 'online',
+                        'left_at' => null,
+                        'last_seen_at' => now(),
+                    ])->save();
+                });
+        }
 
         return $this->blindRotation->seatedPlayers($table)
-            ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot || (int) $player->stack > 0)
+            ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
             ->values();
+    }
+
+
+    private function isTournamentRuntimeTable(PokerTable $table): bool
+    {
+        return PokerTournament::query()
+            ->where('poker_table_id', $table->id)
+            ->whereIn('status', [PokerTournament::STATUS_RUNNING, PokerTournament::STATUS_FINISHED])
+            ->exists();
     }
 
     /**

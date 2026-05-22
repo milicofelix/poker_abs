@@ -6,6 +6,7 @@ use App\Application\Poker\StartMultiSeatPokerHandAction;
 use App\Application\Poker\StartPokerHandAction;
 use App\Models\Poker\PokerTable;
 use App\Models\Poker\PokerTablePlayer;
+use App\Models\Poker\PokerTournament;
 use Illuminate\Support\Collection;
 
 final class PokerTableReadinessService
@@ -32,8 +33,28 @@ final class PokerTableReadinessService
             ->get();
     }
 
+    /**
+     * @return Collection<int, PokerTablePlayer>
+     */
+    public function playableSeatedPlayers(PokerTable $table): Collection
+    {
+        $players = $this->seatedPlayers($table);
+
+        if (! $this->isTournamentRuntimeTable($table)) {
+            return $players;
+        }
+
+        return $players
+            ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
+            ->values();
+    }
+
     public function canStartHand(PokerTable $table): bool
     {
+        if ($this->isTournamentRuntimeTable($table)) {
+            return $this->playableSeatedPlayers($table)->count() >= $this->minimumPlayersToStart($table);
+        }
+
         $playersSeated = $this->seatedPlayers($table)->count();
 
         if ($table->isMultiSeatCandidate()) {
@@ -82,7 +103,7 @@ final class PokerTableReadinessService
         LocalPokerPersistenceService $pokerPersistence,
         bool $isBotVsBotSimulation = false,
     ): array {
-        if ($table->isMultiSeatCandidate()) {
+        if ($table->isMultiSeatCandidate() || $this->isTournamentRuntimeTable($table)) {
             return $pokerPersistence->startMultiSeatOnTable(
                 $table,
                 $this->startMultiSeatPokerHand->execute($table),
@@ -100,7 +121,9 @@ final class PokerTableReadinessService
      */
     public function waitingState(PokerTable $table): array
     {
-        $seatedPlayers = $this->seatedPlayers($table);
+        $seatedPlayers = $this->isTournamentRuntimeTable($table)
+            ? $this->playableSeatedPlayers($table)
+            : $this->seatedPlayers($table);
         $playersSeated = $seatedPlayers->count();
         $minimumPlayers = $this->minimumPlayersToStart($table);
         $playersNeeded = max(0, $minimumPlayers - $playersSeated);
@@ -147,6 +170,13 @@ final class PokerTableReadinessService
                     ? 'A mesa precisa de mais jogador sentado para iniciar a mão.'
                     : 'Mesa pronta para iniciar a mão.',
             ],
+            'multiSeat' => $this->isTournamentRuntimeTable($table) ? [
+                'enabled' => true,
+                'phase' => '13.2.4.2',
+                'mode' => 'tournament_waiting_snapshot',
+                'players' => $this->waitingMultiSeatPlayers($seatedPlayers),
+                'message' => 'Snapshot seguro da mesa de torneio sem jogadores eliminados.',
+            ] : null,
             'currentTurn' => [
                 'actor' => 'waiting',
                 'canonicalActor' => 'waiting',
@@ -160,6 +190,41 @@ final class PokerTableReadinessService
             'bestHand' => null,
             'opponentBestHand' => null,
         ];
+    }
+
+
+    /**
+     * @param Collection<int, PokerTablePlayer> $players
+     * @return array<int, array<string, mixed>>
+     */
+    private function waitingMultiSeatPlayers(Collection $players): array
+    {
+        return $players
+            ->map(static fn (PokerTablePlayer $player): array => [
+                'tablePlayerId' => $player->id,
+                'userId' => $player->user_id,
+                'nickname' => $player->nickname ?: 'Jogador '.$player->seat_number,
+                'displayName' => $player->nickname ?: 'Jogador '.$player->seat_number,
+                'seatNumber' => (int) $player->seat_number,
+                'isBot' => (bool) $player->is_bot,
+                'status' => (int) $player->stack > 0 ? 'active' : 'eliminated',
+                'stack' => max(0, (int) $player->stack),
+                'streetBet' => 0,
+                'hasFolded' => false,
+                'hasActed' => false,
+                'cards' => [],
+                'bestHand' => null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function isTournamentRuntimeTable(PokerTable $table): bool
+    {
+        return PokerTournament::query()
+            ->where('poker_table_id', $table->id)
+            ->where('status', PokerTournament::STATUS_RUNNING)
+            ->exists();
     }
 
     private function minimumPlayersToStart(PokerTable $table): int
