@@ -727,6 +727,52 @@ function ShowdownPremiumPanel({ state }) {
     );
 }
 
+
+function normalizeCardCollection(cards) {
+    return Array.isArray(cards) ? cards.filter(Boolean) : [];
+}
+
+function multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, opponentsCount = 0) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const playerCards = normalizeCardCollection(player?.cards);
+    const playerShowdownCards = normalizeCardCollection(player?.showdownCards);
+    const playerHoleCards = normalizeCardCollection(player?.holeCards);
+    const playerHandCards = normalizeCardCollection(player?.handCards);
+    const playerPrivateCards = normalizeCardCollection(player?.privateCards);
+    const showdownCardsBySeat = state?.multiSeat?.showdownCardsBySeat ?? {};
+    const publicSeatCards = normalizeCardCollection(
+        showdownCardsBySeat?.[seatNumber]
+            ?? showdownCardsBySeat?.[String(seatNumber)]
+            ?? playerShowdownCards,
+    );
+
+    if (Boolean(state?.isFinished) && state?.street === 'showdown' && publicSeatCards.length > 0) {
+        return publicSeatCards.slice(0, 2);
+    }
+
+    if (isCurrentUserSeat) {
+        const currentCards = normalizeCardCollection(state?.playerCards);
+
+        return currentCards.length > 0
+            ? currentCards
+            : [...playerCards, ...playerShowdownCards, ...playerHoleCards, ...playerHandCards, ...playerPrivateCards].slice(0, 2);
+    }
+
+    const directCards = [...playerCards, ...playerShowdownCards, ...playerHoleCards, ...playerHandCards, ...playerPrivateCards].slice(0, 2);
+
+    if (directCards.length > 0) {
+        return directCards;
+    }
+
+    const legacyOpponentCards = normalizeCardCollection(state?.opponentCards);
+
+    if (Boolean(state?.isFinished) && opponentsCount === 1 && legacyOpponentCards.length > 0) {
+        return legacyOpponentCards.slice(0, 2);
+    }
+
+    return [];
+}
+
 function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed, hasFolded = false) {
     if (hasFolded) {
         return 'Cartas descartadas';
@@ -853,17 +899,18 @@ function multiSeatAssistedModeLabel(state, currentPlayer) {
     return 'Modo assistido — você foi eliminado, mas a mesa continua em acompanhamento.';
 }
 
-function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index }) {
+function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index, opponentsCount = 0 }) {
     const seatNumber = Number(player?.seatNumber ?? 0);
     const isCurrentUserSeat = seatNumber === currentUserSeat;
     const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
     const winnerBadge = multiSeatWinnerBadgeLabel(state, seatNumber);
     const isWinner = Boolean(winnerBadge);
     const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
-    const cards = isCurrentUserSeat ? (state?.playerCards ?? []) : (player?.cards ?? []);
-    const shouldRevealCards = !hasFolded && (Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed));
+    const isShowdownFinished = Boolean(state?.isFinished) && state?.street === 'showdown';
+    const cards = multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, opponentsCount);
+    const shouldRevealCards = (isShowdownFinished && cards.length > 0) || (!hasFolded && (Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed)));
     const visibleCards = shouldRevealCards ? cards : [];
-    const hiddenCount = Math.max(0, (cards?.length || 2) - visibleCards.length);
+    const hiddenCount = Math.max(0, (cards.length || 2) - visibleCards.length);
     const displayName = isCurrentUserSeat ? 'Você' : (player?.nickname ?? player?.displayName ?? `Jogador ${seatNumber}`);
     const bestHand = isCurrentUserSeat ? state?.bestHand : player?.bestHand;
     const positionBadges = multiSeatPositionBadges(player, state);
@@ -1196,6 +1243,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                         playerCardsRevealed={playerCardsRevealed}
                                         onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                         index={index}
+                                        opponentsCount={opponents.length}
                                     />
                                 </div>
                             ))}

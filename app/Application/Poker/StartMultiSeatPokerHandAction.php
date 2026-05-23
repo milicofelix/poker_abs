@@ -151,32 +151,13 @@ final readonly class StartMultiSeatPokerHandAction
     /**
      * Garante que a nova mão multi-seat só considere assentos realmente jogáveis.
      *
-     * Bots que quebraram são recarregados automaticamente com o buy-in da mesa
-     * para manter a simulação fluindo. Jogadores reais sem stack permanecem
-     * sentados, mas precisam fazer rebuy antes de participar de uma nova mão.
+     * Jogadores/bots sem stack permanecem sentados, mas ficam fora da próxima mão
+     * até existir um rebuy manual. Isso evita loop infinito de rebuy automático.
      *
      * @return \Illuminate\Support\Collection<int, PokerTablePlayer>
      */
     private function playablePlayersForNewHand(PokerTable $table)
     {
-        $buyIn = $table->buyInAmount();
-        $isTournamentTable = $this->isTournamentRuntimeTable($table);
-
-        if (! $isTournamentTable) {
-            $this->blindRotation->seatedPlayers($table)
-                ->filter(static fn (PokerTablePlayer $player): bool => (bool) $player->is_bot && (int) $player->stack <= 0)
-                ->each(static function (PokerTablePlayer $player) use ($buyIn): void {
-                    $player->forceFill([
-                        'stack' => $buyIn,
-                        'buy_in_amount' => max($buyIn, (int) $player->buy_in_amount),
-                        'buy_in_paid_at' => $player->buy_in_paid_at ?? now(),
-                        'status' => 'online',
-                        'left_at' => null,
-                        'last_seen_at' => now(),
-                    ])->save();
-                });
-        }
-
         return $this->blindRotation->seatedPlayers($table)
             ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
             ->values();

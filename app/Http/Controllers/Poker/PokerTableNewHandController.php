@@ -98,6 +98,15 @@ final class PokerTableNewHandController extends Controller
         $isBotVsBotSimulation = $botTurnProcessor->isBotVsBotTable($table);
         $nextState = $readiness->startExplicitNewHand($table, $pokerPersistence, $isBotVsBotSimulation);
 
+        if ((bool) ($nextState['isWaitingForPlayers'] ?? false)) {
+            return response()->json([
+                'state' => $privateState->forUser($table, $nextState, $request->user()),
+                'players' => $this->serializeRealPlayers($table),
+                'seatSlots' => $this->serializeSeatSlots($table),
+                'message' => $nextState['waitingForPlayers']['message'] ?? 'A mesa ainda está aguardando jogadores.',
+            ]);
+        }
+
         if (! (bool) data_get($nextState, 'multiSeat.enabled', false) && ! $isBotVsBotSimulation) {
             $nextState = $botTurnProcessor->process($table, $nextState);
         }

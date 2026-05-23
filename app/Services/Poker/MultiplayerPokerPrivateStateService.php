@@ -99,6 +99,10 @@ final class MultiplayerPokerPrivateStateService
         $state['bestHand'] = is_array($currentSeatState) ? ($currentSeatState['bestHand'] ?? null) : null;
         unset($state['opponentCards'], $state['opponentBestHand']);
 
+        if ($isFinished && (string) ($state['street'] ?? '') === 'showdown') {
+            $state = $this->withMultiSeatShowdownCards($state, $currentSeatState);
+        }
+
         $state['playerStack'] = $playerStack;
         $state['playerStreetBet'] = $currentStreetBet;
         $state['opponentStack'] = (int) ($currentSeatActor['stack'] ?? 0);
@@ -194,6 +198,75 @@ final class MultiplayerPokerPrivateStateService
         }
 
         return $state;
+    }
+
+
+    /**
+     * No showdown real, todos os jogadores que chegaram vivos até a abertura
+     * precisam ter suas cartas públicas na resposta da mesa. Antes disso,
+     * continuamos escondendo cartas privadas dos adversários.
+     *
+     * @param array<string, mixed> $state
+     * @param array<string, mixed>|null $currentSeatState
+     * @return array<string, mixed>
+     */
+    private function withMultiSeatShowdownCards(array $state, ?array $currentSeatState): array
+    {
+        $players = collect(data_get($state, 'multiSeat.players', []))
+            ->filter(static fn (mixed $player): bool => is_array($player))
+            ->values();
+
+        if ($players->isEmpty()) {
+            return $state;
+        }
+
+        $cardsBySeat = [];
+
+        $players = $players->map(function (array $player) use (&$cardsBySeat): array {
+            $seatNumber = (int) ($player['seatNumber'] ?? 0);
+            $cards = $this->normalizeCards($player['cards'] ?? []);
+
+            if ($seatNumber > 0 && $cards !== []) {
+                $cardsBySeat[$seatNumber] = $cards;
+                $player['cards'] = $cards;
+                $player['showdownCards'] = $cards;
+            }
+
+            return $player;
+        })->all();
+
+        $state['multiSeat']['players'] = $players;
+        $state['multiSeat']['showdownCardsRevealed'] = true;
+        $state['multiSeat']['showdownCardsBySeat'] = $cardsBySeat;
+
+        $currentSeatNumber = is_array($currentSeatState) ? (int) ($currentSeatState['seatNumber'] ?? 0) : 0;
+
+        if ($currentSeatNumber > 0 && isset($cardsBySeat[$currentSeatNumber])) {
+            $state['playerCards'] = $cardsBySeat[$currentSeatNumber];
+        }
+
+        $firstOpponentSeat = collect(array_keys($cardsBySeat))
+            ->map(static fn (mixed $seat): int => (int) $seat)
+            ->first(static fn (int $seat): bool => $seat > 0 && $seat !== $currentSeatNumber);
+
+        if ($firstOpponentSeat !== null && isset($cardsBySeat[$firstOpponentSeat])) {
+            $state['opponentCards'] = $cardsBySeat[$firstOpponentSeat];
+        }
+
+        return $state;
+    }
+
+    /**
+     * @param mixed $cards
+     * @return array<int, mixed>
+     */
+    private function normalizeCards(mixed $cards): array
+    {
+        if (! is_array($cards)) {
+            return [];
+        }
+
+        return array_values(array_filter($cards));
     }
 
     /**

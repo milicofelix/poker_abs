@@ -44,9 +44,7 @@ final class PokerTableReadinessService
             return $players;
         }
 
-        return $players
-            ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
-            ->values();
+        return $this->playersWithStack($players);
     }
 
     public function canStartHand(PokerTable $table): bool
@@ -104,6 +102,12 @@ final class PokerTableReadinessService
         bool $isBotVsBotSimulation = false,
     ): array {
         if ($table->isMultiSeatCandidate() || $this->isTournamentRuntimeTable($table)) {
+            $playablePlayers = $this->playersWithStack($this->seatedPlayers($table));
+
+            if ($playablePlayers->count() < $table->minimumPlayersToStartCurrentEngine()) {
+                return $this->waitingStateForPlayablePlayers($table, $playablePlayers);
+            }
+
             return $pokerPersistence->startMultiSeatOnTable(
                 $table,
                 $this->startMultiSeatPokerHand->execute($table),
@@ -236,6 +240,44 @@ final class PokerTableReadinessService
         return $this->seatedPlayers($table)->count() >= PokerMultiSeatEngineActivationService::MINIMUM_PLAYERS
             ? PokerMultiSeatEngineActivationService::MINIMUM_PLAYERS
             : $table->minimumPlayersToStartCurrentEngine();
+    }
+
+    /**
+     * @param Collection<int, PokerTablePlayer> $players
+     * @return Collection<int, PokerTablePlayer>
+     */
+    private function playersWithStack(Collection $players): Collection
+    {
+        return $players
+            ->filter(static fn (PokerTablePlayer $player): bool => (int) $player->stack > 0)
+            ->values();
+    }
+
+    /**
+     * @param Collection<int, PokerTablePlayer> $playablePlayers
+     * @return array<string, mixed>
+     */
+    private function waitingStateForPlayablePlayers(PokerTable $table, Collection $playablePlayers): array
+    {
+        $state = $this->waitingState($table);
+        $minimumPlayers = $table->minimumPlayersToStartCurrentEngine();
+        $playersSeated = $playablePlayers->count();
+
+        $state['playerStack'] = (int) ($playablePlayers->get(0)?->stack ?? 0);
+        $state['opponentStack'] = (int) ($playablePlayers->get(1)?->stack ?? 0);
+        $state['waitingForPlayers']['playersSeated'] = $playersSeated;
+        $state['waitingForPlayers']['playersNeeded'] = max(0, $minimumPlayers - $playersSeated);
+        $state['waitingForPlayers']['minimumPlayers'] = $minimumPlayers;
+        $state['waitingForPlayers']['message'] = 'A mesa precisa de mais jogador sentado para iniciar a mão.';
+        $state['multiSeat'] = [
+            'enabled' => true,
+            'phase' => '13.3.12.1',
+            'mode' => 'waiting_for_playable_players',
+            'players' => $this->waitingMultiSeatPlayers($this->seatedPlayers($table)),
+            'message' => 'Mesa aguardando rebuy manual; jogadores sem fichas não entram automaticamente na próxima mão.',
+        ];
+
+        return $state;
     }
 
     /**
