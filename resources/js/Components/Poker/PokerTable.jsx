@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import CardRow from './CardRow';
 import PlayingCard from './PlayingCard';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
@@ -283,6 +284,42 @@ function stackPressureClasses(player, state) {
     return 'border-emerald-200/35 bg-emerald-300/15 text-emerald-100';
 }
 
+function actionActorRole(action) {
+    const raw = String(action?.actor ?? action?.role ?? '').toLowerCase();
+
+    if (raw === 'player' || raw === 'current' || raw === 'user') {
+        return 'player';
+    }
+
+    if (raw === 'opponent' || raw === 'bot' || raw === 'adversario' || raw === 'adversário') {
+        return 'opponent';
+    }
+
+    return raw || null;
+}
+
+function actionActorLabel(action) {
+    const role = actionActorRole(action);
+
+    if (action?.nickname || action?.playerName || action?.actorLabel) {
+        return action.nickname ?? action.playerName ?? action.actorLabel;
+    }
+
+    if (action?.seatNumber) {
+        return `Assento ${action.seatNumber}`;
+    }
+
+    if (role === 'player') {
+        return 'Você';
+    }
+
+    if (role === 'opponent') {
+        return 'Adversário';
+    }
+
+    return 'Jogador';
+}
+
 function actionTimelineItems(state) {
     const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
 
@@ -290,9 +327,10 @@ function actionTimelineItems(state) {
         .slice(-5)
         .reverse()
         .map((action, index) => ({
-            key: `${action?.seatNumber ?? action?.tablePlayerId ?? 'action'}-${action?.action ?? action?.type ?? index}-${index}`,
+            key: `${action?.seatNumber ?? action?.tablePlayerId ?? actionActorRole(action) ?? 'action'}-${action?.action ?? action?.type ?? index}-${index}`,
             seatNumber: action?.seatNumber,
-            actor: action?.nickname ?? action?.playerName ?? action?.actorLabel ?? (action?.seatNumber ? `Assento ${action.seatNumber}` : 'Jogador'),
+            actorRole: actionActorRole(action),
+            actor: actionActorLabel(action),
             label: normalizeActionLabel(action) ?? 'Ação',
             amount: Number(action?.amount ?? 0),
         }));
@@ -317,6 +355,16 @@ function isLatestSeatAction(state, seatNumber) {
     const latest = latestActionItem(state);
 
     return latest && Number(latest.seatNumber ?? 0) === Number(seatNumber ?? 0);
+}
+
+function isLatestLegacyAction(state, actorRole) {
+    const latest = latestActionItem(state);
+
+    return latest && latest.actorRole === actorRole && !state?.isFinished;
+}
+
+function latestLegacyActionItem(state, actorRole) {
+    return isLatestLegacyAction(state, actorRole) ? latestActionItem(state) : null;
 }
 
 function shouldPulsePot(state) {
@@ -393,6 +441,62 @@ function PokerTableAnimationStyles() {
                 animation: pokerTurnBorderSweep 2.4s linear infinite;
                 pointer-events: none;
             }
+            @keyframes pokerChipFlightToPot {
+                0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.72) rotate(0deg); }
+                16% { opacity: 1; }
+                70% { opacity: 1; transform: translate3d(36px, -78px, 0) scale(1.04) rotate(220deg); }
+                100% { opacity: 0; transform: translate3d(72px, -126px, 0) scale(.64) rotate(380deg); }
+            }
+
+            @keyframes pokerAllInBlast {
+                0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(251,113,133,0); }
+                35% { filter: brightness(1.26); box-shadow: 0 0 48px rgba(251,113,133,.48); }
+            }
+
+            @keyframes pokerRaiseImpact {
+                0% { transform: translateY(0) scale(1); }
+                34% { transform: translateY(-5px) scale(1.022); }
+                100% { transform: translateY(0) scale(1); }
+            }
+
+            @keyframes pokerFoldOverlay {
+                0% { opacity: 0; backdrop-filter: grayscale(0); }
+                100% { opacity: 1; backdrop-filter: grayscale(.8); }
+            }
+
+            @keyframes pokerCheckRipple {
+                0% { opacity: .95; transform: scale(.94); }
+                100% { opacity: 0; transform: scale(1.14); }
+            }
+
+            @keyframes pokerLiveActionToast {
+                0% { opacity: 0; transform: translateY(12px) scale(.97); }
+                18% { opacity: 1; transform: translateY(0) scale(1); }
+                82% { opacity: 1; transform: translateY(0) scale(1); }
+                100% { opacity: .92; transform: translateY(-2px) scale(.995); }
+            }
+
+            .poker-action-chip-flight {
+                position: absolute;
+                display: block;
+                width: 1.05rem;
+                height: 1.05rem;
+                border-radius: 999px;
+                border: 3px solid rgba(254,243,199,.9);
+                background: radial-gradient(circle at 50% 50%, rgba(254,243,199,.85) 0 18%, rgba(220,38,38,.96) 20% 62%, rgba(127,29,29,.98) 64% 100%);
+                box-shadow: 0 10px 18px rgba(0,0,0,.34);
+                animation: pokerChipFlightToPot 820ms cubic-bezier(.2,.9,.25,1) both;
+            }
+            .poker-action-chip-flight-allin { width: 1.18rem; height: 1.18rem; animation-duration: 980ms; }
+            .poker-action-chip-flight-source { box-shadow: 0 0 34px rgba(251,191,36,.18), inset 0 0 20px rgba(251,191,36,.08); }
+            .poker-action-raise-impact { animation: pokerRaiseImpact 620ms cubic-bezier(.2,.9,.3,1.25) both; }
+            .poker-action-allin-blast { animation: pokerAllInBlast 900ms ease-out both; }
+            .poker-action-fold-shade { filter: saturate(.76) brightness(.82); }
+            .poker-fold-overlay { animation: pokerFoldOverlay 480ms ease-out both; }
+            .poker-check-ripple-ring { animation: pokerCheckRipple 760ms ease-out both; }
+            .poker-action-check-ripple { box-shadow: 0 0 30px rgba(125,211,252,.20); }
+            .poker-live-action-toast { animation: pokerLiveActionToast 2.4s ease-out both; }
+
             .poker-live-border-sweep > * { position: relative; z-index: 1; }
 
             @media (prefers-reduced-motion: reduce) {
@@ -404,7 +508,13 @@ function PokerTableAnimationStyles() {
                 .poker-live-turn-seat,
                 .poker-turn-critical-pulse,
                 .poker-live-name-glow,
-                .poker-live-border-sweep::before {
+                .poker-live-border-sweep::before,
+                .poker-action-chip-flight,
+                .poker-action-raise-impact,
+                .poker-action-allin-blast,
+                .poker-fold-overlay,
+                .poker-check-ripple-ring,
+                .poker-live-action-toast {
                     animation: none !important;
                 }
             }
@@ -443,6 +553,222 @@ function actionToneLabel(label) {
     return 'Ação';
 }
 
+
+function actionVisualTone(label) {
+    const tone = actionToneLabel(label);
+
+    const tones = {
+        Fold: {
+            seatClass: 'poker-action-fold-shade',
+            badgeClass: 'border-slate-300/40 bg-slate-950/90 text-slate-100',
+            effect: 'fold',
+            verb: 'descartou',
+            description: 'Cartas protegidas e assento escurecido.',
+        },
+        Check: {
+            seatClass: 'poker-action-check-ripple',
+            badgeClass: 'border-sky-100/60 bg-sky-300 text-sky-950',
+            effect: 'check',
+            verb: 'passou a ação',
+            description: 'Sem aposta adicional nesta rodada.',
+        },
+        Call: {
+            seatClass: 'poker-action-chip-flight-source',
+            badgeClass: 'border-emerald-100/60 bg-emerald-300 text-emerald-950',
+            effect: 'chips',
+            verb: 'pagou',
+            description: 'Fichas seguem para o centro da mesa.',
+        },
+        Bet: {
+            seatClass: 'poker-action-chip-flight-source',
+            badgeClass: 'border-amber-100/60 bg-amber-300 text-amber-950',
+            effect: 'chips',
+            verb: 'apostou',
+            description: 'Aposta adicionada ao pote.',
+        },
+        Raise: {
+            seatClass: 'poker-action-raise-impact',
+            badgeClass: 'border-orange-100/70 bg-orange-300 text-orange-950',
+            effect: 'chips',
+            verb: 'aumentou',
+            description: 'Pressão na mesa e fichas ao centro.',
+        },
+        'All-in': {
+            seatClass: 'poker-action-allin-blast',
+            badgeClass: 'border-rose-100/70 bg-rose-400 text-rose-950',
+            effect: 'allin',
+            verb: 'foi all-in',
+            description: 'Momento decisivo da mão.',
+        },
+    };
+
+    return tones[tone] ?? {
+        seatClass: 'poker-action-flash',
+        badgeClass: 'border-violet-100/50 bg-violet-300 text-violet-950',
+        effect: 'pulse',
+        verb: 'agiu',
+        description: 'Ação executada na mesa.',
+    };
+}
+
+function actionToastTitle(item) {
+    if (!item) {
+        return 'Ação executada';
+    }
+
+    const tone = actionVisualTone(item.label);
+    const amount = Number(item?.amount ?? 0);
+    const amountLabel = amount > 0 ? ` ${formatChipAmount(amount)}` : '';
+
+    return `${item.actor} ${tone.verb}${amountLabel}`;
+}
+
+function MotionChip({ item, index, allIn = false }) {
+    const startX = (index - 2) * 14;
+    const startY = 8 + (index % 3) * 6;
+    const endX = 76 + (index % 4) * 18;
+    const endY = -92 - (index % 3) * 18;
+
+    return (
+        <motion.span
+            key={`motion-chip-${item.key}-${index}`}
+            className={`absolute block rounded-full border-[3px] border-amber-100/90 bg-gradient-to-br from-amber-100 via-rose-500 to-rose-950 shadow-xl shadow-black/35 ${allIn ? 'h-5 w-5' : 'h-4 w-4'}`}
+            initial={{ opacity: 0, x: startX, y: startY, scale: 0.55, rotate: 0 }}
+            animate={{ opacity: [0, 1, 1, 0], x: endX, y: endY, scale: allIn ? [0.72, 1.28, 1.05, 0.62] : [0.62, 1.08, 0.96, 0.58], rotate: allIn ? 540 : 360 }}
+            transition={{ duration: allIn ? 1.1 : 0.85, delay: index * 0.045, ease: [0.16, 1, 0.3, 1] }}
+            style={{ left: `${32 + index * 6}%`, bottom: `${16 + (index % 2) * 8}%` }}
+        />
+    );
+}
+
+function ActionEffectOverlay({ item }) {
+    if (!item) {
+        return null;
+    }
+
+    const tone = actionVisualTone(item.label);
+
+    if (tone.effect === 'chips' || tone.effect === 'allin') {
+        const chips = tone.effect === 'allin' ? 14 : 7;
+        const allIn = tone.effect === 'allin';
+
+        return (
+            <AnimatePresence mode="popLayout">
+                <motion.div
+                    key={`motion-action-${item.key}`}
+                    className="pointer-events-none absolute inset-0 z-30 overflow-visible rounded-2xl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    aria-hidden="true"
+                >
+                    {allIn && (
+                        <motion.span
+                            className="absolute inset-2 rounded-2xl border border-rose-100/40 bg-rose-500/10 shadow-[0_0_55px_rgba(251,113,133,.34)]"
+                            initial={{ opacity: 0, scale: 0.88 }}
+                            animate={{ opacity: [0, 1, 0.3, 0], scale: [0.88, 1.08, 1.16, 1.22] }}
+                            transition={{ duration: 1.05, ease: 'easeOut' }}
+                        />
+                    )}
+
+                    {Array.from({ length: chips }).map((_, index) => (
+                        <MotionChip key={`chip-${item.key}-${index}`} item={item} index={index} allIn={allIn} />
+                    ))}
+                </motion.div>
+            </AnimatePresence>
+        );
+    }
+
+    if (tone.effect === 'check') {
+        return (
+            <motion.span
+                key={`motion-check-${item.key}`}
+                className="pointer-events-none absolute inset-2 z-30 rounded-2xl border border-sky-100/50 bg-sky-300/5"
+                initial={{ opacity: 0.9, scale: 0.88 }}
+                animate={{ opacity: 0, scale: 1.18 }}
+                transition={{ duration: 0.85, ease: 'easeOut' }}
+                aria-hidden="true"
+            />
+        );
+    }
+
+    if (tone.effect === 'fold') {
+        return (
+            <motion.span
+                key={`motion-fold-${item.key}`}
+                className="pointer-events-none absolute inset-0 z-30 rounded-2xl bg-slate-950/36 backdrop-grayscale"
+                initial={{ opacity: 0, x: 0, rotate: 0 }}
+                animate={{ opacity: 1, x: [0, -7, 0], rotate: [0, -1.8, 0] }}
+                transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1] }}
+                aria-hidden="true"
+            />
+        );
+    }
+
+    return (
+        <motion.span
+            key={`motion-pulse-${item.key}`}
+            className="pointer-events-none absolute inset-1 z-30 rounded-2xl border border-emerald-100/35 bg-emerald-300/5"
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: [0, 1, 0], scale: [0.94, 1.04, 1.1] }}
+            transition={{ duration: 0.72, ease: 'easeOut' }}
+            aria-hidden="true"
+        />
+    );
+}
+
+function LatestActionToast({ state }) {
+    const latest = latestActionItem(state);
+
+    if (!latest || state?.isFinished) {
+        return null;
+    }
+
+    const tone = actionVisualTone(latest.label);
+
+    return (
+        <AnimatePresence mode="wait">
+            <motion.div
+                key={`motion-action-toast-${latest.key}`}
+                className="pointer-events-none mx-auto w-full max-w-2xl rounded-[1.35rem] border border-white/10 bg-slate-950/90 p-2 shadow-2xl shadow-black/55 backdrop-blur"
+                initial={{ opacity: 0, y: 20, scale: 0.965 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.985 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28, mass: 0.72 }}
+            >
+                <motion.div
+                    className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                    initial={{ filter: 'brightness(1)' }}
+                    animate={{ filter: ['brightness(1)', 'brightness(1.24)', 'brightness(1)'] }}
+                    transition={{ duration: 0.7, ease: 'easeOut' }}
+                >
+                    <motion.span
+                        className={`rounded-full border px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.18em] ${tone.badgeClass}`}
+                        initial={{ scale: 0.82 }}
+                        animate={{ scale: [0.82, 1.1, 1] }}
+                        transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                        Ação executada
+                    </motion.span>
+                    <div className="min-w-0 text-center sm:text-left">
+                        <strong className="block truncate text-sm font-black text-white" title={actionToastTitle(latest)}>{actionToastTitle(latest)}</strong>
+                        <p className="text-[0.68rem] font-bold text-slate-200/75">{tone.description}</p>
+                    </div>
+                    <motion.span
+                        className="hidden rounded-full border border-amber-200/25 bg-amber-300/10 px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.14em] text-amber-100 sm:inline-flex"
+                        initial={{ opacity: 0, x: 8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.12, duration: 0.28 }}
+                    >
+                        HUD atualizando
+                    </motion.span>
+                </motion.div>
+            </motion.div>
+        </AnimatePresence>
+    );
+}
+
 function actionStreetLabel(action, fallbackStreet) {
     const street = String(action?.street ?? action?.round ?? fallbackStreet ?? '').toLowerCase();
     const labels = {
@@ -475,9 +801,10 @@ function actionTimelineDetailedItems(state) {
             const label = normalizeActionLabel(action) ?? 'Ação';
 
             return {
-                key: `${action?.id ?? action?.seatNumber ?? action?.tablePlayerId ?? 'action'}-${action?.action ?? action?.type ?? label}-${index}`,
+                key: `${action?.id ?? action?.seatNumber ?? action?.tablePlayerId ?? actionActorRole(action) ?? 'action'}-${action?.action ?? action?.type ?? label}-${index}`,
                 seatNumber: action?.seatNumber,
-                actor: action?.nickname ?? action?.playerName ?? action?.actorLabel ?? (action?.seatNumber ? `Assento ${action.seatNumber}` : 'Jogador'),
+                actorRole: actionActorRole(action),
+                actor: actionActorLabel(action),
                 label,
                 tone: actionToneLabel(label),
                 street: actionStreetLabel(action, state?.street),
@@ -1091,13 +1418,15 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
     const actionLabel = multiSeatLastActionLabel(state, player, hasFolded, isCurrentTurn);
     const actionPillClasses = multiSeatActionPillClasses(actionLabel, isCurrentTurn, hasFolded);
     const isLatestAction = isLatestSeatAction(state, seatNumber) && !state?.isFinished;
+    const latestSeatAction = isLatestAction ? latestActionItem(state) : null;
+    const actionVisual = actionVisualTone(actionLabel);
 
     return (
         <article
             key={`${seatNumber}-${latestActionAnimationKey(state)}`}
             className={[
                 'group relative overflow-hidden rounded-2xl border p-2 shadow-2xl shadow-black/35 transition duration-300 hover:-translate-y-0.5 hover:shadow-black/50 sm:p-3',
-                isLatestAction ? 'poker-action-flash' : '',
+                isLatestAction ? `poker-action-flash ${actionVisual.seatClass}` : '',
                 isWinner
                     ? 'poker-winner-seat border-amber-200/70 bg-amber-300/15'
                     : isCurrentTurn
@@ -1107,6 +1436,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                             : 'border-white/10 bg-black/25',
             ].join(' ')}
         >
+            <ActionEffectOverlay item={latestSeatAction} />
             <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-2">
                     <div className={[
@@ -1413,6 +1743,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                 <MobileTableStickyStatus state={state} />
 
                 <ShowdownPremiumPanel state={state} />
+                <LatestActionToast state={state} />
 
                 <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
                 <div className="relative order-2 min-h-[520px] overflow-hidden rounded-[1.5rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,rgba(6,95,70,0.78),rgba(2,44,34,0.84)_58%,rgba(2,6,23,0.82)_100%)] p-2 shadow-inner shadow-black/60 sm:min-h-[620px] sm:p-4 xl:order-1 xl:min-h-[670px]">
@@ -1554,11 +1885,16 @@ export default function PokerTable({ state }) {
             </div>
 
             <div className="relative z-10 grid min-h-[340px] gap-1 sm:gap-3 md:min-h-[410px] lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
+                <LatestActionToast state={state} />
+
                 <div className="grid min-w-0 gap-1.5 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
                     <div className={[
-                        'relative overflow-hidden rounded-lg border p-1.5 transition duration-300 sm:rounded-2xl sm:p-3',
+                        'relative overflow-visible rounded-lg border p-1.5 transition duration-300 sm:rounded-2xl sm:p-3',
                         seatFrameClasses(state, 'opponent'),
+                        isLatestLegacyAction(state, 'opponent') ? `poker-action-flash ${actionVisualTone(latestActionItem(state)?.label).seatClass}` : '',
                     ].join(' ')}>
+                        <ActionEffectOverlay item={latestLegacyActionItem(state, 'opponent')} />
+
                         {winnerBadgeLabel(state, 'opponent') && (
                             <span className={[
                                 'absolute right-2 top-2 rounded-full border px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.22em]',
@@ -1636,9 +1972,11 @@ export default function PokerTable({ state }) {
                         type="button"
                         disabled={!hasPlayerCards || state.isFinished || isBotVsBotSimulation}
                         onClick={() => hasPlayerCards && !state.isFinished && !isBotVsBotSimulation && setPlayerCardsRevealed((isRevealed) => !isRevealed)}
-                        className={`group relative block min-w-0 rounded-2xl text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 ${hasPlayerCards && !state.isFinished && !isBotVsBotSimulation ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-amber-950/25' : 'cursor-default'}`}
+                        className={`group relative block min-w-0 overflow-visible rounded-2xl text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 ${isLatestLegacyAction(state, 'player') ? `poker-action-flash ${actionVisualTone(latestActionItem(state)?.label).seatClass}` : ''} ${hasPlayerCards && !state.isFinished && !isBotVsBotSimulation ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-amber-950/25' : 'cursor-default'}`}
                         aria-label={hiddenPlayerHandTitle(shouldRevealPlayerCards)}
                     >
+                        <ActionEffectOverlay item={latestLegacyActionItem(state, 'player')} />
+
                         <CardRow
                             title={currentPlayerTitle(state)}
                             cards={shouldRevealPlayerCards ? (state.playerCards ?? []) : []}
