@@ -99,7 +99,7 @@ final class MultiplayerPokerPrivateStateService
         $state['bestHand'] = is_array($currentSeatState) ? ($currentSeatState['bestHand'] ?? null) : null;
         unset($state['opponentCards'], $state['opponentBestHand']);
 
-        if ($isFinished && (string) ($state['street'] ?? '') === 'showdown') {
+        if ($this->isMultiSeatShowdownResolved($state)) {
             $state = $this->withMultiSeatShowdownCards($state, $currentSeatState);
         }
 
@@ -201,6 +201,26 @@ final class MultiplayerPokerPrivateStateService
     }
 
 
+
+    /**
+     * Considera o showdown resolvido quando a mão terminou e o motor multi-seat
+     * marcou explicitamente a fase de abertura. Isso evita depender apenas de
+     * street=showdown, que pode não vir sincronizado em todos os caminhos de
+     * reidratação/polling depois da resolução final.
+     *
+     * @param array<string, mixed> $state
+     */
+    private function isMultiSeatShowdownResolved(array $state): bool
+    {
+        if (! (bool) ($state['isFinished'] ?? false)) {
+            return false;
+        }
+
+        return (string) ($state['street'] ?? '') === 'showdown'
+            || (bool) data_get($state, 'multiSeat.showdownCardsRevealed', false)
+            || (string) data_get($state, 'multiSeat.showdownResolutionPhase', '') === '10.12';
+    }
+
     /**
      * No showdown real, todos os jogadores que chegaram vivos até a abertura
      * precisam ter suas cartas públicas na resposta da mesa. Antes disso,
@@ -224,12 +244,17 @@ final class MultiplayerPokerPrivateStateService
 
         $players = $players->map(function (array $player) use (&$cardsBySeat): array {
             $seatNumber = (int) ($player['seatNumber'] ?? 0);
+            $hasFolded = (bool) ($player['hasFolded'] ?? false) || (string) ($player['status'] ?? '') === 'folded';
             $cards = $this->normalizeCards($player['cards'] ?? []);
 
-            if ($seatNumber > 0 && $cards !== []) {
+            if ($seatNumber > 0 && ! $hasFolded && $cards !== []) {
                 $cardsBySeat[$seatNumber] = $cards;
                 $player['cards'] = $cards;
                 $player['showdownCards'] = $cards;
+            }
+
+            if ($hasFolded) {
+                unset($player['showdownCards']);
             }
 
             return $player;

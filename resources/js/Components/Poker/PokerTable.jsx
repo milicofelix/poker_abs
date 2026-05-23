@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import CardRow from './CardRow';
 import PlayingCard from './PlayingCard';
+import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
 
 function visibleCommunityCards(state) {
     const amountByStreet = {
@@ -155,11 +156,17 @@ function isMultiSeatLayout(state) {
         return false;
     }
 
-    const playersCount = state.multiSeat.players.length;
+    return state.multiSeat.players.length >= 2;
+}
 
-    return playersCount > 2
-        || (playersCount >= 2 && Boolean(state?.tournamentRuntime))
-        || (playersCount >= 2 && Boolean(state?.botVsBotSimulation));
+function isMultiSeatShowdownResolved(state) {
+    if (!Boolean(state?.isFinished)) {
+        return false;
+    }
+
+    return state?.street === 'showdown'
+        || Boolean(state?.multiSeat?.showdownCardsRevealed)
+        || state?.multiSeat?.showdownResolutionPhase === '10.12';
 }
 
 function multiSeatPlayers(state) {
@@ -349,18 +356,55 @@ function PokerTableAnimationStyles() {
                 50% { box-shadow: 0 0 54px rgba(251,191,36,0.36); }
             }
 
+            @keyframes pokerTurnLiveGlow {
+                0%, 100% { box-shadow: 0 0 22px rgba(16,185,129,0.20), inset 0 0 18px rgba(16,185,129,0.08); }
+                50% { box-shadow: 0 0 58px rgba(16,185,129,0.46), inset 0 0 28px rgba(16,185,129,0.14); }
+            }
+
+            @keyframes pokerTurnBorderSweep {
+                0% { transform: rotate(0deg); opacity: .42; }
+                50% { opacity: .95; }
+                100% { transform: rotate(360deg); opacity: .42; }
+            }
+
+            @keyframes pokerTurnCriticalPulse {
+                0%, 100% { transform: scale(1); filter: brightness(1); }
+                50% { transform: scale(1.065); filter: brightness(1.22); }
+            }
+
+            @keyframes pokerLiveNameGlow {
+                0%, 100% { text-shadow: 0 0 0 rgba(110,231,183,0); }
+                50% { text-shadow: 0 0 18px rgba(110,231,183,0.82); }
+            }
+
             .poker-action-flash { animation: pokerActionFlash 760ms ease-out both; }
             .poker-action-pop { animation: pokerActionPillPop 420ms cubic-bezier(.2,.9,.3,1.25) both; }
             .poker-pot-receive { animation: pokerPotReceive 820ms ease-out both; }
             .poker-street-transition { animation: pokerStreetFade 520ms ease-out both; }
             .poker-winner-seat { animation: pokerWinnerGlow 1.65s ease-in-out infinite; }
+            .poker-live-turn-seat { animation: pokerTurnLiveGlow 1.45s ease-in-out infinite; }
+            .poker-turn-critical-pulse { animation: pokerTurnCriticalPulse 720ms ease-in-out infinite; }
+            .poker-live-name-glow { animation: pokerLiveNameGlow 1.35s ease-in-out infinite; }
+            .poker-live-border-sweep::before {
+                content: '';
+                position: absolute;
+                inset: -42%;
+                background: conic-gradient(from 0deg, transparent 0deg, rgba(110,231,183,.0) 46deg, rgba(110,231,183,.52) 90deg, transparent 134deg, transparent 360deg);
+                animation: pokerTurnBorderSweep 2.4s linear infinite;
+                pointer-events: none;
+            }
+            .poker-live-border-sweep > * { position: relative; z-index: 1; }
 
             @media (prefers-reduced-motion: reduce) {
                 .poker-action-flash,
                 .poker-action-pop,
                 .poker-pot-receive,
                 .poker-street-transition,
-                .poker-winner-seat {
+                .poker-winner-seat,
+                .poker-live-turn-seat,
+                .poker-turn-critical-pulse,
+                .poker-live-name-glow,
+                .poker-live-border-sweep::before {
                     animation: none !important;
                 }
             }
@@ -746,7 +790,7 @@ function multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, oppon
             ?? playerShowdownCards,
     );
 
-    if (Boolean(state?.isFinished) && state?.street === 'showdown' && publicSeatCards.length > 0) {
+    if (isMultiSeatShowdownResolved(state) && publicSeatCards.length > 0) {
         return publicSeatCards.slice(0, 2);
     }
 
@@ -766,7 +810,7 @@ function multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, oppon
 
     const legacyOpponentCards = normalizeCardCollection(state?.opponentCards);
 
-    if (Boolean(state?.isFinished) && opponentsCount === 1 && legacyOpponentCards.length > 0) {
+    if (isMultiSeatShowdownResolved(state) && opponentsCount === 1 && legacyOpponentCards.length > 0) {
         return legacyOpponentCards.slice(0, 2);
     }
 
@@ -899,16 +943,146 @@ function multiSeatAssistedModeLabel(state, currentPlayer) {
     return 'Modo assistido — você foi eliminado, mas a mesa continua em acompanhamento.';
 }
 
-function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index, opponentsCount = 0 }) {
+function liveTurnTimerTone(timer) {
+    const percentage = Number(timer?.percentage ?? 0);
+
+    if (timer?.isExpired || percentage < 20) {
+        return {
+            name: 'danger',
+            text: 'text-rose-100',
+            subtleText: 'text-rose-100/75',
+            ring: 'border-rose-200/70 bg-rose-400/20 shadow-rose-950/45',
+            fill: 'bg-rose-300',
+            track: 'from-rose-500/85 via-rose-300/70 to-rose-100/60',
+            glow: 'shadow-[0_0_46px_rgba(251,113,133,0.40)]',
+            label: 'Decisão urgente',
+        };
+    }
+
+    if (percentage <= 50) {
+        return {
+            name: 'warning',
+            text: 'text-amber-100',
+            subtleText: 'text-amber-100/75',
+            ring: 'border-amber-200/70 bg-amber-300/20 shadow-amber-950/40',
+            fill: 'bg-amber-300',
+            track: 'from-amber-400/85 via-orange-300/70 to-amber-100/60',
+            glow: 'shadow-[0_0_42px_rgba(251,191,36,0.34)]',
+            label: 'Tempo em atenção',
+        };
+    }
+
+    return {
+        name: 'safe',
+        text: 'text-emerald-100',
+        subtleText: 'text-emerald-100/75',
+        ring: 'border-emerald-200/65 bg-emerald-300/15 shadow-emerald-950/35',
+        fill: 'bg-emerald-300',
+        track: 'from-emerald-400/85 via-lime-300/70 to-emerald-100/60',
+        glow: 'shadow-[0_0_38px_rgba(16,185,129,0.30)]',
+        label: 'Tempo confortável',
+    };
+}
+
+function LiveTurnTimerBadge({ timer, compact = false }) {
+    if (!timer) {
+        return null;
+    }
+
+    const tone = liveTurnTimerTone(timer);
+    const percentage = Math.max(0, Math.min(100, Number(timer?.percentage ?? 0)));
+    const seconds = Math.max(0, Number(timer?.secondsRemaining ?? 0));
+    const isFinalSeconds = !timer?.isExpired && seconds <= 5;
+    const conicStyle = {
+        background: `conic-gradient(currentColor ${percentage * 3.6}deg, rgba(15,23,42,0.84) 0deg)`,
+    };
+
+    return (
+        <div className={[compact ? 'w-full' : 'w-full max-w-[13rem]', 'rounded-2xl border border-white/10 bg-slate-950/72 p-2 shadow-2xl shadow-black/35 backdrop-blur'].join(' ')}>
+            <div className="flex items-center gap-2">
+                <div
+                    className={[
+                        'relative grid shrink-0 place-items-center rounded-full text-emerald-300 transition duration-500',
+                        compact ? 'h-14 w-14' : 'h-20 w-20',
+                        tone.glow,
+                        isFinalSeconds ? 'poker-turn-critical-pulse' : '',
+                    ].join(' ')}
+                    style={conicStyle}
+                    aria-label={`${seconds} segundos restantes`}
+                >
+                    <div className="absolute inset-1 rounded-full bg-slate-950" />
+                    <div className={["relative grid place-items-center rounded-full border font-black", compact ? 'h-11 w-11 text-lg' : 'h-16 w-16 text-2xl', tone.ring, tone.text].join(' ')}>
+                        {seconds}s
+                    </div>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                    <p className={["text-[0.55rem] font-black uppercase tracking-[0.18em]", tone.subtleText].join(' ')}>{tone.label}</p>
+                    <strong className="mt-0.5 block truncate text-[0.78rem] font-black text-white">Timer da jogada</strong>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full border border-white/10 bg-black/45 p-0.5">
+                        <div className={["h-full rounded-full transition-all duration-500", tone.fill].join(' ')} style={{ width: `${percentage}%` }} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function seatLiveStateLabel(player, isCurrentTurn, hasFolded, isAllIn) {
+    if (hasFolded) {
+        return 'Fold';
+    }
+
+    if (isAllIn) {
+        return 'All-in';
+    }
+
+    if (isCurrentTurn) {
+        return 'Ativo';
+    }
+
+    if (Boolean(player?.isDisconnected) || player?.status === 'disconnected') {
+        return 'Desconectado';
+    }
+
+    return 'Aguardando';
+}
+
+function seatLiveStateClasses(label) {
+    const normalized = String(label ?? '').toLowerCase();
+
+    if (normalized.includes('ativo')) {
+        return 'border-emerald-100/55 bg-emerald-300 text-emerald-950 shadow-emerald-950/25';
+    }
+
+    if (normalized.includes('all')) {
+        return 'border-rose-100/60 bg-rose-400 text-rose-950 shadow-rose-950/25';
+    }
+
+    if (normalized.includes('fold')) {
+        return 'border-slate-400/25 bg-slate-950/80 text-slate-200';
+    }
+
+    if (normalized.includes('desconectado')) {
+        return 'border-orange-100/45 bg-orange-300/20 text-orange-100';
+    }
+
+    return 'border-white/15 bg-white/[0.08] text-slate-200';
+}
+
+function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, playerCardsRevealed, onTogglePlayerCards, index, opponentsCount = 0, turnTimer = null }) {
     const seatNumber = Number(player?.seatNumber ?? 0);
     const isCurrentUserSeat = seatNumber === currentUserSeat;
     const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
     const winnerBadge = multiSeatWinnerBadgeLabel(state, seatNumber);
     const isWinner = Boolean(winnerBadge);
     const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
-    const isShowdownFinished = Boolean(state?.isFinished) && state?.street === 'showdown';
+    const isAllIn = Boolean(player?.isAllIn) || Number(player?.stack ?? 0) <= 0;
+    const liveStateLabel = seatLiveStateLabel(player, isCurrentTurn, hasFolded, isAllIn);
+    const liveStateClasses = seatLiveStateClasses(liveStateLabel);
+    const isShowdownFinished = isMultiSeatShowdownResolved(state);
     const cards = multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, opponentsCount);
-    const shouldRevealCards = (isShowdownFinished && cards.length > 0) || (!hasFolded && (Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed)));
+    const shouldRevealCards = !hasFolded && ((isShowdownFinished && cards.length > 0) || (Boolean(state?.isFinished) || (isCurrentUserSeat && playerCardsRevealed)));
     const visibleCards = shouldRevealCards ? cards : [];
     const hiddenCount = Math.max(0, (cards.length || 2) - visibleCards.length);
     const displayName = isCurrentUserSeat ? 'Você' : (player?.nickname ?? player?.displayName ?? `Jogador ${seatNumber}`);
@@ -927,7 +1101,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                 isWinner
                     ? 'poker-winner-seat border-amber-200/70 bg-amber-300/15'
                     : isCurrentTurn
-                        ? 'poker-turn-glow border-emerald-200/60 bg-emerald-300/10'
+                        ? 'poker-live-turn-seat poker-live-border-sweep scale-[1.015] border-emerald-100/70 bg-emerald-300/15 shadow-[0_0_46px_rgba(16,185,129,0.26)]'
                         : hasFolded
                             ? 'border-slate-500/20 bg-black/25 opacity-60'
                             : 'border-white/10 bg-black/25',
@@ -936,15 +1110,15 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
             <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-2">
                     <div className={[
-                        'grid h-10 w-10 shrink-0 place-items-center rounded-full border text-[0.72rem] font-black shadow-lg shadow-black/30 ring-2 ring-black/25',
-                        isCurrentTurn ? 'border-emerald-100/60 bg-emerald-300 text-emerald-950' : isWinner ? 'border-amber-100/70 bg-amber-300 text-amber-950' : 'border-white/15 bg-white/10 text-white',
+                        'grid h-10 w-10 shrink-0 place-items-center rounded-full border text-[0.72rem] font-black shadow-lg shadow-black/30 ring-2 ring-black/25 transition duration-300',
+                        isCurrentTurn ? 'scale-110 border-emerald-100/80 bg-emerald-300 text-emerald-950 shadow-[0_0_28px_rgba(110,231,183,0.42)] ring-emerald-100/30' : isWinner ? 'border-amber-100/70 bg-amber-300 text-amber-950' : 'border-white/15 bg-white/10 text-white',
                     ].join(' ')}>
                         {playerInitials(displayName)}
                     </div>
 
                     <div className="min-w-0">
                         <p className="text-[0.56rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Seat {seatNumber}</p>
-                        <strong className="block truncate text-sm font-black text-white sm:text-base">{displayName}</strong>
+                        <strong className={`block truncate text-sm font-black sm:text-base ${isCurrentTurn ? 'poker-live-name-glow text-emerald-50' : 'text-white'}`}>{displayName}</strong>
                         <div className="mt-1 flex flex-wrap gap-1">
                             {positionBadges.map((badge) => (
                                 <span
@@ -963,6 +1137,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1 text-[0.58rem] font-black uppercase tracking-[0.15em]">
+                    <span className={`rounded-full border px-2 py-0.5 ${liveStateClasses}`}>{liveStateLabel}</span>
                     {isCurrentTurn && <span className="rounded-full border border-emerald-100/45 bg-emerald-300 px-2 py-0.5 text-emerald-950">Vez</span>}
                     {winnerBadge && <span className="rounded-full border border-amber-100/70 bg-amber-300 px-2 py-0.5 text-amber-950">{winnerBadge}</span>}
                     {shouldShowMultiSeatActionPill(actionLabel) && (
@@ -972,6 +1147,12 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                     )}
                 </div>
             </div>
+
+            {isCurrentTurn && (
+                <div className="mb-2">
+                    <LiveTurnTimerBadge timer={turnTimer} />
+                </div>
+            )}
 
             <button
                 type="button"
@@ -1170,6 +1351,7 @@ function PremiumActionControlPanel({ state }) {
 }
 
 function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerCardsRevealed }) {
+    const turnTimer = usePokerTurnTimer(state?.turnTimer);
     const players = multiSeatPlayers(state);
     const currentSeat = currentUserSeatNumber(state);
     const currentTurnSeat = multiSeatCurrentTurnSeat(state);
@@ -1182,6 +1364,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
     const tableStatusLabel = state?.isFinished
         ? multiSeatShowdownSummary(state)
         : (currentTurnPlayer?.nickname ?? state?.currentTurn?.actorLabel ?? 'Aguardando ação');
+    const liveFocusName = currentTurnPlayer?.nickname ?? currentTurnPlayer?.displayName ?? state?.currentTurn?.actorLabel ?? 'Aguardando ação';
 
     return (
         <section className="poker-table-breath relative overflow-hidden rounded-[1.4rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,#166534_0%,#065f46_34%,#052e2b_64%,#020617_100%)] p-2 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
@@ -1216,6 +1399,17 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                     </div>
                 )}
 
+                {!state?.isFinished && currentTurnSeat !== null && (
+                    <div className="grid gap-2 rounded-[1.4rem] border border-emerald-200/25 bg-emerald-300/10 p-2 shadow-2xl shadow-emerald-950/20 backdrop-blur lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                        <div className="min-w-0 px-1">
+                            <p className="text-[0.58rem] font-black uppercase tracking-[0.26em] text-emerald-100/70">Live focus</p>
+                            <strong className="block truncate text-lg font-black text-white" title={liveFocusName}>{liveFocusName}</strong>
+                            <p className="text-xs font-semibold text-emerald-100/75">Assento {currentTurnSeat} está com a decisão da rodada.</p>
+                        </div>
+                        <LiveTurnTimerBadge timer={turnTimer} compact />
+                    </div>
+                )}
+
                 <MobileTableStickyStatus state={state} />
 
                 <ShowdownPremiumPanel state={state} />
@@ -1244,6 +1438,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                         onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                         index={index}
                                         opponentsCount={opponents.length}
+                                        turnTimer={turnTimer}
                                     />
                                 </div>
                             ))}
@@ -1299,6 +1494,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                     playerCardsRevealed={playerCardsRevealed}
                                     onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                     index={8}
+                                    turnTimer={turnTimer}
                                 />
                             ) : (
                                 <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 p-4 text-sm font-bold text-amber-100">
