@@ -292,6 +292,83 @@ function actionTimelineItems(state) {
 }
 
 
+function latestActionItem(state) {
+    return actionTimelineItems(state)[0] ?? null;
+}
+
+function latestActionAnimationKey(state) {
+    const latest = latestActionItem(state);
+
+    if (!latest) {
+        return `street-${state?.street ?? 'waiting'}-${Number(state?.pot ?? 0)}`;
+    }
+
+    return `${latest.key}-${state?.street ?? 'mesa'}-${Number(state?.pot ?? 0)}`;
+}
+
+function isLatestSeatAction(state, seatNumber) {
+    const latest = latestActionItem(state);
+
+    return latest && Number(latest.seatNumber ?? 0) === Number(seatNumber ?? 0);
+}
+
+function shouldPulsePot(state) {
+    const latest = latestActionItem(state);
+
+    return Boolean(latest && Number(latest.amount ?? 0) > 0);
+}
+
+function PokerTableAnimationStyles() {
+    return (
+        <style>{`
+            @keyframes pokerActionFlash {
+                0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(16,185,129,0); }
+                28% { transform: translateY(-4px) scale(1.015); box-shadow: 0 0 34px rgba(16,185,129,0.34); }
+                100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(16,185,129,0); }
+            }
+
+            @keyframes pokerActionPillPop {
+                0% { transform: scale(0.88); filter: brightness(0.92); }
+                45% { transform: scale(1.08); filter: brightness(1.18); }
+                100% { transform: scale(1); filter: brightness(1); }
+            }
+
+            @keyframes pokerPotReceive {
+                0% { transform: scale(1); }
+                35% { transform: scale(1.055); box-shadow: 0 0 42px rgba(251,191,36,0.32); }
+                100% { transform: scale(1); }
+            }
+
+            @keyframes pokerStreetFade {
+                0% { opacity: 0.68; transform: translateY(7px) scale(0.985); }
+                100% { opacity: 1; transform: translateY(0) scale(1); }
+            }
+
+            @keyframes pokerWinnerGlow {
+                0%, 100% { box-shadow: 0 0 28px rgba(251,191,36,0.18); }
+                50% { box-shadow: 0 0 54px rgba(251,191,36,0.36); }
+            }
+
+            .poker-action-flash { animation: pokerActionFlash 760ms ease-out both; }
+            .poker-action-pop { animation: pokerActionPillPop 420ms cubic-bezier(.2,.9,.3,1.25) both; }
+            .poker-pot-receive { animation: pokerPotReceive 820ms ease-out both; }
+            .poker-street-transition { animation: pokerStreetFade 520ms ease-out both; }
+            .poker-winner-seat { animation: pokerWinnerGlow 1.65s ease-in-out infinite; }
+
+            @media (prefers-reduced-motion: reduce) {
+                .poker-action-flash,
+                .poker-action-pop,
+                .poker-pot-receive,
+                .poker-street-transition,
+                .poker-winner-seat {
+                    animation: none !important;
+                }
+            }
+        `}</style>
+    );
+}
+
+
 function actionToneLabel(label) {
     const normalized = String(label ?? '').toLowerCase();
 
@@ -382,147 +459,6 @@ function actionFlowSummary(state) {
     };
 }
 
-function ActionFlowPanel({ state }) {
-    const actions = actionTimelineDetailedItems(state);
-    const summary = actionFlowSummary(state);
-
-    return (
-        <aside className="overflow-hidden rounded-2xl border border-white/10 bg-black/25 shadow-inner shadow-black/40">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.04] px-3 py-2">
-                <div className="min-w-0">
-                    <p className="text-[0.56rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Ritmo da mesa</p>
-                    <strong className="block truncate text-sm font-black text-white" title={summary.title}>{summary.title}</strong>
-                    <span className="block truncate text-[0.65rem] font-semibold text-emerald-100/75" title={summary.description}>{summary.description}</span>
-                </div>
-
-                <span className="poker-action-pulse shrink-0 rounded-full border border-emerald-100/35 bg-emerald-300/15 px-2 py-1 text-[0.58rem] font-black uppercase tracking-[0.14em] text-emerald-100">
-                    Ao vivo
-                </span>
-            </div>
-
-            <div className="poker-compact-scroll flex max-h-36 flex-col gap-1.5 overflow-y-auto p-2">
-                {actions.length === 0 && (
-                    <p className="rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-[0.68rem] font-semibold text-slate-300">
-                        Nenhuma ação registrada nesta mão ainda.
-                    </p>
-                )}
-
-                {actions.map((action) => (
-                    <div key={action.key} className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border border-white/10 bg-slate-950/45 px-2 py-1.5">
-                        <span className={`rounded-full border px-2 py-0.5 text-[0.55rem] font-black uppercase tracking-[0.12em] ${multiSeatActionPillClasses(action.label, false, action.label === 'Fold')}`}>
-                            {action.tone}
-                        </span>
-
-                        <div className="min-w-0">
-                            <strong className="block truncate text-[0.72rem] font-black text-white">{action.actor}</strong>
-                            <span className="block truncate text-[0.6rem] font-semibold text-slate-300/80">{action.street}</span>
-                        </div>
-
-                        <span className="rounded-full border border-white/10 bg-black/35 px-2 py-1 text-[0.58rem] font-black text-amber-100">
-                            {actionImpactLabel(action)}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </aside>
-    );
-}
-
-
-
-function nextActionOptions(state) {
-    const options = [
-        { key: 'fold', label: 'Fold', active: Boolean(state?.canFold ?? !state?.isFinished), helper: 'Desistir da mão' },
-        { key: 'check', label: 'Check', active: Boolean(state?.canCheck), helper: 'Passar sem apostar' },
-        { key: 'call', label: state?.callAmount ? `Call ${formatChipAmount(state.callAmount)}` : 'Call', active: Boolean(state?.canCall), helper: 'Pagar a aposta' },
-        { key: 'raise', label: 'Raise', active: Boolean(state?.canRaise ?? state?.canBet), helper: 'Aumentar pressão' },
-        { key: 'all-in', label: 'All-in', active: Boolean(state?.canAllIn ?? state?.canRaise ?? state?.canBet), helper: 'Colocar todas as fichas' },
-    ];
-
-    return options;
-}
-
-function commandPanelTitle(state, currentPlayer, currentTurnPlayer) {
-    if (state?.isFinished) {
-        return 'Mão encerrada';
-    }
-
-    if (!currentPlayer && state?.tournamentRuntime) {
-        return 'Modo espectador';
-    }
-
-    if (Boolean(state?.canAct)) {
-        return 'Sua decisão';
-    }
-
-    if (currentTurnPlayer?.nickname) {
-        return `${currentTurnPlayer.nickname} decide`;
-    }
-
-    return 'Aguardando mesa';
-}
-
-function commandPanelDescription(state, currentPlayer) {
-    if (state?.isFinished) {
-        return 'Confira o showdown e inicie a próxima mão quando estiver disponível.';
-    }
-
-    if (!currentPlayer && state?.tournamentRuntime) {
-        return 'Você foi eliminado, mas pode acompanhar stacks, apostas e ações dos jogadores restantes.';
-    }
-
-    if (Boolean(state?.canAct)) {
-        return 'As opções disponíveis aparecem em destaque para reduzir dúvida na jogada.';
-    }
-
-    return state?.currentTurn?.message ?? 'Os cards dos jogadores continuam exibindo ação, stack e aposta atual.';
-}
-
-function PremiumCommandPanel({ state, currentPlayer, currentTurnPlayer }) {
-    const options = nextActionOptions(state);
-    const activeOptions = options.filter((option) => option.active);
-
-    return (
-        <aside className="poker-command-panel overflow-hidden rounded-2xl border border-white/10 bg-black/25 shadow-inner shadow-black/40">
-            <div className="border-b border-white/10 bg-white/[0.04] px-3 py-2">
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.22em] text-sky-100/75">Comando da mão</p>
-                <strong className="block truncate text-sm font-black text-white">{commandPanelTitle(state, currentPlayer, currentTurnPlayer)}</strong>
-                <span className="block text-[0.65rem] font-semibold leading-snug text-slate-200/75">{commandPanelDescription(state, currentPlayer)}</span>
-            </div>
-
-            <div className="grid gap-1.5 p-2">
-                {options.map((option) => (
-                    <div
-                        key={option.key}
-                        className={[
-                            'grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border px-2.5 py-2 transition',
-                            option.active
-                                ? 'poker-command-option-active border-emerald-100/35 bg-emerald-300/12 text-white'
-                                : 'border-white/10 bg-slate-950/45 text-slate-400',
-                        ].join(' ')}
-                    >
-                        <div className="min-w-0">
-                            <strong className="block truncate text-[0.72rem] font-black uppercase tracking-[0.12em]">{option.label}</strong>
-                            <span className="block truncate text-[0.58rem] font-semibold opacity-75">{option.helper}</span>
-                        </div>
-
-                        <span className={[
-                            'rounded-full border px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.12em]',
-                            option.active ? 'border-emerald-100/45 bg-emerald-300 text-emerald-950' : 'border-slate-400/20 bg-slate-900 text-slate-400',
-                        ].join(' ')}>{option.active ? 'Disponível' : 'Bloq.'}</span>
-                    </div>
-                ))}
-
-                {activeOptions.length === 0 && !state?.isFinished && (
-                    <p className="rounded-xl border border-amber-200/20 bg-amber-300/10 px-3 py-2 text-[0.65rem] font-semibold text-amber-100">
-                        Nenhuma ação sua agora. Acompanhe o card do jogador da vez e o ritmo da mesa.
-                    </p>
-                )}
-            </div>
-        </aside>
-    );
-}
-
 function streetProgressItems(state) {
     const streets = [
         { key: 'pre_flop', label: 'Pré-flop' },
@@ -581,6 +517,37 @@ function latestTableActionLabel(state) {
         : `${latest.actor}: ${latest.label}`;
 }
 
+function quickSeatRailLabel(player, state) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const currentTurnSeat = multiSeatCurrentTurnSeat(state);
+    const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
+    const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
+
+    return multiSeatLastActionLabel(state, player, hasFolded, isCurrentTurn);
+}
+
+function quickSeatRailClasses(player, state) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const currentTurnSeat = multiSeatCurrentTurnSeat(state);
+    const isCurrentTurn = currentTurnSeat !== null && seatNumber === currentTurnSeat && !state?.isFinished;
+    const hasFolded = Boolean(player?.hasFolded) || player?.status === 'folded';
+    const isWinner = isMultiSeatWinner(state, seatNumber);
+
+    if (isWinner) {
+        return 'border-amber-100/60 bg-amber-300/20 shadow-amber-950/25';
+    }
+
+    if (isCurrentTurn) {
+        return 'border-emerald-100/50 bg-emerald-300/15 shadow-emerald-950/25';
+    }
+
+    if (hasFolded || Number(player?.stack ?? 0) <= 0) {
+        return 'border-slate-500/20 bg-slate-950/45 opacity-75';
+    }
+
+    return 'border-white/10 bg-white/[0.04]';
+}
+
 function tournamentBlindLevelLabel(state) {
     const runtime = state?.tournamentRuntime;
     const level = runtime?.blindLevel ?? runtime?.level ?? null;
@@ -592,68 +559,6 @@ function tournamentBlindLevelLabel(state) {
     return level
         ? `Nível ${level} · ${formatChipAmount(state?.smallBlind)} / ${formatChipAmount(state?.bigBlind)}`
         : `Blinds ${formatChipAmount(state?.smallBlind)} / ${formatChipAmount(state?.bigBlind)}`;
-}
-
-function MultiSeatMesaHud({ state }) {
-    const players = multiSeatPlayers(state);
-    const activeCount = activeMultiSeatPlayers(state).length;
-    const eliminatedCount = players.filter((player) => Number(player?.stack ?? 0) <= 0).length;
-    const hudItems = [
-        { label: 'Ativos', value: `${activeCount}/${players.length}` },
-        { label: 'Chip leader', value: chipLeaderLabel(state) },
-        { label: 'Short stack', value: shortStackLabel(state) },
-        { label: 'Última ação', value: latestTableActionLabel(state) },
-    ];
-
-    return (
-        <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-2 shadow-inner shadow-black/40 md:grid-cols-4">
-            {hudItems.map((item) => (
-                <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                    <p className="text-[0.55rem] font-black uppercase tracking-[0.18em] text-emerald-100/60">{item.label}</p>
-                    <strong className="mt-1 block truncate text-[0.78rem] font-black text-white" title={item.value}>{item.value}</strong>
-                </div>
-            ))}
-
-            {eliminatedCount > 0 && (
-                <div className="rounded-xl border border-rose-200/25 bg-rose-400/10 px-3 py-2 md:col-span-4">
-                    <p className="text-[0.58rem] font-black uppercase tracking-[0.16em] text-rose-100/80">
-                        {eliminatedCount} eliminado{eliminatedCount > 1 ? 's' : ''} neste torneio · mesa em acompanhamento
-                    </p>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function StreetProgressRail({ state }) {
-    return (
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-2 shadow-inner shadow-black/40">
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[0.58rem] font-black uppercase tracking-[0.2em] text-amber-100/75">Progresso da mão</p>
-                <span className="rounded-full border border-emerald-200/25 bg-emerald-300/10 px-2 py-1 text-[0.58rem] font-black uppercase tracking-[0.14em] text-emerald-100">
-                    {tournamentBlindLevelLabel(state)}
-                </span>
-            </div>
-
-            <div className="grid grid-cols-5 gap-1.5">
-                {streetProgressItems(state).map((street) => (
-                    <span
-                        key={street.key}
-                        className={[
-                            'rounded-full border px-2 py-1 text-center text-[0.56rem] font-black uppercase tracking-[0.12em] transition',
-                            street.isActive
-                                ? 'border-amber-100/70 bg-amber-300 text-amber-950 shadow-lg shadow-amber-950/25'
-                                : street.isCompleted
-                                    ? 'border-emerald-100/35 bg-emerald-300/15 text-emerald-100'
-                                    : 'border-white/10 bg-slate-950/60 text-slate-300/70',
-                        ].join(' ')}
-                    >
-                        {street.label}
-                    </span>
-                ))}
-            </div>
-        </div>
-    );
 }
 
 function multiSeatWinnerSeats(state) {
@@ -696,6 +601,130 @@ function multiSeatShowdownSummary(state) {
     }
 
     return state?.currentTurn?.message ?? 'Showdown concluído. Inicie uma nova mão para liberar novas ações.';
+}
+
+
+function narrativeStageLabel(state) {
+    if (state?.isFinished) {
+        return isMultiSeatSplitPot(state) ? 'Pote dividido' : 'Showdown decidido';
+    }
+
+    const street = String(state?.street ?? '').toLowerCase();
+    const labels = {
+        pre_flop: 'Pré-flop em andamento',
+        preflop: 'Pré-flop em andamento',
+        flop: 'Flop aberto',
+        turn: 'Turn revelado',
+        river: 'River revelado',
+        showdown: 'Showdown',
+        waiting: 'Aguardando próxima mão',
+    };
+
+    return labels[street] ?? 'Mão em andamento';
+}
+
+function narrativeStageDescription(state, currentTurnPlayer) {
+    if (state?.isFinished) {
+        if (isMultiSeatSplitPot(state)) {
+            return `O pote foi dividido entre ${multiSeatWinnerSeats(state).length} jogadores. Revise as mãos e inicie a próxima rodada.`;
+        }
+
+        const winner = multiSeatPlayers(state).find((player) => isMultiSeatWinner(state, player?.seatNumber));
+        const winnerName = winner?.nickname ?? winner?.displayName ?? (winner?.seatNumber ? `Assento ${winner.seatNumber}` : null);
+
+        return winnerName
+            ? `${winnerName} levou o pote. A mesa está pronta para conferir o showdown antes da próxima mão.`
+            : 'Showdown concluído. Confira o resultado e inicie uma nova mão quando estiver pronto.';
+    }
+
+    if (currentTurnPlayer?.nickname || currentTurnPlayer?.displayName) {
+        return `${currentTurnPlayer.nickname ?? currentTurnPlayer.displayName} está com a decisão da rodada.`;
+    }
+
+    return state?.currentTurn?.message ?? 'A mesa está sincronizando a próxima ação.';
+}
+
+function narrativeWinnerNames(state) {
+    const winners = multiSeatWinnerSeats(state);
+
+    if (winners.length === 0) {
+        return 'A definir';
+    }
+
+    return multiSeatPlayers(state)
+        .filter((player) => winners.includes(Number(player?.seatNumber ?? 0)))
+        .map((player) => player?.nickname ?? player?.displayName ?? `Assento ${player.seatNumber}`)
+        .join(' · ') || 'A definir';
+}
+
+function narrativeTimelineItems(state) {
+    const currentStreet = String(state?.street ?? '').toLowerCase();
+    const order = ['pre_flop', 'flop', 'turn', 'river', 'showdown'];
+    const safeStreet = currentStreet === 'preflop' ? 'pre_flop' : currentStreet;
+    const currentIndex = Math.max(0, order.indexOf(safeStreet));
+
+    return [
+        { key: 'pre_flop', label: 'Pré-flop' },
+        { key: 'flop', label: 'Flop' },
+        { key: 'turn', label: 'Turn' },
+        { key: 'river', label: 'River' },
+        { key: 'showdown', label: 'Showdown' },
+    ].map((item, index) => ({
+        ...item,
+        active: !state?.isFinished && item.key === safeStreet,
+        done: Boolean(state?.isFinished) || index < currentIndex,
+    }));
+}
+
+function ShowdownPremiumPanel({ state }) {
+    if (!state?.isFinished) {
+        return null;
+    }
+
+    const winners = multiSeatPlayers(state).filter((player) => isMultiSeatWinner(state, player?.seatNumber));
+    const latestActions = actionTimelineItems(state).slice(0, 4);
+    const winnerNames = winners
+        .map((player) => player?.nickname ?? player?.displayName ?? `Assento ${player?.seatNumber}`)
+        .filter(Boolean);
+    const title = isMultiSeatSplitPot(state)
+        ? `Pote dividido entre ${winnerNames.length || multiSeatWinnerSeats(state).length} jogadores`
+        : `${winnerNames[0] ?? 'Vencedor definido'} venceu a mão`;
+    const subtitle = isMultiSeatSplitPot(state)
+        ? 'Showdown resolvido com empate técnico. Cada vencedor recebe sua parte do pote.'
+        : 'Showdown resolvido. Confira as cartas e inicie a próxima mão quando disponível.';
+
+    return (
+        <section className="poker-soft-enter rounded-[1.35rem] border border-amber-200/25 bg-gradient-to-r from-amber-300/15 via-black/30 to-emerald-300/10 p-3 shadow-2xl shadow-black/35">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="min-w-0">
+                    <p className="text-[0.58rem] font-black uppercase tracking-[0.24em] text-amber-100/75">Showdown</p>
+                    <strong className="block truncate text-xl font-black text-white" title={title}>{title}</strong>
+                    <p className="mt-1 text-sm font-semibold leading-snug text-emerald-100/80">{subtitle}</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <span className="rounded-full border border-amber-100/45 bg-amber-300 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.16em] text-amber-950">
+                        Pote {formatChipAmount(state?.pot)}
+                    </span>
+                    {winnerNames.map((name) => (
+                        <span key={`showdown-winner-${name}`} className="rounded-full border border-emerald-100/35 bg-emerald-300/15 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.16em] text-emerald-100">
+                            {isMultiSeatSplitPot(state) ? 'Empate' : 'Vencedor'} · {name}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            {latestActions.length > 0 && (
+                <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-slate-950/40 px-2 py-2" aria-label="Ritmo final da mão">
+                    {latestActions.map((item) => (
+                        <span key={`showdown-action-${item.key}`} className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.12em] ${multiSeatActionPillClasses(item.label, false, item.label === 'Fold')}`}>
+                            {item.actor}: {item.amount > 0 ? `${item.label} ${formatChipAmount(item.amount)}` : item.label}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
 }
 
 function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed, hasFolded = false) {
@@ -840,11 +869,14 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
     const positionBadges = multiSeatPositionBadges(player, state);
     const actionLabel = multiSeatLastActionLabel(state, player, hasFolded, isCurrentTurn);
     const actionPillClasses = multiSeatActionPillClasses(actionLabel, isCurrentTurn, hasFolded);
+    const isLatestAction = isLatestSeatAction(state, seatNumber) && !state?.isFinished;
 
     return (
         <article
+            key={`${seatNumber}-${latestActionAnimationKey(state)}`}
             className={[
-                'relative overflow-hidden rounded-2xl border p-2 shadow-2xl shadow-black/35 transition duration-300 sm:p-3',
+                'group relative overflow-hidden rounded-2xl border p-2 shadow-2xl shadow-black/35 transition duration-300 hover:-translate-y-0.5 hover:shadow-black/50 sm:p-3',
+                isLatestAction ? 'poker-action-flash' : '',
                 isWinner
                     ? 'poker-winner-seat border-amber-200/70 bg-amber-300/15'
                     : isCurrentTurn
@@ -857,14 +889,14 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
             <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-2">
                     <div className={[
-                        'grid h-9 w-9 shrink-0 place-items-center rounded-full border text-[0.7rem] font-black shadow-lg shadow-black/30',
+                        'grid h-10 w-10 shrink-0 place-items-center rounded-full border text-[0.72rem] font-black shadow-lg shadow-black/30 ring-2 ring-black/25',
                         isCurrentTurn ? 'border-emerald-100/60 bg-emerald-300 text-emerald-950' : isWinner ? 'border-amber-100/70 bg-amber-300 text-amber-950' : 'border-white/15 bg-white/10 text-white',
                     ].join(' ')}>
                         {playerInitials(displayName)}
                     </div>
 
                     <div className="min-w-0">
-                        <p className="text-[0.56rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Assento {seatNumber}</p>
+                        <p className="text-[0.56rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Seat {seatNumber}</p>
                         <strong className="block truncate text-sm font-black text-white sm:text-base">{displayName}</strong>
                         <div className="mt-1 flex flex-wrap gap-1">
                             {positionBadges.map((badge) => (
@@ -887,7 +919,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                     {isCurrentTurn && <span className="rounded-full border border-emerald-100/45 bg-emerald-300 px-2 py-0.5 text-emerald-950">Vez</span>}
                     {winnerBadge && <span className="rounded-full border border-amber-100/70 bg-amber-300 px-2 py-0.5 text-amber-950">{winnerBadge}</span>}
                     {shouldShowMultiSeatActionPill(actionLabel) && (
-                        <span className={`rounded-full border px-2 py-0.5 ${actionPillClasses}`}>
+                        <span className={`rounded-full border px-2 py-0.5 ${isLatestAction ? 'poker-action-pop' : ''} ${actionPillClasses}`}>
                             {actionLabel}
                         </span>
                     )}
@@ -930,15 +962,15 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                 </p>
             </button>
 
-            <div className="mt-2 grid grid-cols-2 gap-1 text-center text-[0.62rem] font-bold text-slate-200/85 sm:grid-cols-4">
-                <span className="rounded-lg bg-black/35 px-2 py-1">Stack<br /><strong className="text-white">{formatChipAmount(player?.stack)}</strong></span>
-                <span className="rounded-lg bg-black/35 px-2 py-1">Aposta<br /><strong className="text-white">{formatChipAmount(player?.streetBet)}</strong></span>
-                <span className="rounded-lg bg-black/35 px-2 py-1">Ação<br /><strong className="text-white">{actionLabel}</strong></span>
-                <span className="rounded-lg bg-black/35 px-2 py-1">Status<br /><strong className="text-white">{hasFolded ? 'Fold' : isCurrentTurn ? 'Vez' : 'Ativo'}</strong></span>
+            <div className="mt-2 grid grid-cols-2 gap-1 text-center text-[0.58rem] font-bold text-slate-200/85 sm:grid-cols-4">
+                <span className="rounded-xl border border-white/10 bg-black/40 px-2 py-1">Stack<br /><strong className="text-white">{formatChipAmount(player?.stack)}</strong></span>
+                <span className="rounded-xl border border-white/10 bg-black/40 px-2 py-1">Aposta<br /><strong className="text-white">{formatChipAmount(player?.streetBet)}</strong></span>
+                <span className="rounded-xl border border-white/10 bg-black/40 px-2 py-1">Ação<br /><strong className="text-white">{actionLabel}</strong></span>
+                <span className="rounded-xl border border-white/10 bg-black/40 px-2 py-1">Status<br /><strong className="text-white">{hasFolded ? 'Fold' : isCurrentTurn ? 'Vez' : 'Ativo'}</strong></span>
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/25 px-2 py-1.5 text-[0.6rem] font-bold text-emerald-100/80">
-                <span className="uppercase tracking-[0.16em]">Fichas</span>
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-emerald-200/15 bg-black/25 px-2 py-1.5 text-[0.6rem] font-bold text-emerald-100/80">
+                <span className="uppercase tracking-[0.16em]">Pilha</span>
                 <div className="flex items-end gap-1" aria-hidden="true">
                     {chipAmountParts(player?.stack).map((height, chipIndex) => (
                         <span
@@ -959,6 +991,137 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
     );
 }
 
+
+function premiumActionControlItems(state) {
+    const canAct = Boolean(state?.canAct) || Boolean(state?.currentTurn?.canAct);
+    const callAmount = Number(state?.callAmount ?? state?.toCall ?? state?.currentBetToCall ?? 0);
+    const minimumRaise = Number(state?.minimumRaiseTo ?? state?.minimumRaise ?? state?.minRaise ?? 0);
+    const maximumRaise = Number(state?.maximumRaiseTo ?? state?.maximumRaise ?? state?.maxRaise ?? state?.playerStack ?? 0);
+    const canCheck = Boolean(state?.canCheck) || callAmount <= 0;
+    const canCall = Boolean(state?.canCall) || callAmount > 0;
+    const canRaise = Boolean(state?.canRaise) || maximumRaise > minimumRaise;
+
+    return [
+        {
+            key: 'fold',
+            label: 'Fold',
+            helper: 'Sair da mão',
+            enabled: canAct,
+            className: 'border-rose-200/35 bg-rose-400/10 text-rose-100',
+        },
+        {
+            key: canCheck ? 'check' : 'call',
+            label: canCheck ? 'Check' : 'Call',
+            helper: canCheck ? 'Passar' : formatChipAmount(callAmount),
+            enabled: canAct && (canCheck || canCall),
+            className: 'border-emerald-200/35 bg-emerald-300/12 text-emerald-100',
+        },
+        {
+            key: 'raise',
+            label: 'Raise',
+            helper: minimumRaise > 0 ? `mín. ${formatChipAmount(minimumRaise)}` : 'Aumentar',
+            enabled: canAct && canRaise,
+            className: 'border-amber-200/40 bg-amber-300/15 text-amber-100',
+        },
+        {
+            key: 'all-in',
+            label: 'All-in',
+            helper: maximumRaise > 0 ? formatChipAmount(maximumRaise) : 'Tudo',
+            enabled: canAct && maximumRaise > 0,
+            className: 'border-fuchsia-200/35 bg-fuchsia-400/12 text-fuchsia-100',
+        },
+    ];
+}
+
+
+function MobileTableStickyStatus({ state }) {
+    const latest = latestActionItem(state);
+    const turnLabel = state?.isFinished ? 'Mão encerrada' : currentTurnLabel(state);
+
+    return (
+        <div className="sticky top-2 z-30 -mx-1 rounded-2xl border border-amber-200/25 bg-slate-950/90 p-2 shadow-2xl shadow-black/50 backdrop-blur xl:hidden" aria-label="Resumo móvel da mesa">
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="rounded-xl border border-amber-200/15 bg-amber-300/10 px-2 py-1.5">
+                    <span className="block text-[0.52rem] font-black uppercase tracking-[0.16em] text-amber-100/70">Turno</span>
+                    <strong className="block truncate text-[0.72rem] font-black text-white">{turnLabel}</strong>
+                </div>
+                <div className="rounded-xl border border-emerald-200/15 bg-emerald-300/10 px-2 py-1.5">
+                    <span className="block text-[0.52rem] font-black uppercase tracking-[0.16em] text-emerald-100/70">Pote</span>
+                    <strong className="block truncate text-[0.72rem] font-black text-white">{formatChipAmount(state?.pot)}</strong>
+                </div>
+                <div className="rounded-xl border border-sky-200/15 bg-sky-300/10 px-2 py-1.5">
+                    <span className="block text-[0.52rem] font-black uppercase tracking-[0.16em] text-sky-100/70">Street</span>
+                    <strong className="block truncate text-[0.72rem] font-black text-white">{narrativeStageLabel(state)}</strong>
+                </div>
+            </div>
+            {latest && (
+                <div className="mt-1.5 truncate rounded-full border border-white/10 bg-black/35 px-3 py-1 text-center text-[0.6rem] font-black uppercase tracking-[0.12em] text-amber-100">
+                    Última: {latest.actor} · {latest.amount > 0 ? `${latest.label} ${formatChipAmount(latest.amount)}` : latest.label}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function PremiumActionControlPanel({ state }) {
+    const items = premiumActionControlItems(state);
+    const canAct = items.some((item) => item.enabled);
+    const latest = latestActionItem(state);
+    const minimumRaise = Number(state?.minimumRaiseTo ?? state?.minimumRaise ?? state?.minRaise ?? 0);
+    const maximumRaise = Number(state?.maximumRaiseTo ?? state?.maximumRaise ?? state?.maxRaise ?? state?.playerStack ?? 0);
+    const raiseSpan = Math.max(0, maximumRaise - minimumRaise);
+    const sliderPercent = maximumRaise > 0 && minimumRaise > 0
+        ? Math.min(100, Math.max(10, Math.round((minimumRaise / maximumRaise) * 100)))
+        : 34;
+
+    return (
+        <aside className="sticky bottom-2 z-30 rounded-[1.35rem] border border-amber-200/25 bg-slate-950/90 p-3 shadow-2xl shadow-black/50 backdrop-blur xl:top-4 xl:bottom-auto" aria-label="Comando premium da mão">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-[0.58rem] font-black uppercase tracking-[0.24em] text-amber-100/70">Comando</p>
+                    <strong className="mt-1 block text-base font-black text-white">{canAct ? 'Sua decisão' : 'Acompanhando mesa'}</strong>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.14em] ${canAct ? 'border-emerald-200/45 bg-emerald-300/15 text-emerald-100' : 'border-slate-400/25 bg-slate-900 text-slate-300'}`}>
+                    {canAct ? 'Ativo' : 'Bloqueado'}
+                </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                {items.map((item) => (
+                    <div
+                        key={item.key}
+                        className={`rounded-2xl border px-3 py-2.5 text-left transition active:scale-[0.98] sm:py-2 ${item.className} ${item.enabled ? 'shadow-lg shadow-black/20' : 'opacity-45 grayscale'}`}
+                    >
+                        <span className="block text-base font-black uppercase tracking-[0.12em] sm:text-sm">{item.label}</span>
+                        <span className="mt-0.5 block text-[0.62rem] font-bold uppercase tracking-[0.12em] opacity-80">{item.helper}</span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-2.5">
+                <div className="flex items-center justify-between text-[0.6rem] font-black uppercase tracking-[0.16em] text-slate-300">
+                    <span>Raise</span>
+                    <span>{raiseSpan > 0 ? `${formatChipAmount(minimumRaise)} → ${formatChipAmount(maximumRaise)}` : 'Indisponível'}</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div className="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300" style={{ width: `${sliderPercent}%` }} />
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[0.58rem] font-black uppercase tracking-[0.12em] text-amber-100/80">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">1/2 pote</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">Pote</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">All-in</span>
+                </div>
+            </div>
+
+            <p className="mt-3 rounded-2xl border border-emerald-200/15 bg-emerald-300/10 px-3 py-2 text-[0.68rem] font-bold leading-snug text-emerald-100/85">
+                {latest
+                    ? `Última ação: ${latest.actor} · ${latest.amount > 0 ? `${latest.label} ${formatChipAmount(latest.amount)}` : latest.label}`
+                    : 'As ações executadas aparecerão em destaque no assento de cada jogador.'}
+            </p>
+        </aside>
+    );
+}
+
 function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerCardsRevealed }) {
     const players = multiSeatPlayers(state);
     const currentSeat = currentUserSeatNumber(state);
@@ -968,112 +1131,137 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
     const opponents = players.filter((player) => Number(player.seatNumber ?? 0) !== currentSeat);
     const maxPlayers = Number(state?.multiSeat?.maxPlayers ?? state?.tableCapacity?.maxPlayers ?? players.length ?? 0);
     const assistedModeLabel = multiSeatAssistedModeLabel(state, currentPlayer);
-    const actionTimeline = actionTimelineItems(state);
-    const commandCurrentPlayer = currentPlayer;
-    const commandCurrentTurnPlayer = currentTurnPlayer;
+    const actionTimeline = actionTimelineItems(state).slice(0, 4);
+    const tableStatusLabel = state?.isFinished
+        ? multiSeatShowdownSummary(state)
+        : (currentTurnPlayer?.nickname ?? state?.currentTurn?.actorLabel ?? 'Aguardando ação');
 
     return (
-        <section className="poker-table-breath relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,#166534_0%,#065f46_36%,#052e2b_66%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
-            <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
-            <div className="pointer-events-none absolute inset-4 rounded-[999px] border border-amber-200/20 sm:inset-x-16 sm:inset-y-28" />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
+        <section className="poker-table-breath relative overflow-hidden rounded-[1.4rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,#166534_0%,#065f46_34%,#052e2b_64%,#020617_100%)] p-2 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
+            <PokerTableAnimationStyles />
+            <div className="pointer-events-none absolute inset-1 rounded-[1.1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.7rem] sm:border-[7px]" />
+            <div className="pointer-events-none absolute inset-x-3 top-[22%] bottom-[17%] rounded-[999px] border border-amber-200/25 shadow-[inset_0_0_60px_rgba(0,0,0,0.45)] sm:inset-x-10 lg:inset-x-20" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
 
             <div className="relative z-10 grid gap-3">
-                <div className="grid gap-2 rounded-2xl border border-amber-200/25 bg-black/30 p-2 text-center shadow-2xl shadow-black/35 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:p-3">
-                    <div className="text-left">
-                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Mesa multi-seat</p>
-                        <strong className="block text-lg font-black text-white">{players.length}/{maxPlayers} jogadores</strong>
+                <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-slate-950/45 p-2 shadow-xl shadow-black/35 backdrop-blur md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-emerald-200/25 bg-emerald-300/10 px-3 py-1 text-[0.6rem] font-black uppercase tracking-[0.18em] text-emerald-100">
+                            {players.length}/{maxPlayers} jogadores
+                        </span>
+                        <span className="rounded-full border border-emerald-200/25 bg-emerald-300/10 px-3 py-1 text-[0.6rem] font-black uppercase tracking-[0.18em] text-emerald-100">
+                            Blinds {formatChipAmount(state?.smallBlind)} / {formatChipAmount(state?.bigBlind)}
+                        </span>
+                        <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-3 py-1 text-[0.6rem] font-black uppercase tracking-[0.16em] text-amber-100">
+                            {multiSeatBlindSummary(state)}
+                        </span>
                     </div>
 
-                    <div className="rounded-full border border-amber-200/40 bg-amber-300/15 px-4 py-2 shadow-xl shadow-amber-950/25">
-                        <p className="text-[0.56rem] font-black uppercase tracking-[0.2em] text-amber-100">Pote</p>
-                        <strong className="block text-2xl font-black text-white">{formatChipAmount(state?.pot)}</strong>
-                    </div>
-
-                    <div className="text-left sm:text-right">
-                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-emerald-100/75">Turno atual</p>
-                        <strong className="block text-base font-black text-white">
-                            {state?.isFinished ? 'Mão finalizada' : (currentTurnPlayer?.nickname ?? state?.currentTurn?.actorLabel ?? 'Aguardando')}
-                        </strong>
-                        <span className="text-[0.68rem] font-semibold text-emerald-100/75">{multiSeatShowdownSummary(state)}</span>
-                        {assistedModeLabel && (
-                            <span className="mt-1 block rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[0.62rem] font-bold text-amber-100">
-                                {assistedModeLabel}
-                            </span>
-                        )}
+                    <div className="min-w-0 text-left md:text-right">
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100/70">Mesa em jogo</p>
+                        <strong className="block truncate text-sm font-black text-white md:max-w-[420px]" title={tableStatusLabel}>{tableStatusLabel}</strong>
                     </div>
                 </div>
 
-                <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-2 shadow-inner shadow-black/30 md:grid-cols-[1fr_auto] md:items-center">
-                    <div className="flex flex-wrap items-center gap-2 text-[0.62rem] font-black uppercase tracking-[0.16em] text-emerald-100/75">
-                        <span className="rounded-full border border-emerald-200/25 bg-emerald-300/10 px-2 py-1">Blinds {formatChipAmount(state?.smallBlind)} / {formatChipAmount(state?.bigBlind)}</span>
-                        <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-2 py-1">{multiSeatBlindSummary(state)}</span>
+                {assistedModeLabel && (
+                    <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 px-3 py-2 text-sm font-bold text-amber-100 shadow-xl shadow-black/30">
+                        {assistedModeLabel}
                     </div>
+                )}
 
-                    {actionTimeline.length > 0 && (
-                        <div className="flex min-w-0 flex-wrap justify-start gap-1 md:justify-end" aria-label="Últimas ações da mesa">
-                            {actionTimeline.map((item) => (
-                                <span key={item.key} className={`rounded-full border px-2 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] ${multiSeatActionPillClasses(item.label, false, item.label === 'Fold')}`}>
-                                    {item.actor}: {item.amount > 0 ? `${item.label} ${formatChipAmount(item.amount)}` : item.label}
-                                </span>
+                <MobileTableStickyStatus state={state} />
+
+                <ShowdownPremiumPanel state={state} />
+
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+                <div className="relative order-2 min-h-[520px] overflow-hidden rounded-[1.5rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,rgba(6,95,70,0.78),rgba(2,44,34,0.84)_58%,rgba(2,6,23,0.82)_100%)] p-2 shadow-inner shadow-black/60 sm:min-h-[620px] sm:p-4 xl:order-1 xl:min-h-[670px]">
+                    <div className="pointer-events-none absolute inset-x-10 top-24 bottom-28 rounded-[999px] border border-amber-200/25 shadow-[0_0_90px_rgba(0,0,0,0.35),inset_0_0_80px_rgba(0,0,0,0.35)]" />
+                    <div className="pointer-events-none absolute left-1/2 top-[34%] h-[1px] w-2/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-amber-100/20 to-transparent" />
+
+                    <div className="relative z-10 grid min-h-[500px] grid-rows-[auto_1fr_auto] gap-2 sm:min-h-[590px] sm:gap-3 xl:min-h-[640px]">
+                        <div className="poker-card-scroll flex gap-2 overflow-x-auto pb-1 xl:grid xl:grid-cols-3 xl:overflow-visible xl:pb-0">
+                            {opponents.length === 0 && (
+                                <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm font-bold text-slate-200">
+                                    Aguardando adversários sentados.
+                                </div>
+                            )}
+                            {opponents.map((player, index) => (
+                                <div key={`opponent-wrap-${player.seatNumber}`} className="min-w-[220px] sm:min-w-[270px] xl:min-w-0">
+                                    <MultiSeatPlayerSpot
+                                        key={`opponent-${player.seatNumber}`}
+                                        player={player}
+                                        state={state}
+                                        currentUserSeat={currentSeat}
+                                        currentTurnSeat={currentTurnSeat}
+                                        playerCardsRevealed={playerCardsRevealed}
+                                        onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                                        index={index}
+                                    />
+                                </div>
                             ))}
                         </div>
-                    )}
-                </div>
 
-                <MultiSeatMesaHud state={state} />
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)_minmax(260px,340px)]">
-                    <StreetProgressRail state={state} />
-                    <ActionFlowPanel state={state} />
-                    <PremiumCommandPanel
-                        state={state}
-                        currentPlayer={commandCurrentPlayer}
-                        currentTurnPlayer={commandCurrentTurnPlayer}
-                    />
-                </div>
+                        <div className="flex min-w-0 flex-col items-center justify-center gap-3 px-1 sm:px-5 xl:px-20">
+                            <div key={`pot-${latestActionAnimationKey(state)}`} className={`poker-soft-enter poker-pot-pulse relative mx-auto w-fit rounded-full border border-amber-200/45 bg-amber-300/15 px-7 py-3 text-center shadow-2xl shadow-amber-950/30 ${shouldPulsePot(state) ? 'poker-pot-receive' : ''}`}>
+                                <div className="pointer-events-none absolute -top-5 left-1/2 flex -translate-x-1/2 items-end gap-1">
+                                    {chipAmountParts(state.pot).map((height, index) => (
+                                        <span
+                                            key={`multi-pot-chip-${index}`}
+                                            style={{ animationDelay: `${index * 180}ms` }}
+                                            className="poker-chip-float block h-5 w-5 rounded-full border-[3px] border-amber-100/80 bg-gradient-to-br from-red-500 via-red-700 to-red-950 shadow-lg shadow-black/35"
+                                        >
+                                            <span className="mx-auto mt-0.5 block h-1.5 w-1.5 rounded-full bg-amber-100/80" />
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-[0.62rem] font-black uppercase tracking-[0.24em] text-amber-100">Pote total</p>
+                                <strong className="block text-4xl font-black text-white sm:text-5xl">{formatChipAmount(state?.pot)}</strong>
+                            </div>
 
-                <div className="grid gap-3 xl:min-h-[620px] xl:grid-rows-[minmax(160px,auto)_minmax(220px,1fr)_minmax(170px,auto)]">
-                    <div className={`grid gap-2 md:grid-cols-2 ${players.length <= 2 ? 'mx-auto w-full max-w-4xl xl:grid-cols-2' : 'xl:grid-cols-3'} xl:items-start`}>
-                        {opponents.map((player, index) => (
-                            <MultiSeatPlayerSpot
-                                key={`opponent-${player.seatNumber}`}
-                                player={player}
-                                state={state}
-                                currentUserSeat={currentSeat}
-                                currentTurnSeat={currentTurnSeat}
-                                playerCardsRevealed={playerCardsRevealed}
-                                onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
-                                index={index}
-                            />
-                        ))}
-                    </div>
+                            <div key={`board-${state?.street ?? 'mesa'}-${community.visible.length}`} className="poker-street-transition w-full max-w-3xl rounded-[2rem] border border-amber-200/25 bg-black/25 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:p-5">
+                                <CardRow
+                                    title="Board / Cartas comunitárias"
+                                    cards={community.visible}
+                                    hiddenCount={community.hiddenCount}
+                                    tone="hero"
+                                    dealStartIndex={4}
+                                    dealFrom="dealer"
+                                />
+                            </div>
 
-                    <div className="flex min-w-0 items-center justify-center px-1 sm:px-6 xl:px-16">
-                        <div className="w-full max-w-3xl rounded-[2rem] border border-amber-200/25 bg-black/25 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:p-5">
-                            <CardRow
-                                title="Board / Cartas comunitárias"
-                                cards={community.visible}
-                                hiddenCount={community.hiddenCount}
-                                tone="hero"
-                                dealStartIndex={4}
-                                dealFrom="dealer"
-                            />
+                            {actionTimeline.length > 0 && (
+                                <div className="poker-card-scroll flex max-w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-slate-950/45 px-2 py-2 shadow-xl shadow-black/35" aria-label="Últimas ações da mesa">
+                                    {actionTimeline.map((item) => (
+                                        <span key={item.key} className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] ${item.key === latestActionItem(state)?.key ? 'poker-action-pop' : ''} ${multiSeatActionPillClasses(item.label, false, item.label === 'Fold')}`}>
+                                            {item.actor}: {item.amount > 0 ? `${item.label} ${formatChipAmount(item.amount)}` : item.label}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mx-auto w-full max-w-5xl">
+                            {currentPlayer ? (
+                                <MultiSeatPlayerSpot
+                                    key={`current-${currentPlayer.seatNumber}`}
+                                    player={currentPlayer}
+                                    state={state}
+                                    currentUserSeat={currentSeat}
+                                    currentTurnSeat={currentTurnSeat}
+                                    playerCardsRevealed={playerCardsRevealed}
+                                    onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
+                                    index={8}
+                                />
+                            ) : (
+                                <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 p-4 text-sm font-bold text-amber-100">
+                                    Você está acompanhando a mesa como espectador/eliminado. Acompanhe as ações nos assentos e no histórico recolhido abaixo.
+                                </div>
+                            )}
                         </div>
                     </div>
-
-                    <div className="mx-auto w-full max-w-4xl xl:self-end">
-                        {currentPlayer && (
-                            <MultiSeatPlayerSpot
-                                key={`current-${currentPlayer.seatNumber}`}
-                                player={currentPlayer}
-                                state={state}
-                                currentUserSeat={currentSeat}
-                                currentTurnSeat={currentTurnSeat}
-                                playerCardsRevealed={playerCardsRevealed}
-                                onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
-                                index={8}
-                            />
-                        )}
+                </div>
+                    <div className="order-1 xl:order-2">
+                        <PremiumActionControlPanel state={state} />
                     </div>
                 </div>
             </div>
@@ -1112,6 +1300,7 @@ export default function PokerTable({ state }) {
 
     return (
         <section className="poker-table-breath relative overflow-hidden rounded-[1.1rem] border border-amber-200/20 bg-[radial-gradient(circle_at_center,#166534_0%,#065f46_38%,#052e2b_68%,#020617_100%)] p-1.5 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-4">
+            <PokerTableAnimationStyles />
             <div className="pointer-events-none absolute inset-1 rounded-[1rem] border-[3px] border-amber-950/45 shadow-inner shadow-black/80 sm:inset-3 sm:rounded-[1.6rem] sm:border-[7px]" />
             <div className="pointer-events-none absolute inset-3 rounded-[0.9rem] border border-amber-200/20 sm:inset-6 sm:rounded-[1.35rem]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.14),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.10),transparent_25%,transparent_75%,rgba(255,255,255,0.06))]" />
@@ -1169,7 +1358,7 @@ export default function PokerTable({ state }) {
 
                 <div className="flex min-w-0 items-center justify-center">
                     <div className="w-full min-w-0 max-w-2xl rounded-xl border border-amber-200/25 bg-black/25 p-1.5 shadow-2xl shadow-black/50 backdrop-blur sm:rounded-2xl sm:p-3">
-                        <div className="poker-soft-enter poker-pot-pulse relative mx-auto mb-1.5 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-3 py-1 text-center shadow-xl shadow-amber-950/20 sm:mb-3 sm:px-5 sm:py-2">
+                        <div key={`pot-single-${latestActionAnimationKey(state)}`} className={`poker-soft-enter poker-pot-pulse relative mx-auto mb-1.5 w-fit rounded-full border border-amber-200/40 bg-amber-300/15 px-3 py-1 text-center shadow-xl shadow-amber-950/20 sm:mb-3 sm:px-5 sm:py-2 ${shouldPulsePot(state) ? 'poker-pot-receive' : ''}`}>
                             <div className="pointer-events-none absolute -top-4 left-1/2 flex -translate-x-1/2 items-end gap-1">
                                 {chipAmountParts(state.pot).map((height, index) => (
                                     <span
@@ -1185,14 +1374,16 @@ export default function PokerTable({ state }) {
                             <strong className="block text-lg font-black text-white sm:text-4xl">{state.pot}</strong>
                         </div>
 
-                        <CardRow
-                            title="Board / Cartas comunitárias"
+                        <div key={`board-single-${state?.street ?? 'mesa'}-${community.visible.length}`} className="poker-street-transition">
+                            <CardRow
+                                title="Board / Cartas comunitárias"
                             cards={community.visible}
                             hiddenCount={community.hiddenCount}
                             tone="hero"
                             dealStartIndex={4}
-                            dealFrom="dealer"
-                        />
+                                dealFrom="dealer"
+                            />
+                        </div>
                     </div>
                 </div>
 

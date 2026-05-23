@@ -5,15 +5,24 @@ import LastActionAlert from '../../Components/Poker/LastActionAlert';
 import PokerActionHistory from '../../Components/Poker/PokerActionHistory';
 import PokerActionPanel from '../../Components/Poker/PokerActionPanel';
 import PokerBotThinkingIndicator from '../../Components/Poker/PokerBotThinkingIndicator';
+import PokerFinalReviewChecklist from '../../Components/Poker/PokerFinalReviewChecklist';
 import PokerHandRankCheatSheet from '../../Components/Poker/PokerHandRankCheatSheet';
 import PokerInterfaceStateBanner from '../../Components/Poker/PokerInterfaceStateBanner';
 import PokerHeader from '../../Components/Poker/PokerHeader';
 import PokerSoundToggle from '../../Components/Poker/PokerSoundToggle';
+import PokerStateFeedbackPanel from '../../Components/Poker/PokerStateFeedbackPanel';
+import PokerMotionUxPanel from '../../Components/Poker/PokerMotionUxPanel';
+import PokerResponsiveUxPanel from '../../Components/Poker/PokerResponsiveUxPanel';
+import PokerFinalPolishPanel from '../../Components/Poker/PokerFinalPolishPanel';
+import PokerPhaseTenAuditPanel from '../../Components/Poker/PokerPhaseTenAuditPanel';
+import PokerPhaseThirteenDesignAuditPanel from '../../Components/Poker/PokerPhaseThirteenDesignAuditPanel';
+import PokerMultiSeatIntegrationPanel from '../../Components/Poker/PokerMultiSeatIntegrationPanel';
 import PokerStreetProgress from '../../Components/Poker/PokerStreetProgress';
 import PokerTable from '../../Components/Poker/PokerTable';
 import PokerTableStatus from '../../Components/Poker/PokerTableStatus';
 import PokerTurnTimer from '../../Components/Poker/PokerTurnTimer';
 import PokerTournamentRuntimePanel from '../../Components/Poker/PokerTournamentRuntimePanel';
+import PokerVisualAuditPanel from '../../Components/Poker/PokerVisualAuditPanel';
 import PokerRealtimeStatus from '../../Components/Poker/PokerRealtimeStatus';
 import PokerRealPlayersPanel from '../../Components/Poker/PokerRealPlayersPanel';
 import PokerPresenceMiniPanel from '../../Components/Poker/PokerPresenceMiniPanel';
@@ -163,6 +172,197 @@ function resolveInterfaceState({
         description: 'Escolha uma ação no painel da mesa.',
         badge: 'ativo',
     };
+}
+
+
+function actionDockTitle(state, botThinking = false) {
+    if (state?.isFinished) {
+        return 'Showdown finalizado';
+    }
+
+    if (botThinking) {
+        return 'Bot pensando';
+    }
+
+    if (state?.canAct) {
+        return 'Sua vez de agir';
+    }
+
+    return state?.currentTurn?.actorLabel
+        ? `Vez de ${state.currentTurn.actorLabel}`
+        : 'Aguardando ação';
+}
+
+function actionDockDescription(state, turnTimer = null) {
+    if (state?.isFinished) {
+        return 'Revise o resultado e inicie a próxima mão quando estiver disponível.';
+    }
+
+    if (state?.canAct) {
+        return 'Timer e botões ficam fixos aqui para priorizar a jogada.';
+    }
+
+    if (turnTimer?.secondsRemaining !== undefined) {
+        return `${turnTimer.secondsRemaining}s restantes para a ação atual.`;
+    }
+
+    return state?.currentTurn?.message ?? 'Acompanhe a mesa enquanto aguarda a próxima ação.';
+}
+
+
+function multiSeatWinnerSeatsFromState(state) {
+    const winnerSeats = Array.isArray(state?.multiSeat?.winnerSeats)
+        ? state.multiSeat.winnerSeats
+        : [];
+
+    return [...new Set(
+        winnerSeats
+            .map((seat) => Number(seat))
+            .filter((seat) => seat > 0),
+    )];
+}
+
+function multiSeatPlayersFromState(state) {
+    return Array.isArray(state?.multiSeat?.players)
+        ? state.multiSeat.players.filter((player) => player && Number(player?.seatNumber ?? 0) > 0)
+        : [];
+}
+
+function displayNameForSeat(player, currentUserSeat) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+
+    if (currentUserSeat > 0 && seatNumber === currentUserSeat) {
+        return 'Você';
+    }
+
+    return player?.nickname ?? player?.displayName ?? `Assento ${seatNumber}`;
+}
+
+function canonicalMultiSeatConclusion(state) {
+    if (!state?.isFinished || !Array.isArray(state?.multiSeat?.players)) {
+        return state?.conclusion ?? null;
+    }
+
+    const winnerSeats = multiSeatWinnerSeatsFromState(state);
+
+    if (winnerSeats.length === 0) {
+        return state?.conclusion ?? null;
+    }
+
+    const players = multiSeatPlayersFromState(state);
+    const currentUserSeat = Number(state?.multiplayerPerspective?.seatNumber ?? state?.playersContext?.current?.seatNumber ?? 0);
+    const winners = players.filter((player) => winnerSeats.includes(Number(player?.seatNumber ?? 0)));
+    const winnerNames = winners.map((player) => displayNameForSeat(player, currentUserSeat));
+    const firstWinner = winners[0] ?? null;
+    const firstWinnerSeat = Number(firstWinner?.seatNumber ?? winnerSeats[0] ?? 0);
+    const firstWinnerHand = firstWinner?.bestHand?.name ?? state?.conclusion?.winner?.handName ?? 'Showdown multi-seat';
+
+    if (winnerSeats.length > 1) {
+        return {
+            ...(state?.conclusion ?? {}),
+            isFinished: true,
+            winner: {
+                ...(state?.conclusion?.winner ?? {}),
+                player: 'tie',
+                seatNumber: null,
+                label: winnerNames.join(' · ') || 'Pote dividido',
+                handName: firstWinnerHand,
+            },
+            message: `Pote dividido entre ${winnerNames.join(', ') || `${winnerSeats.length} jogadores`}.`,
+        };
+    }
+
+    const isCurrentUserWinner = currentUserSeat > 0 && firstWinnerSeat === currentUserSeat;
+    const label = firstWinner ? displayNameForSeat(firstWinner, currentUserSeat) : `Assento ${firstWinnerSeat}`;
+    const winnerMessageName = firstWinner?.nickname ?? firstWinner?.displayName ?? label;
+
+    return {
+        ...(state?.conclusion ?? {}),
+        isFinished: true,
+        winner: {
+            ...(state?.conclusion?.winner ?? {}),
+            player: isCurrentUserWinner ? 'player' : 'opponent',
+            canonicalPlayer: `seat:${firstWinnerSeat}`,
+            seatNumber: firstWinnerSeat,
+            label,
+            handName: firstWinnerHand,
+        },
+        message: `${winnerMessageName} venceu o showdown multi-seat com ${firstWinnerHand}.`,
+    };
+}
+
+function MesaCommandDock({
+    state,
+    table,
+    turnTimer,
+    actionPanelLocked,
+    actionInFlight,
+    botThinking,
+    currentBotThinkingLabel,
+    actionError,
+    handleAction,
+    handleStartNewHand,
+    startingNewHand,
+}) {
+    return (
+        <section className="overflow-hidden rounded-[1.75rem] border border-amber-200/25 bg-slate-950/92 shadow-2xl shadow-black/60 backdrop-blur">
+            <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.18),transparent_38%),linear-gradient(135deg,rgba(16,185,129,0.12),rgba(2,6,23,0.88))] px-4 py-3">
+                <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/70 to-transparent" />
+                <p className="text-[0.62rem] font-black uppercase tracking-[0.28em] text-amber-100/80">Comando da mesa</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h2 className="truncate text-xl font-black text-white">{actionDockTitle(state, botThinking)}</h2>
+                        <p className="mt-1 text-xs font-semibold leading-snug text-slate-200/75">{actionDockDescription(state, turnTimer)}</p>
+                    </div>
+                    <span className={["shrink-0 rounded-full border px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.16em]", state?.canAct ? 'border-emerald-100/45 bg-emerald-300 text-emerald-950' : 'border-white/15 bg-white/10 text-slate-200'].join(' ')}>
+                        {state?.canAct ? 'agir' : 'assistir'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="grid gap-2 p-2.5">
+                {state.isFinished ? (
+                    <div className="rounded-2xl border border-amber-200/20 bg-amber-300/10 p-3 text-sm text-amber-50 shadow-inner shadow-black/30">
+                        <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-amber-100/75">Mão encerrada</p>
+                        <p className="mt-1 font-bold text-white">O showdown foi resolvido. Os controles de aposta ficam ocultos até a próxima mão.</p>
+                    </div>
+                ) : (
+                    <>
+                        <PokerTurnTimer timer={turnTimer} compact />
+
+                        <PokerActionPanel
+                            disabled={actionPanelLocked}
+                            currentBet={state.currentBet}
+                            amountToCall={state.amountToCall}
+                            minimumRaise={state.minimumRaise}
+                            minimumRaiseTo={state.minimumRaiseTo}
+                            maximumRaiseTo={state.maximumRaiseTo}
+                            canCheck={state.canCheck}
+                            canCall={state.canCall}
+                            canRaise={state.canRaise}
+                            actingAction={actionInFlight}
+                            thinking={botThinking}
+                            thinkingLabel={currentBotThinkingLabel}
+                            errorMessage={actionError}
+                            actionUx={table?.actionButtonUx}
+                            onAction={handleAction}
+                        />
+                    </>
+                )}
+
+                {state.isFinished && (table?.newHandActionUrl || table?.newHandUrl) && (
+                    <button
+                        type="button"
+                        onClick={handleStartNewHand}
+                        disabled={startingNewHand}
+                        className="w-full rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {startingNewHand ? 'Iniciando...' : 'Iniciar nova mão'}
+                    </button>
+                )}
+            </div>
+        </section>
+    );
 }
 
 function botThinkingLabel(players = []) {
@@ -419,6 +619,7 @@ export default function Play({ hand, table = null }) {
     const [startingNewHand, setStartingNewHand] = useState(false);
     const [realPlayers, setRealPlayers] = useState(table?.realPlayers ?? []);
     const [seatSlots, setSeatSlots] = useState(table?.seatSlots ?? []);
+    const [stateContracts, setStateContracts] = useState(table?.stateContracts ?? null);
     const [tournamentRuntime, setTournamentRuntime] = useState(table?.tournamentRuntime ?? null);
     const [joinMessage, setJoinMessage] = useState(null);
     const [handRankHelpOpen, setHandRankHelpOpen] = useState(false);
@@ -433,6 +634,10 @@ export default function Play({ hand, table = null }) {
 
         if (Array.isArray(payload?.seatSlots)) {
             setSeatSlots(payload.seatSlots);
+        }
+
+        if (payload?.stateContracts) {
+            setStateContracts(payload.stateContracts);
         }
 
         if (payload?.tournamentRuntime !== undefined) {
@@ -496,6 +701,7 @@ export default function Play({ hand, table = null }) {
         botThinking,
     });
 
+    const conclusionForDisplay = canonicalMultiSeatConclusion(state);
 
     async function handleJoinTable() {
         if (!table?.joinUrl) {
@@ -777,7 +983,8 @@ export default function Play({ hand, table = null }) {
                 )}
 
                 <PokerInterfaceStateBanner state={interfaceState} />
-                <HandConclusionBanner conclusion={state.conclusion} />
+                <PokerStateFeedbackPanel state={state} feedback={table?.stateFeedback} />
+                <HandConclusionBanner conclusion={conclusionForDisplay} />
                 <LastActionAlert action={state.lastAction} />
                 <PokerBotThinkingIndicator active={botThinking} label={currentBotThinkingLabel} />
 
@@ -822,6 +1029,17 @@ export default function Play({ hand, table = null }) {
 
                         <div className="xl:hidden">
                             <div className="poker-safe-sticky-actions sticky bottom-2 z-40 rounded-[1.35rem] border border-amber-200/20 bg-slate-950/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-md supports-[padding:max(0px)]:mb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                                <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[0.55rem] font-black uppercase tracking-[0.18em] text-amber-100/75">Comando</p>
+                                        <strong className="block truncate text-sm font-black text-white">{actionDockTitle(state, botThinking)}</strong>
+                                    </div>
+                                    <div className="shrink-0 rounded-2xl border border-emerald-200/35 bg-emerald-300/10 px-3 py-1.5 text-right">
+                                        <span className="block text-[0.52rem] font-black uppercase tracking-[0.16em] text-emerald-100/70">Timer</span>
+                                        <strong className="block text-lg font-black text-white">{turnTimer ? `${turnTimer.secondsRemaining}s` : '-'}</strong>
+                                    </div>
+                                </div>
+
                                 <PokerActionPanel
                                     disabled={actionPanelLocked}
                                     currentBet={state.currentBet}
@@ -844,6 +1062,18 @@ export default function Play({ hand, table = null }) {
 
                         <PokerActionHistory history={state.actionHistory} compact />
 
+                        <PokerFinalReviewChecklist table={table} />
+                        <PokerVisualAuditPanel audit={table?.visualAudit} />
+                        <PokerMotionUxPanel motion={table?.motionUx} />
+                        <PokerResponsiveUxPanel responsive={table?.responsiveUx} />
+                        <PokerFinalPolishPanel polish={table?.finalPolish} />
+                        <PokerPhaseTenAuditPanel audit={table?.phaseTenAudit} />
+                        <PokerPhaseThirteenDesignAuditPanel audit={table?.phaseThirteenDesignAudit} />
+                        <PokerMultiSeatIntegrationPanel
+                            contracts={stateContracts}
+                            players={realPlayers}
+                            maxPlayers={table?.maxPlayers}
+                        />
 
                         <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur">
                             <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">
@@ -908,53 +1138,42 @@ export default function Play({ hand, table = null }) {
                         </details>
                     </section>
 
-                    <aside className="space-y-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
-                        {!table?.isLocalMode && (
-                            <PokerPresenceMiniPanel
-                                players={realPlayers}
-                                currentUserId={table?.currentUserId}
-                                currentTurnLabel={state?.currentTurn?.actorLabel}
-                                maxPlayers={table?.maxPlayers}
-                                realtimeStatus={realtimeStatus}
-                            />
-                        )}
+                    <aside className="space-y-3 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:pr-1">
+                        <MesaCommandDock
+                            state={state}
+                            table={table}
+                            turnTimer={turnTimer}
+                            actionPanelLocked={actionPanelLocked}
+                            actionInFlight={actionInFlight}
+                            botThinking={botThinking}
+                            currentBotThinkingLabel={currentBotThinkingLabel}
+                            actionError={actionError}
+                            handleAction={handleAction}
+                            handleStartNewHand={handleStartNewHand}
+                            startingNewHand={startingNewHand}
+                        />
 
-                        <PokerTournamentRuntimePanel runtime={tournamentRuntime} compact />
-                        <PokerTableStatus state={state} compact />
-                        <PokerTurnTimer timer={turnTimer} compact />
+                        <details className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-xl shadow-black/35 backdrop-blur" open={false}>
+                            <summary className="cursor-pointer select-none text-xs font-black uppercase tracking-[0.24em] text-emerald-100">
+                                Painéis auxiliares
+                            </summary>
 
-                        <div className="hidden xl:block">
-                            <PokerActionPanel
-                                disabled={actionPanelLocked}
-                                currentBet={state.currentBet}
-                                amountToCall={state.amountToCall}
-                                minimumRaise={state.minimumRaise}
-                                minimumRaiseTo={state.minimumRaiseTo}
-                                maximumRaiseTo={state.maximumRaiseTo}
-                                canCheck={state.canCheck}
-                                canCall={state.canCall}
-                                canRaise={state.canRaise}
-                                actingAction={actionInFlight}
-                                thinking={botThinking}
-                                thinkingLabel={currentBotThinkingLabel}
-                                errorMessage={actionError}
-                                actionUx={table?.actionButtonUx}
-                                onAction={handleAction}
-                            />
-                        </div>
+                            <div className="mt-3 space-y-3">
+                                {!table?.isLocalMode && (
+                                    <PokerPresenceMiniPanel
+                                        players={realPlayers}
+                                        currentUserId={table?.currentUserId}
+                                        currentTurnLabel={state?.currentTurn?.actorLabel}
+                                        maxPlayers={table?.maxPlayers}
+                                        realtimeStatus={realtimeStatus}
+                                    />
+                                )}
 
-                        <PokerStreetProgress currentStreet={state.street} compact />
-
-                        {state.isFinished && (table?.newHandActionUrl || table?.newHandUrl) && (
-                            <button
-                                type="button"
-                                onClick={handleStartNewHand}
-                                disabled={startingNewHand}
-                                className="w-full rounded-2xl bg-amber-300 px-6 py-3 font-black text-amber-950 shadow-xl transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {startingNewHand ? 'Iniciando...' : 'Iniciar nova mão'}
-                            </button>
-                        )}
+                                <PokerTournamentRuntimePanel runtime={tournamentRuntime} compact />
+                                <PokerTableStatus state={state} compact />
+                                <PokerStreetProgress currentStreet={state.street} compact />
+                            </div>
+                        </details>
                     </aside>
                 </div>
             </div>
