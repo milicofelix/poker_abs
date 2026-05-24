@@ -1270,6 +1270,88 @@ function multiSeatAssistedModeLabel(state, currentPlayer) {
     return 'Modo assistido — você foi eliminado, mas a mesa continua em acompanhamento.';
 }
 
+
+function tournamentHudMetrics(state, currentPlayer = null) {
+    const runtime = state?.tournamentRuntime;
+
+    if (!runtime) {
+        return null;
+    }
+
+    const players = multiSeatPlayers(state);
+    const activePlayers = players.filter((player) => Number(player?.stack ?? 0) > 0 && !Boolean(player?.hasFolded));
+    const stackPlayers = players.filter((player) => Number(player?.stack ?? 0) > 0);
+    const currentSmallBlind = Number(runtime?.smallBlind ?? state?.smallBlind ?? 0);
+    const currentBigBlind = Number(runtime?.bigBlind ?? state?.bigBlind ?? 0);
+    const nextSmallBlind = Number(runtime?.nextSmallBlind ?? runtime?.nextLevelSmallBlind ?? state?.nextSmallBlind ?? 0) || (currentSmallBlind > 0 ? currentSmallBlind * 2 : 0);
+    const nextBigBlind = Number(runtime?.nextBigBlind ?? runtime?.nextLevelBigBlind ?? state?.nextBigBlind ?? 0) || (currentBigBlind > 0 ? currentBigBlind * 2 : 0);
+    const activeCount = Number(runtime?.activePlayers ?? 0) || activePlayers.length || stackPlayers.length || Number(runtime?.syncedPlayers ?? 0) || players.length;
+    const totalStack = stackPlayers.reduce((sum, player) => sum + Number(player?.stack ?? 0), 0);
+    const averageStack = activeCount > 0 ? Math.round(totalStack / activeCount) : 0;
+    const averageStackInBb = currentBigBlind > 0 ? Math.max(1, Math.round(averageStack / currentBigBlind)) : 0;
+    const currentSeat = Number(currentPlayer?.seatNumber ?? currentUserSeatNumber(state) ?? 0);
+    const rankedSeats = [...stackPlayers]
+        .sort((left, right) => Number(right?.stack ?? 0) - Number(left?.stack ?? 0))
+        .map((player) => Number(player?.seatNumber ?? 0));
+    const positionIndex = currentSeat > 0 ? rankedSeats.indexOf(currentSeat) : -1;
+    const positionLabel = positionIndex >= 0 ? `#${positionIndex + 1}` : '—';
+    const level = Number(runtime?.blindLevel ?? runtime?.level ?? 1) || 1;
+
+    return {
+        name: runtime?.name ?? 'Torneio real',
+        status: runtime?.canStartNextHand ? 'próxima mão pronta' : runtime?.isHandFinished ? 'showdown' : 'ao vivo',
+        level,
+        blinds: `${formatChipAmount(currentSmallBlind)} / ${formatChipAmount(currentBigBlind)}`,
+        nextBlinds: `${formatChipAmount(nextSmallBlind)} / ${formatChipAmount(nextBigBlind)}`,
+        remaining: activeCount > 0 ? String(activeCount) : '—',
+        averageStack: averageStackInBb > 0 ? `${averageStackInBb} BB` : (averageStack > 0 ? formatChipAmount(averageStack) : '—'),
+        position: positionLabel,
+    };
+}
+
+function TournamentLiveHud({ state, currentPlayer = null }) {
+    const metrics = tournamentHudMetrics(state, currentPlayer);
+
+    if (!metrics) {
+        return null;
+    }
+
+    const cards = [
+        { label: 'BLINDS', value: metrics.blinds, hint: `Nível ${metrics.level}` },
+        { label: 'PRÓXIMO', value: metrics.nextBlinds, hint: 'Próximo nível' },
+        { label: 'RESTANTES', value: metrics.remaining, hint: 'Jogadores ativos' },
+        { label: 'STACK MÉDIA', value: metrics.averageStack, hint: 'Média em BB' },
+        { label: 'POSIÇÃO', value: metrics.position, hint: 'Seu stack' },
+    ];
+
+    return (
+        <section className="relative overflow-hidden rounded-[1.35rem] border border-amber-200/20 bg-gradient-to-br from-slate-950/82 via-emerald-950/58 to-amber-950/25 p-3 shadow-2xl shadow-black/35 backdrop-blur">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(251,191,36,0.18),transparent_30%),radial-gradient(circle_at_95%_20%,rgba(16,185,129,0.16),transparent_34%)]" />
+            <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                    <p className="text-[0.58rem] font-black uppercase tracking-[0.24em] text-amber-100/75">HUD de torneio</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <strong className="truncate text-sm font-black text-white sm:text-base" title={metrics.name}>{metrics.name}</strong>
+                        <span className="rounded-full border border-emerald-100/25 bg-emerald-300/12 px-2.5 py-1 text-[0.56rem] font-black uppercase tracking-[0.16em] text-emerald-100">
+                            {metrics.status}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 lg:min-w-[560px]">
+                    {cards.map((card) => (
+                        <div key={card.label} className="rounded-2xl border border-white/10 bg-black/32 px-3 py-2 shadow-inner shadow-black/20">
+                            <span className="block text-[0.52rem] font-black uppercase tracking-[0.18em] text-slate-400">{card.label}</span>
+                            <strong className="mt-1 block text-sm font-black text-white">{card.value}</strong>
+                            <span className="mt-0.5 block truncate text-[0.56rem] font-bold uppercase tracking-[0.1em] text-amber-100/55">{card.hint}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 function liveTurnTimerTone(timer) {
     const percentage = Number(timer?.percentage ?? 0);
 
@@ -1352,6 +1434,88 @@ function LiveTurnTimerBadge({ timer, compact = false }) {
                 </div>
             </div>
         </div>
+    );
+}
+
+
+function isCurrentUserTurn(state) {
+    if (!state || state?.isFinished) {
+        return false;
+    }
+
+    if (Boolean(state?.canAct) || Boolean(state?.currentTurn?.canAct)) {
+        return true;
+    }
+
+    if (isMultiSeatLayout(state)) {
+        const currentSeat = currentUserSeatNumber(state);
+        const currentTurnSeat = multiSeatCurrentTurnSeat(state);
+        const currentPlayer = multiSeatPlayers(state).find((player) => Number(player?.seatNumber ?? 0) === currentSeat);
+
+        return currentSeat > 0
+            && currentTurnSeat !== null
+            && currentSeat === currentTurnSeat
+            && !Boolean(currentPlayer?.isBot);
+    }
+
+    const role = String(state?.currentTurn?.actorRole ?? state?.currentTurn?.player ?? '').toLowerCase();
+    const label = String(state?.currentTurn?.actorLabel ?? '').toLowerCase();
+
+    return role === 'player' || label.includes('você') || label.includes('voce');
+}
+
+function YourTurnOverlay({ state, timer }) {
+    if (!isCurrentUserTurn(state)) {
+        return null;
+    }
+
+    const seconds = Math.max(0, Number(timer?.secondsRemaining ?? state?.turnTimer?.secondsRemaining ?? state?.turnTimer?.secondsTotal ?? 0));
+    const percentage = Math.max(0, Math.min(100, Number(timer?.percentage ?? 100)));
+    const tone = liveTurnTimerTone(timer ?? { percentage, secondsRemaining: seconds });
+    const isCritical = seconds > 0 && seconds <= 5;
+    const secondsLabel = seconds > 0 ? `${seconds}s restantes` : 'decida agora';
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                key={`your-turn-${state?.turnTimer?.expiresAt ?? state?.street ?? 'live'}`}
+                className="pointer-events-none absolute inset-x-2 top-16 z-50 hidden justify-center md:flex"
+                initial={{ opacity: 0, y: -18, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: isCritical ? [1, 1.025, 1] : 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], repeat: isCritical ? Infinity : 0, repeatDelay: 0.48 }}
+            >
+                <div className="relative w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-emerald-100/40 bg-slate-950/88 px-6 py-4 text-center shadow-[0_0_70px_rgba(16,185,129,0.34)] backdrop-blur-xl">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.26),transparent_58%),linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]" />
+                    <div className="relative z-10">
+                        <p className="text-[0.62rem] font-black uppercase tracking-[0.38em] text-emerald-100/75">━━━━━━━━━━</p>
+                        <strong className="mt-1 block text-3xl font-black uppercase tracking-[0.28em] text-white drop-shadow-[0_0_22px_rgba(110,231,183,0.75)]">Sua vez</strong>
+                        <p className={["mt-1 text-sm font-black uppercase tracking-[0.24em]", tone.subtleText].join(' ')}>{secondsLabel}</p>
+                        <div className="mx-auto mt-3 h-2 max-w-sm overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5">
+                            <div className={["h-full rounded-full transition-all duration-500", tone.fill].join(' ')} style={{ width: `${percentage}%` }} />
+                        </div>
+                        <p className="mt-2 text-[0.62rem] font-black uppercase tracking-[0.38em] text-emerald-100/75">━━━━━━━━━━</p>
+                    </div>
+                </div>
+            </motion.div>
+
+            <motion.div
+                key={`your-turn-mobile-${state?.turnTimer?.expiresAt ?? state?.street ?? 'live'}`}
+                className="pointer-events-none fixed inset-x-3 bottom-[5.75rem] z-[70] md:hidden"
+                initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: isCritical ? [1, 1.02, 1] : 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1], repeat: isCritical ? Infinity : 0, repeatDelay: 0.55 }}
+            >
+                <div className="mx-auto max-w-md rounded-2xl border border-emerald-100/45 bg-slate-950/94 px-4 py-3 text-center shadow-[0_0_45px_rgba(16,185,129,0.32)] backdrop-blur-xl">
+                    <strong className="block text-lg font-black uppercase tracking-[0.26em] text-white">Sua vez</strong>
+                    <span className={["mt-1 block text-xs font-black uppercase tracking-[0.2em]", tone.subtleText].join(' ')}>{secondsLabel}</span>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5">
+                        <div className={["h-full rounded-full transition-all duration-500", tone.fill].join(' ')} style={{ width: `${percentage}%` }} />
+                    </div>
+                </div>
+            </motion.div>
+        </AnimatePresence>
     );
 }
 
@@ -1729,6 +1893,8 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                     </div>
                 )}
 
+                <TournamentLiveHud state={state} currentPlayer={currentPlayer} />
+
                 {!state?.isFinished && currentTurnSeat !== null && (
                     <div className="grid gap-2 rounded-[1.4rem] border border-emerald-200/25 bg-emerald-300/10 p-2 shadow-2xl shadow-emerald-950/20 backdrop-blur lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0 px-1">
@@ -1744,6 +1910,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
 
                 <ShowdownPremiumPanel state={state} />
                 <LatestActionToast state={state} />
+                <YourTurnOverlay state={state} timer={turnTimer} />
 
                 <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
                 <div className="relative order-2 min-h-[520px] overflow-hidden rounded-[1.5rem] border border-amber-200/20 bg-[radial-gradient(ellipse_at_center,rgba(6,95,70,0.78),rgba(2,44,34,0.84)_58%,rgba(2,6,23,0.82)_100%)] p-2 shadow-inner shadow-black/60 sm:min-h-[620px] sm:p-4 xl:order-1 xl:min-h-[670px]">
@@ -1861,6 +2028,7 @@ export default function PokerTable({ state }) {
     const shouldRevealPlayerCards = isBotVsBotSimulation || state.isFinished || playerCardsRevealed;
     const shouldRevealOpponentCards = isBotVsBotSimulation || state.isFinished;
     const playerBestHandVisible = shouldRevealPlayerCards && state.bestHand?.name;
+    const turnTimer = usePokerTurnTimer(state?.turnTimer);
 
     if (isMultiSeatLayout(state)) {
         return (
@@ -1886,6 +2054,7 @@ export default function PokerTable({ state }) {
 
             <div className="relative z-10 grid min-h-[340px] gap-1 sm:gap-3 md:min-h-[410px] lg:min-h-[500px] lg:grid-rows-[auto_1fr_auto]">
                 <LatestActionToast state={state} />
+                <YourTurnOverlay state={state} timer={turnTimer} />
 
                 <div className="grid min-w-0 gap-1.5 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
                     <div className={[
