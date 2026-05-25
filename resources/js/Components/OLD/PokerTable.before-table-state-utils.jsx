@@ -4,30 +4,240 @@ import CardRow from './CardRow';
 import PlayingCard from './PlayingCard';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
 import { useShowdownHighlights } from '@/features/poker/hooks/useShowdownHighlights';
-import {
-    cardSignature,
-    chipAmountParts,
-    currentPlayerTitle,
-    currentTurnLabel,
-    currentTurnMessage,
-    currentUserSeatNumber,
-    dealerAnimationLabel,
-    formatChipAmount,
-    hiddenPlayerHandDescription,
-    hiddenPlayerHandTitle,
-    isMultiSeatLayout,
-    isMultiSeatShowdownResolved,
-    isWinnerSeat,
-    multiSeatBlindSummary,
-    multiSeatCurrentTurnSeat,
-    multiSeatPlayers,
-    multiSeatPositionBadges,
-    opponentCardsTitle,
-    seatBadgeClasses,
-    seatFrameClasses,
-    visibleCommunityCards,
-    winnerBadgeLabel,
-} from '@/features/poker/utils/tableState';
+
+function visibleCommunityCards(state) {
+    const amountByStreet = {
+        pre_flop: 0,
+        flop: 3,
+        turn: 4,
+        river: 5,
+        showdown: 5,
+    };
+
+    const players = Array.isArray(state?.multiSeat?.players) ? state.multiSeat.players : [];
+    const hasAllInPlayer = players.some((player) => Boolean(player?.isAllIn) || Number(player?.stack ?? 0) <= 0);
+    const shouldRevealFinishedBoard = Boolean(state?.isFinished)
+        && (state?.street === 'showdown' || Boolean(state?.multiSeat?.allInRunoutCompleted) || hasAllInPlayer);
+
+    const amount = shouldRevealFinishedBoard ? 5 : (amountByStreet[state?.street] ?? 0);
+
+    return {
+        visible: (state?.communityCards ?? []).slice(0, amount),
+        hiddenCount: Math.max(0, 5 - amount),
+    };
+}
+
+function opponentCardsTitle(state) {
+    const opponent = state?.playersContext?.opponents?.[0];
+
+    if (opponent?.nickname) {
+        return `Cartas de ${opponent.nickname}`;
+    }
+
+    return 'Cartas do adversário';
+}
+
+function currentPlayerTitle(state) {
+    const currentName = state?.playersContext?.current?.nickname;
+
+    return currentName ? `Suas cartas (${currentName})` : 'Suas cartas';
+}
+
+
+function cardSignature(cards = []) {
+    return cards
+        .map((card) => `${card?.rank ?? card?.label ?? ''}-${card?.suit ?? ''}`)
+        .join('|');
+}
+
+function hiddenPlayerHandTitle(isRevealed) {
+    return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
+}
+
+function hiddenPlayerHandDescription(isRevealed, isFinished) {
+    if (isFinished) {
+        return 'Mão encerrada — cartas liberadas para conferência.';
+    }
+
+    return isRevealed
+        ? 'Clique para esconder sua mão novamente.'
+        : 'Clique para espiar sua mão quando quiser.';
+}
+
+function currentTurnLabel(state) {
+    return state?.currentTurn?.actorLabel ?? 'Jogador';
+}
+
+function chipAmountParts(value) {
+    const amount = Number(value ?? 0);
+
+    if (amount <= 0) {
+        return [1, 1, 1];
+    }
+
+    return [
+        Math.max(1, Math.ceil(amount / 120)),
+        Math.max(1, Math.ceil(amount / 220)),
+        Math.max(1, Math.ceil(amount / 360)),
+    ].slice(0, 3);
+}
+
+function dealerAnimationLabel(state) {
+    if (state?.isFinished) {
+        return 'Showdown finalizado';
+    }
+
+    if ((state?.actionHistory ?? []).length > 0) {
+        return 'Cartas na mesa';
+    }
+
+    return 'Dealer distribuindo';
+}
+
+function currentTurnMessage(state) {
+    if (state?.isFinished) {
+        return 'Mão encerrada';
+    }
+
+    return state?.currentTurn?.message ?? 'Aguardando ação da mesa.';
+}
+
+function winnerPlayer(state) {
+    return state?.conclusion?.winner?.player ?? null;
+}
+
+function isWinnerSeat(state, seat) {
+    const winner = winnerPlayer(state);
+
+    return state?.isFinished && (winner === seat || winner === 'tie');
+}
+
+function isLosingSeat(state, seat) {
+    const winner = winnerPlayer(state);
+
+    return state?.isFinished && winner && winner !== 'tie' && winner !== seat;
+}
+
+function winnerBadgeLabel(state, seat) {
+    const winner = winnerPlayer(state);
+
+    if (!state?.isFinished || !winner) {
+        return null;
+    }
+
+    if (winner === 'tie') {
+        return 'Empate';
+    }
+
+    return winner === seat ? 'Vencedor' : 'Derrotado';
+}
+
+function seatFrameClasses(state, seat) {
+    if (isWinnerSeat(state, seat)) {
+        return 'poker-winner-seat border-amber-200/70 bg-amber-300/15 shadow-[0_0_42px_rgba(251,191,36,0.28)]';
+    }
+
+    if (isLosingSeat(state, seat)) {
+        return 'border-slate-500/20 bg-black/25 opacity-70 grayscale-[0.25]';
+    }
+
+    return 'border-white/10 bg-black/20 shadow-inner shadow-black/40';
+}
+
+function seatBadgeClasses(state, seat) {
+    if (isWinnerSeat(state, seat)) {
+        return 'border-amber-100/60 bg-amber-300 text-amber-950 shadow-lg shadow-amber-950/25';
+    }
+
+    return 'border-slate-400/30 bg-slate-950/80 text-slate-200';
+}
+
+
+function isMultiSeatLayout(state) {
+    if (!Boolean(state?.multiSeat?.enabled) || !Array.isArray(state?.multiSeat?.players)) {
+        return false;
+    }
+
+    return state.multiSeat.players.length >= 2;
+}
+
+function isMultiSeatShowdownResolved(state) {
+    if (!Boolean(state?.isFinished)) {
+        return false;
+    }
+
+    return state?.street === 'showdown'
+        || Boolean(state?.multiSeat?.showdownCardsRevealed)
+        || state?.multiSeat?.showdownResolutionPhase === '10.12';
+}
+
+function multiSeatPlayers(state) {
+    return [...(state?.multiSeat?.players ?? [])]
+        .filter((player) => player && Number(player.seatNumber ?? 0) > 0)
+        .sort((left, right) => Number(left.seatNumber ?? 0) - Number(right.seatNumber ?? 0));
+}
+
+function currentUserSeatNumber(state) {
+    return Number(state?.multiplayerPerspective?.seatNumber ?? state?.playersContext?.current?.seatNumber ?? 0);
+}
+
+function multiSeatCurrentTurnSeat(state) {
+    const seat = state?.currentTurn?.seatNumber ?? state?.multiSeat?.currentSeat;
+
+    return seat === null || seat === undefined ? null : Number(seat);
+}
+
+function multiSeatSeatPositionNumbers(state) {
+    return {
+        dealerSeat: Number(state?.multiSeat?.dealerSeat ?? state?.multiSeat?.blinds?.dealerSeat ?? 0),
+        smallBlindSeat: Number(state?.multiSeat?.smallBlindSeat ?? state?.multiSeat?.blinds?.smallBlindSeat ?? 0),
+        bigBlindSeat: Number(state?.multiSeat?.bigBlindSeat ?? state?.multiSeat?.blinds?.bigBlindSeat ?? 0),
+    };
+}
+
+function multiSeatPositionBadges(player, state) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const positions = multiSeatSeatPositionNumbers(state);
+
+    return [
+        {
+            key: 'dealer',
+            shortLabel: 'D',
+            label: 'Dealer',
+            active: Boolean(player?.isDealer) || (positions.dealerSeat > 0 && seatNumber === positions.dealerSeat),
+            className: 'border-amber-100/70 bg-amber-300 text-amber-950 shadow-amber-950/20',
+        },
+        {
+            key: 'small-blind',
+            shortLabel: 'SB',
+            label: 'Small Blind',
+            active: Boolean(player?.isSmallBlind) || (positions.smallBlindSeat > 0 && seatNumber === positions.smallBlindSeat),
+            className: 'border-sky-100/60 bg-sky-300 text-sky-950 shadow-sky-950/20',
+        },
+        {
+            key: 'big-blind',
+            shortLabel: 'BB',
+            label: 'Big Blind',
+            active: Boolean(player?.isBigBlind) || (positions.bigBlindSeat > 0 && seatNumber === positions.bigBlindSeat),
+            className: 'border-fuchsia-100/60 bg-fuchsia-300 text-fuchsia-950 shadow-fuchsia-950/20',
+        },
+    ].filter((badge) => badge.active);
+}
+
+function multiSeatBlindSummary(state) {
+    const positions = multiSeatSeatPositionNumbers(state);
+    const parts = [
+        positions.dealerSeat > 0 ? `Dealer: assento ${positions.dealerSeat}` : null,
+        positions.smallBlindSeat > 0 ? `SB: assento ${positions.smallBlindSeat}` : null,
+        positions.bigBlindSeat > 0 ? `BB: assento ${positions.bigBlindSeat}` : null,
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(' • ') : 'Dealer/SB/BB aguardando nova mão';
+}
+
+function formatChipAmount(value) {
+    return Number(value ?? 0).toLocaleString('pt-BR');
+}
 
 
 function useAnimatedChipAmount(value) {
