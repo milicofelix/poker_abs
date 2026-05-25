@@ -1,6 +1,19 @@
 import React from 'react';
 import PlayingCard from './PlayingCard';
-import { createShowdownHighlightMatcher } from '@/features/poker/hooks/useShowdownHighlights';
+
+function cardKey(card) {
+    return `${String(card?.rank ?? '').trim()}-${String(card?.suit ?? '').trim()}`;
+}
+
+function isWinningCard(card, winningCards = []) {
+    if (!card || !Array.isArray(winningCards) || winningCards.length === 0) {
+        return false;
+    }
+
+    const target = cardKey(card);
+
+    return winningCards.some((winningCard) => cardKey(winningCard) === target);
+}
 
 export default function CardRow({
     title,
@@ -12,14 +25,12 @@ export default function CardRow({
     dealStartIndex = 0,
     dealStepMs = 170,
     dealFrom = 'dealer',
-    highlightCards = [],
-    highlightActive = false,
+    winningCards = [],
 }) {
     const alignment = align === 'left' ? 'justify-start text-left' : 'justify-center text-center';
     const rowFlow = tone === 'hero'
         ? 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0'
         : 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0';
-    const isHighlightedCard = createShowdownHighlightMatcher(highlightActive ? highlightCards : []);
     const toneClass = tone === 'hero'
         ? 'border-amber-300/20 bg-black/20 p-1.5 shadow-inner shadow-black/40 sm:p-3'
         : 'border-white/10 bg-white/[0.04] p-1.5 sm:p-3';
@@ -39,7 +50,7 @@ export default function CardRow({
                         dealStepMs={dealStepMs}
                         dealFrom={dealFrom}
                         animate={animate}
-                        highlighted={highlightActive && isHighlightedCard(card)}
+                        isWinningCard={isWinningCard(card, winningCards)}
                     />
                 ))}
 
@@ -51,7 +62,6 @@ export default function CardRow({
                         dealStepMs={dealStepMs}
                         dealFrom={dealFrom}
                         animate={animate}
-                        highlighted={highlightActive && isHighlightedCard(card)}
                     />
                 ))}
             </div>
