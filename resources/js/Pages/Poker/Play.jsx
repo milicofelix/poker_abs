@@ -606,6 +606,59 @@ function buildInitialState(hand) {
     });
 }
 
+function responseLooksLikeLoginPage(error = null) {
+    const data = error?.response?.data;
+    const contentType = String(error?.response?.headers?.['content-type'] ?? '').toLowerCase();
+
+    if (typeof data !== 'string') {
+        return false;
+    }
+
+    const body = data.toLowerCase();
+
+    return contentType.includes('text/html')
+        && (body.includes('<html') || body.includes('<!doctype html'))
+        && (body.includes('login') || body.includes('entrar'));
+}
+
+function isSessionExpiredError(error = null) {
+    const status = Number(error?.response?.status ?? 0);
+
+    return status === 401
+        || status === 419
+        || responseLooksLikeLoginPage(error);
+}
+
+function loginRedirectUrl() {
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    return `/login?intended=${encodeURIComponent(currentUrl)}`;
+}
+
+function redirectToLoginSoon() {
+    window.setTimeout(() => {
+        window.location.assign(loginRedirectUrl());
+    }, 900);
+}
+
+function friendlyRequestErrorMessage(error = null, fallback = 'Não foi possível concluir esta ação agora.') {
+    if (isSessionExpiredError(error)) {
+        return 'Sua sessão expirou. Você será redirecionado para o login para entrar novamente e continuar a mesa.';
+    }
+
+    if (error?.response?.status === 403) {
+        return error?.response?.data?.message
+            ?? 'Você não tem permissão para executar esta ação nesta mesa.';
+    }
+
+    if (error?.response?.status === 404) {
+        return error?.response?.data?.message
+            ?? 'A mão ativa não foi encontrada. Atualize a mesa antes de tentar novamente.';
+    }
+
+    return error?.response?.data?.message ?? fallback;
+}
+
 export default function Play({ hand, table = null }) {
     const [state, setState] = useState(() => buildInitialState(hand));
 
@@ -876,10 +929,11 @@ export default function Play({ hand, table = null }) {
             setJoinMessage(response.data.message ?? 'Nova mão iniciada.');
             rehydrationStatus.rehydrate();
         } catch (error) {
-            setJoinMessage(
-                error?.response?.data?.message
-                    ?? 'Não foi possível iniciar uma nova mão.',
-            );
+            setJoinMessage(friendlyRequestErrorMessage(error, 'Não foi possível iniciar uma nova mão.'));
+
+            if (isSessionExpiredError(error)) {
+                redirectToLoginSoon();
+            }
         } finally {
             setStartingNewHand(false);
         }
@@ -906,10 +960,11 @@ export default function Play({ hand, table = null }) {
             setState(normalizePlayableState(response.data.state));
             rehydrationStatus.rehydrate();
         } catch (error) {
-            setActionError(
-                error?.response?.data?.message
-                    ?? 'Não foi possível executar esta ação agora. Atualize a mesa e tente novamente.',
-            );
+            setActionError(friendlyRequestErrorMessage(error, 'Não foi possível executar esta ação agora. Atualize a mesa e tente novamente.'));
+
+            if (isSessionExpiredError(error)) {
+                redirectToLoginSoon();
+            }
         } finally {
             setLoading(false);
             setActionInFlight(null);
