@@ -273,6 +273,12 @@ final readonly class PokerMultiSeatTurnActionService
                     'handName' => (string) ($state['street'] ?? '') === 'showdown'
                         ? (string) data_get($winner, 'showdownHand.name', 'Showdown multi-seat')
                         : 'Desistência',
+                    'cards' => (string) ($state['street'] ?? '') === 'showdown'
+                        ? array_values((array) data_get($winner, 'showdownHand.cards', []))
+                        : [],
+                    'highlightCards' => (string) ($state['street'] ?? '') === 'showdown'
+                        ? array_values((array) data_get($winner, 'showdownHand.highlightCards', []))
+                        : [],
                 ],
                 'message' => (string) ($state['street'] ?? '') === 'showdown'
                     ? ((string) ($winner['nickname'] ?? 'Jogador')).' venceu o showdown multi-seat com '.((string) data_get($winner, 'showdownHand.name', 'mão avaliada')).'.'
@@ -440,6 +446,9 @@ final readonly class PokerMultiSeatTurnActionService
                 'handName' => (string) ($state['street'] ?? '') === 'showdown'
                     ? (string) data_get($winner, 'showdownHand.name', 'Showdown multi-seat')
                     : 'Desistência',
+                'cards' => (string) ($state['street'] ?? '') === 'showdown'
+                    ? array_values((array) data_get($winner, 'showdownHand.cards', []))
+                    : [],
             ],
             'message' => (string) ($state['street'] ?? '') === 'showdown'
                 ? ((string) ($winner['nickname'] ?? 'Jogador')).' venceu o showdown multi-seat com '.((string) data_get($winner, 'showdownHand.name', 'mão avaliada')).'.'
@@ -707,6 +716,7 @@ final readonly class PokerMultiSeatTurnActionService
                 'rank' => (int) ($bestHand['rank'] ?? 0),
                 'kickers' => array_values(array_map('intval', (array) ($bestHand['kickers'] ?? []))),
                 'cards' => (array) ($bestHand['cards'] ?? []),
+                'highlightCards' => (array) ($bestHand['highlightCards'] ?? $bestHand['highlight_cards'] ?? []),
             ];
         }
 
@@ -726,6 +736,7 @@ final readonly class PokerMultiSeatTurnActionService
             'rank' => $evaluated->rank->value,
             'kickers' => $evaluated->kickers,
             'cards' => array_map($this->serializeCard(...), $evaluated->cards()),
+            'highlightCards' => array_map($this->serializeCard(...), $evaluated->highlightCards()),
         ];
     }
 

@@ -71,6 +71,7 @@ final readonly class StartMultiSeatPokerHandAction
                     'rank' => $bestHand->rank->value,
                     'kickers' => $bestHand->kickers,
                     'cards' => array_map($this->serializeCard(...), $bestHand->cards()),
+                'highlightCards' => array_map($this->serializeCard(...), $bestHand->highlightCards()),
                 ],
             ];
         })->all();

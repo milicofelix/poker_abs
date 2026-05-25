@@ -174,6 +174,48 @@ class HandEvaluatorTest extends TestCase
         $this->assertGreaterThan($playerHand->rank->value, $botHand->rank->value);
     }
 
+
+    public function test_retorna_as_cinco_cartas_exatas_da_melhor_combinacao_no_showdown(): void
+    {
+        $hand = $this->evaluator()->evaluate([
+            $this->card(Suit::Hearts, Rank::Ace),
+            $this->card(Suit::Clubs, Rank::Two),
+            $this->card(Suit::Hearts, Rank::King),
+            $this->card(Suit::Hearts, Rank::Queen),
+            $this->card(Suit::Hearts, Rank::Jack),
+            $this->card(Suit::Hearts, Rank::Nine),
+            $this->card(Suit::Spades, Rank::Three),
+        ]);
+
+        $this->assertSame(HandRank::Flush, $hand->rank);
+        $this->assertCount(5, $hand->cards());
+        $this->assertSame(
+            ['A♥', 'K♥', 'Q♥', 'J♥', '9♥'],
+            array_map(static fn (Card $card): string => $card->label(), $hand->cards())
+        );
+    }
+
+
+    public function test_cartas_de_destaque_da_trinca_nao_incluem_kickers(): void
+    {
+        $hand = $this->evaluator()->evaluate([
+            $this->card(Suit::Hearts, Rank::Nine),
+            $this->card(Suit::Diamonds, Rank::King),
+            $this->card(Suit::Clubs, Rank::Seven),
+            $this->card(Suit::Spades, Rank::King),
+            $this->card(Suit::Hearts, Rank::King),
+            $this->card(Suit::Clubs, Rank::Eight),
+            $this->card(Suit::Hearts, Rank::Three),
+        ]);
+
+        $this->assertSame(HandRank::ThreeOfAKind, $hand->rank);
+        $this->assertCount(3, $hand->highlightCards());
+        $this->assertSame(
+            [13, 13, 13],
+            array_map(static fn (Card $card): int => $card->rank->value(), $hand->highlightCards())
+        );
+    }
+
     public function test_requires_at_least_five_cards(): void
     {
         $this->expectException(InvalidArgumentException::class);

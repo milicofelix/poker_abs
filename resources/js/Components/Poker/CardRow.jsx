@@ -1,6 +1,20 @@
 import React from 'react';
 import PlayingCard from './PlayingCard';
 
+function cardKey(card) {
+    return `${String(card?.rank ?? '').trim()}-${String(card?.suit ?? '').trim()}`;
+}
+
+function isWinningCard(card, winningCards = []) {
+    if (!card || !Array.isArray(winningCards) || winningCards.length === 0) {
+        return false;
+    }
+
+    const target = cardKey(card);
+
+    return winningCards.some((winningCard) => cardKey(winningCard) === target);
+}
+
 export default function CardRow({
     title,
     cards = [],
@@ -11,6 +25,7 @@ export default function CardRow({
     dealStartIndex = 0,
     dealStepMs = 170,
     dealFrom = 'dealer',
+    winningCards = [],
 }) {
     const alignment = align === 'left' ? 'justify-start text-left' : 'justify-center text-center';
     const rowFlow = tone === 'hero'
@@ -35,6 +50,7 @@ export default function CardRow({
                         dealStepMs={dealStepMs}
                         dealFrom={dealFrom}
                         animate={animate}
+                        isWinningCard={isWinningCard(card, winningCards)}
                     />
                 ))}
 

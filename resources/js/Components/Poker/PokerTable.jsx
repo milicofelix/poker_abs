@@ -49,6 +49,107 @@ function cardSignature(cards = []) {
         .join('|');
 }
 
+
+function normalizedCardKey(card) {
+    return `${String(card?.rank ?? '').trim()}-${String(card?.suit ?? '').trim()}`;
+}
+
+function uniqueCards(cards = []) {
+    const seen = new Set();
+
+    return (Array.isArray(cards) ? cards : []).filter((card) => {
+        const key = normalizedCardKey(card);
+
+        if (key === '-' || seen.has(key)) {
+            return false;
+        }
+
+        seen.add(key);
+        return true;
+    });
+}
+
+function cardRankValue(card) {
+    const rank = String(card?.rank ?? '').trim().toUpperCase();
+
+    return ({
+        A: 14,
+        K: 13,
+        Q: 12,
+        J: 11,
+    }[rank] ?? Number(rank) ?? 0);
+}
+
+function highlightedCardsFromHand(hand) {
+    const explicitHighlightCards = hand?.highlightCards ?? hand?.highlight_cards;
+
+    if (Array.isArray(explicitHighlightCards) && explicitHighlightCards.length > 0) {
+        return uniqueCards(explicitHighlightCards);
+    }
+
+    const cards = uniqueCards(hand?.cards ?? []);
+    const rank = Number(hand?.rank ?? 0);
+    const kickers = Array.isArray(hand?.kickers) ? hand.kickers.map((value) => Number(value)) : [];
+
+    if (cards.length === 0) {
+        return [];
+    }
+
+    if ([1, 5, 6, 7, 9].includes(rank)) {
+        return cards;
+    }
+
+    if (rank === 8 || rank === 4 || rank === 2) {
+        const mainValue = kickers[0];
+
+        return cards.filter((card) => cardRankValue(card) === mainValue);
+    }
+
+    if (rank === 3) {
+        const pairValues = kickers.slice(0, 2);
+
+        return cards.filter((card) => pairValues.includes(cardRankValue(card)));
+    }
+
+    return cards;
+}
+
+function showdownWinningCards(state) {
+    if (!state?.isFinished) {
+        return [];
+    }
+
+    const conclusionHighlightCards = state?.conclusion?.winner?.highlightCards ?? state?.conclusion?.winner?.highlight_cards;
+
+    if (Array.isArray(conclusionHighlightCards) && conclusionHighlightCards.length > 0) {
+        return uniqueCards(conclusionHighlightCards);
+    }
+
+    if (isMultiSeatLayout(state)) {
+        const winner = multiSeatPlayers(state).find((player) => isMultiSeatWinner(state, player?.seatNumber));
+
+        return highlightedCardsFromHand(winner?.showdownHand ?? winner?.bestHand ?? {});
+    }
+
+    if (winnerPlayer(state) === 'opponent') {
+        return highlightedCardsFromHand(state?.opponentBestHand ?? {});
+    }
+
+    if (winnerPlayer(state) === 'player' || winnerPlayer(state) === 'tie') {
+        return highlightedCardsFromHand(state?.bestHand ?? {});
+    }
+
+    return [];
+}
+
+function playerWinningCards(state, player) {
+    if (!state?.isFinished || !isMultiSeatWinner(state, player?.seatNumber)) {
+        return [];
+    }
+
+    return highlightedCardsFromHand(player?.showdownHand ?? player?.bestHand ?? { cards: showdownWinningCards(state) });
+}
+
 function hiddenPlayerHandTitle(isRevealed) {
     return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
 }
@@ -649,6 +750,16 @@ function PokerTableAnimationStyles() {
             .poker-action-check-ripple { box-shadow: 0 0 30px rgba(125,211,252,.20); }
             .poker-live-action-toast { animation: pokerLiveActionToast 2.4s ease-out both; }
 
+            @keyframes pokerWinningCardGlow {
+                0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 18px rgba(251,191,36,.34); }
+                50% { transform: translateY(-3px) scale(1.055); box-shadow: 0 0 38px rgba(251,191,36,.72); }
+            }
+
+            .poker-winning-card {
+                animation: pokerWinningCardGlow 1.35s ease-in-out infinite;
+                z-index: 2;
+            }
+
             .poker-live-border-sweep > * { position: relative; z-index: 1; }
 
             @media (prefers-reduced-motion: reduce) {
@@ -666,7 +777,8 @@ function PokerTableAnimationStyles() {
                 .poker-action-allin-blast,
                 .poker-fold-overlay,
                 .poker-check-ripple-ring,
-                .poker-live-action-toast {
+                .poker-live-action-toast,
+                .poker-winning-card {
                     animation: none !important;
                 }
             }
@@ -1866,6 +1978,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
     const isLatestAction = isLatestSeatAction(state, seatNumber) && !state?.isFinished;
     const latestSeatAction = isLatestAction ? latestActionItem(state) : null;
     const actionVisual = actionVisualTone(actionLabel);
+    const winningCards = state?.isFinished ? playerWinningCards(state, player) : [];
 
     return (
         <article
@@ -1946,6 +2059,7 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
                             dealIndex={index + cardIndex}
                             dealStepMs={110}
                             dealFrom={isCurrentUserSeat ? 'bottom' : 'dealer'}
+                            isWinningCard={winningCards.some((winningCard) => normalizedCardKey(winningCard) === normalizedCardKey(card))}
                         />
                     ))}
 
@@ -2257,6 +2371,7 @@ function MultiSeatPokerTable({ state, community, playerCardsRevealed, setPlayerC
                                     tone="hero"
                                     dealStartIndex={4}
                                     dealFrom="dealer"
+                                    winningCards={showdownWinningCards(state)}
                                 />
                             </div>
 
@@ -2363,6 +2478,7 @@ export default function PokerTable({ state }) {
                                 align="left"
                                 dealStartIndex={2}
                                 dealFrom="left"
+                                winningCards={winnerPlayer(state) === 'opponent' || winnerPlayer(state) === 'tie' ? showdownWinningCards(state) : []}
                             />
                         ) : (
                             <CardRow
@@ -2400,6 +2516,7 @@ export default function PokerTable({ state }) {
                                 tone="hero"
                                 dealStartIndex={4}
                                 dealFrom="dealer"
+                                winningCards={showdownWinningCards(state)}
                             />
                         </div>
 
@@ -2423,6 +2540,7 @@ export default function PokerTable({ state }) {
                             hiddenCount={shouldRevealPlayerCards ? 0 : (state.playerCards ?? []).length}
                             dealStartIndex={0}
                             dealFrom="bottom"
+                            winningCards={winnerPlayer(state) === 'player' || winnerPlayer(state) === 'tie' ? showdownWinningCards(state) : []}
                         />
 
                         {hasPlayerCards && (

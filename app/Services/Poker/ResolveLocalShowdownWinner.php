@@ -20,19 +20,19 @@ final class ResolveLocalShowdownWinner
         $comparison = $this->compareHands($playerHand, $opponentHand);
 
         if ($comparison > 0) {
-            return $this->winner('player', 'Você', $playerHand['name']);
+            return $this->winner('player', 'Você', $playerHand['name'], $playerHand['cards'], $playerHand['highlightCards']);
         }
 
         if ($comparison < 0) {
-            return $this->winner('opponent', 'Oponente', $opponentHand['name']);
+            return $this->winner('opponent', 'Oponente', $opponentHand['name'], $opponentHand['cards'], $opponentHand['highlightCards']);
         }
 
-        return $this->winner('tie', 'Empate', $playerHand['name']);
+        return $this->winner('tie', 'Empate', $playerHand['name'], $playerHand['cards'], $playerHand['highlightCards']);
     }
 
     /**
      * @param mixed $hand
-     * @return array{name: string, rank: int, kickers: array<int, int>}|null
+     * @return array{name: string, rank: int, kickers: array<int, int>, cards: array<int, mixed>, highlightCards: array<int, mixed>}|null
      */
     private function normalizeHand(mixed $hand): ?array
     {
@@ -54,12 +54,16 @@ final class ResolveLocalShowdownWinner
             'name' => (string) $hand['name'],
             'rank' => (int) $hand['rank'],
             'kickers' => array_map('intval', array_values($kickers)),
+            'cards' => is_array($hand['cards'] ?? null) ? array_values($hand['cards']) : [],
+            'highlightCards' => is_array($hand['highlightCards'] ?? $hand['highlight_cards'] ?? null)
+                ? array_values($hand['highlightCards'] ?? $hand['highlight_cards'])
+                : [],
         ];
     }
 
     /**
-     * @param array{name: string, rank: int, kickers: array<int, int>} $playerHand
-     * @param array{name: string, rank: int, kickers: array<int, int>} $opponentHand
+     * @param array{name: string, rank: int, kickers: array<int, int>, cards: array<int, mixed>, highlightCards: array<int, mixed>} $playerHand
+     * @param array{name: string, rank: int, kickers: array<int, int>, cards: array<int, mixed>, highlightCards: array<int, mixed>} $opponentHand
      */
     private function compareHands(array $playerHand, array $opponentHand): int
     {
@@ -82,14 +86,17 @@ final class ResolveLocalShowdownWinner
     }
 
     /**
-     * @return array{player: string, label: string, handName: string}
+     * @param array<int, mixed> $cards
+     * @return array{player: string, label: string, handName: string, cards: array<int, mixed>, highlightCards: array<int, mixed>}
      */
-    private function winner(string $player, string $label, string $handName): array
+    private function winner(string $player, string $label, string $handName, array $cards, array $highlightCards = []): array
     {
         return [
             'player' => $player,
             'label' => $label,
             'handName' => $handName,
+            'cards' => $cards,
+            'highlightCards' => $highlightCards !== [] ? $highlightCards : $cards,
         ];
     }
 }

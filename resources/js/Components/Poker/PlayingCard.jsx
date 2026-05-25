@@ -44,6 +44,7 @@ export default function PlayingCard({
     dealStepMs = 170,
     dealFrom = 'dealer',
     animate = true,
+    isWinningCard = false,
 }) {
     const sizeClass = compact
         ? 'h-12 w-9 shrink-0 rounded-lg text-xs sm:h-20 sm:w-14 sm:rounded-xl sm:text-xl'
@@ -69,8 +70,12 @@ export default function PlayingCard({
     return (
         <div
             style={dealStyle(animate, dealIndex, dealStepMs, dealFrom)}
-            className={`group relative flex ${sizeClass} flex-col justify-between overflow-hidden border border-white/70 bg-gradient-to-br from-white via-slate-50 to-slate-200 p-1 font-black sm:p-1.5 shadow-2xl shadow-black/40 ring-1 ring-black/5 transition duration-200 hover:-translate-y-1 hover:shadow-amber-300/20 ${animate ? 'poker-card-deal' : ''} ${isRed ? 'text-red-600' : 'text-slate-950'}`}
+            className={`group relative flex ${sizeClass} flex-col justify-between overflow-hidden border bg-gradient-to-br from-white via-slate-50 to-slate-200 p-1 font-black sm:p-1.5 shadow-2xl shadow-black/40 ring-1 transition duration-200 hover:-translate-y-1 hover:shadow-amber-300/20 ${animate ? 'poker-card-deal' : ''} ${isWinningCard ? 'poker-winning-card border-amber-200 ring-4 ring-amber-300/65 shadow-amber-300/45' : 'border-white/70 ring-black/5'} ${isRed ? 'text-red-600' : 'text-slate-950'}`}
+            aria-label={isWinningCard ? `${card?.label ?? rank} faz parte da combinação vencedora` : undefined}
         >
+            {isWinningCard && (
+                <span className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.38),transparent_62%)]" aria-hidden="true" />
+            )}
             <div className="flex items-start justify-between leading-none">
                 <span>{rank}</span>
                 <span className="text-xs sm:text-lg">{symbol}</span>
