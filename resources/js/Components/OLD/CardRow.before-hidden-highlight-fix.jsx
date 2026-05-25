@@ -51,6 +51,7 @@ export default function CardRow({
                         dealStepMs={dealStepMs}
                         dealFrom={dealFrom}
                         animate={animate}
+                        highlighted={highlightActive && isHighlightedCard(card)}
                     />
                 ))}
             </div>

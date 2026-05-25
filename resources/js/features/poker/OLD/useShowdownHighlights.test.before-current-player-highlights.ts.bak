@@ -8,7 +8,6 @@ const kingOfHearts = { rank: 'K', suit: 'hearts' };
 const kingOfSpades = { rank: 'K', suit: 'spades' };
 const kingOfDiamonds = { rank: 'K', suit: 'diamonds' };
 const eightOfClubs = { rank: '8', suit: 'clubs' };
-const aceOfHearts = { rank: 'A', suit: 'hearts' };
 
 describe('useShowdownHighlights helpers', () => {
   it('usa highlight_cards em vez de winning_cards para não destacar kickers', () => {
@@ -42,52 +41,5 @@ describe('useShowdownHighlights helpers', () => {
     expect(matcher({ rank: 'K', suit: 'spades' })).toBe(true);
     expect(matcher({ code: 'Kd' })).toBe(true);
     expect(matcher({ code: '8c' })).toBe(false);
-  });
-
-  it('inclui highlights da mão privada quando o jogador atual vence', () => {
-    const state = {
-      isFinished: true,
-      multiplayerPerspective: { seatNumber: 1 },
-      bestHand: {
-        highlightCards: [aceOfHearts, kingOfHearts],
-      },
-      conclusion: {
-        winner: {
-          player: 'player',
-          seatNumber: 1,
-          highlightCards: [kingOfSpades, kingOfDiamonds],
-        },
-      },
-    };
-
-    const matcher = createShowdownHighlightMatcher(extractShowdownHighlightCards(state));
-
-    expect(matcher(aceOfHearts)).toBe(true);
-    expect(matcher(kingOfHearts)).toBe(true);
-    expect(matcher(kingOfSpades)).toBe(true);
-    expect(matcher(kingOfDiamonds)).toBe(true);
-    expect(matcher(eightOfClubs)).toBe(false);
-  });
-
-  it('não inclui a mão privada do jogador atual quando outro assento vence', () => {
-    const state = {
-      isFinished: true,
-      multiplayerPerspective: { seatNumber: 1 },
-      bestHand: {
-        highlightCards: [aceOfHearts],
-      },
-      conclusion: {
-        winner: {
-          player: 'opponent',
-          seatNumber: 2,
-          highlightCards: [kingOfSpades],
-        },
-      },
-    };
-
-    const matcher = createShowdownHighlightMatcher(extractShowdownHighlightCards(state));
-
-    expect(matcher(aceOfHearts)).toBe(false);
-    expect(matcher(kingOfSpades)).toBe(true);
   });
 });

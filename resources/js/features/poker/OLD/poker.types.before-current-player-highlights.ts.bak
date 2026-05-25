@@ -29,7 +29,6 @@ export type PokerSeatNumber = number | string;
 
 export type PokerWinnerPayload = {
   player?: string | number | null;
-  canonicalPlayer?: string | number | null;
   seatNumber?: PokerSeatNumber | null;
   tablePlayerId?: number | string | null;
   winning_cards?: PokerCard[] | null;
@@ -40,24 +39,9 @@ export type PokerWinnerPayload = {
   handName?: string | null;
 };
 
-export type PokerBestHandPayload = {
-  cards?: PokerCard[] | null;
-  highlight_cards?: PokerCard[] | null;
-  highlightCards?: PokerCard[] | null;
-};
-
 export type PokerTableState = {
   street?: string | null;
   isFinished?: boolean;
-  bestHand?: PokerBestHandPayload | null;
-  multiplayerPerspective?: {
-    seatNumber?: PokerSeatNumber | null;
-  } | null;
-  playersContext?: {
-    current?: {
-      seatNumber?: PokerSeatNumber | null;
-    } | null;
-  } | null;
   conclusion?: {
     winner?: PokerWinnerPayload | null;
     winners?: PokerWinnerPayload[] | null;
@@ -68,7 +52,6 @@ export type PokerTableState = {
   } | null;
   multiSeat?: {
     enabled?: boolean;
-    winnerSeats?: PokerSeatNumber[] | null;
     winners?: PokerWinnerPayload[] | null;
     winner?: PokerWinnerPayload | null;
     showdown?: {

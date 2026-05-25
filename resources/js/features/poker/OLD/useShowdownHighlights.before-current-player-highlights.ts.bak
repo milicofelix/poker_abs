@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { CardMatcher, PokerBestHandPayload, PokerCard, PokerTableState, PokerWinnerPayload } from '../types/poker';
+import type { CardMatcher, PokerCard, PokerTableState, PokerWinnerPayload } from '../types/poker';
 import { pokerCardSignature, uniquePokerCards } from '../utils/cards';
 
 function cardListFromWinner(winner: PokerWinnerPayload | null | undefined): PokerCard[] {
@@ -7,45 +7,6 @@ function cardListFromWinner(winner: PokerWinnerPayload | null | undefined): Poke
     ...(winner?.highlight_cards ?? []),
     ...(winner?.highlightCards ?? []),
   ]);
-}
-
-function cardListFromBestHand(bestHand: PokerBestHandPayload | null | undefined): PokerCard[] {
-  const highlights = uniquePokerCards([
-    ...(bestHand?.highlight_cards ?? []),
-    ...(bestHand?.highlightCards ?? []),
-  ]);
-
-  return highlights.length > 0 ? highlights : uniquePokerCards(bestHand?.cards ?? []);
-}
-
-function currentUserSeatNumber(state: PokerTableState | null | undefined): number {
-  return Number(state?.multiplayerPerspective?.seatNumber ?? state?.playersContext?.current?.seatNumber ?? 0);
-}
-
-function currentPlayerWonShowdown(
-  state: PokerTableState | null | undefined,
-  winner: PokerWinnerPayload | null | undefined,
-): boolean {
-  if (!state?.isFinished || !winner) {
-    return false;
-  }
-
-  if (winner.player === 'player') {
-    return true;
-  }
-
-  const currentSeat = currentUserSeatNumber(state);
-  const winnerSeat = Number(winner.seatNumber ?? 0);
-
-  if (currentSeat > 0 && winnerSeat === currentSeat) {
-    return true;
-  }
-
-  const winnerSeats = Array.isArray(state?.multiSeat?.winnerSeats)
-    ? state.multiSeat.winnerSeats.map(Number)
-    : [];
-
-  return currentSeat > 0 && winnerSeats.includes(currentSeat);
 }
 
 export function extractShowdownHighlightCards(state: PokerTableState | null | undefined): PokerCard[] {
@@ -56,7 +17,6 @@ export function extractShowdownHighlightCards(state: PokerTableState | null | un
     ...(state?.conclusion?.highlight_cards ?? []),
     ...(state?.conclusion?.highlightCards ?? []),
     ...cardListFromWinner(winner),
-    ...(currentPlayerWonShowdown(state, winner) ? cardListFromBestHand(state?.bestHand) : []),
   ]);
 
   if (directCards.length > 0) {

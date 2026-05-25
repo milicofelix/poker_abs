@@ -2,35 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import CardRow from './CardRow';
 import PlayingCard from './PlayingCard';
-import PokerTableAnimationStyles from './PokerTableAnimationStyles';
 import usePokerTurnTimer from '../../hooks/usePokerTurnTimer';
 import { useShowdownHighlights } from '@/features/poker/hooks/useShowdownHighlights';
-import {
-    actionTimelineItems,
-    actionToastTitle,
-    actionVisualTone,
-    isLatestLegacyAction,
-    isLatestSeatAction,
-    latestActionAnimationKey,
-    latestActionItem,
-    latestLegacyActionItem,
-    multiSeatActionPillClasses,
-    multiSeatLastActionLabel,
-    premiumActionControlItems,
-    shouldPulsePot,
-    shouldShowMultiSeatActionPill,
-} from '@/features/poker/utils/tableActions';
-import { playerInitials, stackPressureClasses, stackPressureLabel } from '@/features/poker/utils/tablePlayers';
-import {
-    isMultiSeatSplitPot,
-    isMultiSeatWinner,
-    multiSeatShowdownSummary,
-    multiSeatWinnerBadgeLabel,
-    multiSeatWinnerSeats,
-    narrativeStageLabel,
-    showdownCinematicBestHandLabel,
-    showdownCinematicWinnerLabel,
-} from '@/features/poker/utils/tableShowdown';
 import {
     cardSignature,
     chipAmountParts,
@@ -161,6 +134,132 @@ function LivePotDisplay({ state, compact = false }) {
     );
 }
 
+function playerInitials(name) {
+    return String(name ?? 'Jogador')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('') || 'P';
+}
+
+function stackPressureLabel(player, state) {
+    const stack = Number(player?.stack ?? 0);
+    const bigBlind = Number(state?.bigBlind ?? state?.multiSeat?.blinds?.bigBlind ?? 0);
+
+    if (stack <= 0) {
+        return 'Sem fichas';
+    }
+
+    if (bigBlind > 0 && stack <= bigBlind * 3) {
+        return 'Short stack';
+    }
+
+    if (bigBlind > 0 && stack <= bigBlind * 8) {
+        return 'Pressão';
+    }
+
+    return 'Stack saudável';
+}
+
+function stackPressureClasses(player, state) {
+    const label = stackPressureLabel(player, state);
+
+    if (label === 'Sem fichas') {
+        return 'border-slate-400/25 bg-slate-950/70 text-slate-200';
+    }
+
+    if (label === 'Short stack') {
+        return 'border-rose-200/45 bg-rose-400/20 text-rose-100';
+    }
+
+    if (label === 'Pressão') {
+        return 'border-amber-200/45 bg-amber-300/20 text-amber-100';
+    }
+
+    return 'border-emerald-200/35 bg-emerald-300/15 text-emerald-100';
+}
+
+function actionActorRole(action) {
+    const raw = String(action?.actor ?? action?.role ?? '').toLowerCase();
+
+    if (raw === 'player' || raw === 'current' || raw === 'user') {
+        return 'player';
+    }
+
+    if (raw === 'opponent' || raw === 'bot' || raw === 'adversario' || raw === 'adversário') {
+        return 'opponent';
+    }
+
+    return raw || null;
+}
+
+function actionActorLabel(action) {
+    const role = actionActorRole(action);
+
+    if (action?.nickname || action?.playerName || action?.actorLabel) {
+        return action.nickname ?? action.playerName ?? action.actorLabel;
+    }
+
+    if (action?.seatNumber) {
+        return `Assento ${action.seatNumber}`;
+    }
+
+    if (role === 'player') {
+        return 'Você';
+    }
+
+    if (role === 'opponent') {
+        return 'Adversário';
+    }
+
+    return 'Jogador';
+}
+
+function actionTimelineItems(state) {
+    const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
+
+    return [...history]
+        .slice(-5)
+        .reverse()
+        .map((action, index) => ({
+            key: `${action?.seatNumber ?? action?.tablePlayerId ?? actionActorRole(action) ?? 'action'}-${action?.action ?? action?.type ?? index}-${index}`,
+            seatNumber: action?.seatNumber,
+            actorRole: actionActorRole(action),
+            actor: actionActorLabel(action),
+            label: normalizeActionLabel(action) ?? 'Ação',
+            amount: Number(action?.amount ?? 0),
+        }));
+}
+
+
+function latestActionItem(state) {
+    return actionTimelineItems(state)[0] ?? null;
+}
+
+function latestActionAnimationKey(state) {
+    const latest = latestActionItem(state);
+
+    if (!latest) {
+        return `street-${state?.street ?? 'waiting'}-${Number(state?.pot ?? 0)}`;
+    }
+
+    return `${latest.key}-${state?.street ?? 'mesa'}-${Number(state?.pot ?? 0)}`;
+}
+
+function isLatestSeatAction(state, seatNumber) {
+    const latest = latestActionItem(state);
+
+    return latest && Number(latest.seatNumber ?? 0) === Number(seatNumber ?? 0);
+}
+
+function isLatestLegacyAction(state, actorRole) {
+    const latest = latestActionItem(state);
+
+    return latest && latest.actorRole === actorRole && !state?.isFinished;
+}
+
+
 function PokerActionReplayRail({ state, compact = false }) {
     const items = actionTimelineItems(state).slice(0, compact ? 3 : 5);
 
@@ -205,6 +304,288 @@ function PokerActionReplayRail({ state, compact = false }) {
             </div>
         </div>
     );
+}
+
+function latestLegacyActionItem(state, actorRole) {
+    return isLatestLegacyAction(state, actorRole) ? latestActionItem(state) : null;
+}
+
+function shouldPulsePot(state) {
+    const latest = latestActionItem(state);
+
+    return Boolean(latest && Number(latest.amount ?? 0) > 0);
+}
+
+function PokerTableAnimationStyles() {
+    return (
+        <style>{`
+            @keyframes pokerActionFlash {
+                0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(16,185,129,0); }
+                28% { transform: translateY(-4px) scale(1.015); box-shadow: 0 0 34px rgba(16,185,129,0.34); }
+                100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(16,185,129,0); }
+            }
+
+            @keyframes pokerActionPillPop {
+                0% { transform: scale(0.88); filter: brightness(0.92); }
+                45% { transform: scale(1.08); filter: brightness(1.18); }
+                100% { transform: scale(1); filter: brightness(1); }
+            }
+
+            @keyframes pokerPotReceive {
+                0% { transform: scale(1); }
+                35% { transform: scale(1.055); box-shadow: 0 0 42px rgba(251,191,36,0.32); }
+                100% { transform: scale(1); }
+            }
+
+            @keyframes pokerStreetFade {
+                0% { opacity: 0.68; transform: translateY(7px) scale(0.985); }
+                100% { opacity: 1; transform: translateY(0) scale(1); }
+            }
+
+            @keyframes pokerWinnerGlow {
+                0%, 100% { box-shadow: 0 0 28px rgba(251,191,36,0.18); }
+                50% { box-shadow: 0 0 54px rgba(251,191,36,0.36); }
+            }
+
+            @keyframes pokerTurnLiveGlow {
+                0%, 100% { box-shadow: 0 0 22px rgba(16,185,129,0.20), inset 0 0 18px rgba(16,185,129,0.08); }
+                50% { box-shadow: 0 0 58px rgba(16,185,129,0.46), inset 0 0 28px rgba(16,185,129,0.14); }
+            }
+
+            @keyframes pokerTurnBorderSweep {
+                0% { transform: rotate(0deg); opacity: .42; }
+                50% { opacity: .95; }
+                100% { transform: rotate(360deg); opacity: .42; }
+            }
+
+            @keyframes pokerTurnCriticalPulse {
+                0%, 100% { transform: scale(1); filter: brightness(1); }
+                50% { transform: scale(1.065); filter: brightness(1.22); }
+            }
+
+            @keyframes pokerLiveNameGlow {
+                0%, 100% { text-shadow: 0 0 0 rgba(110,231,183,0); }
+                50% { text-shadow: 0 0 18px rgba(110,231,183,0.82); }
+            }
+
+            .poker-action-flash { animation: pokerActionFlash 760ms ease-out both; }
+            .poker-action-pop { animation: pokerActionPillPop 420ms cubic-bezier(.2,.9,.3,1.25) both; }
+            .poker-pot-receive { animation: pokerPotReceive 820ms ease-out both; }
+            .poker-street-transition { animation: pokerStreetFade 520ms ease-out both; }
+            .poker-winner-seat { animation: pokerWinnerGlow 1.65s ease-in-out infinite; }
+            .poker-live-turn-seat { animation: pokerTurnLiveGlow 1.45s ease-in-out infinite; }
+            .poker-turn-critical-pulse { animation: pokerTurnCriticalPulse 720ms ease-in-out infinite; }
+            .poker-live-name-glow { animation: pokerLiveNameGlow 1.35s ease-in-out infinite; }
+            .poker-live-border-sweep::before {
+                content: '';
+                position: absolute;
+                inset: -42%;
+                background: conic-gradient(from 0deg, transparent 0deg, rgba(110,231,183,.0) 46deg, rgba(110,231,183,.52) 90deg, transparent 134deg, transparent 360deg);
+                animation: pokerTurnBorderSweep 2.4s linear infinite;
+                pointer-events: none;
+            }
+            @keyframes pokerChipFlightToPot {
+                0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.72) rotate(0deg); }
+                16% { opacity: 1; }
+                70% { opacity: 1; transform: translate3d(36px, -78px, 0) scale(1.04) rotate(220deg); }
+                100% { opacity: 0; transform: translate3d(72px, -126px, 0) scale(.64) rotate(380deg); }
+            }
+
+            @keyframes pokerAllInBlast {
+                0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(251,113,133,0); }
+                35% { filter: brightness(1.26); box-shadow: 0 0 48px rgba(251,113,133,.48); }
+            }
+
+            @keyframes pokerRaiseImpact {
+                0% { transform: translateY(0) scale(1); }
+                34% { transform: translateY(-5px) scale(1.022); }
+                100% { transform: translateY(0) scale(1); }
+            }
+
+            @keyframes pokerFoldOverlay {
+                0% { opacity: 0; backdrop-filter: grayscale(0); }
+                100% { opacity: 1; backdrop-filter: grayscale(.8); }
+            }
+
+            @keyframes pokerCheckRipple {
+                0% { opacity: .95; transform: scale(.94); }
+                100% { opacity: 0; transform: scale(1.14); }
+            }
+
+            @keyframes pokerLiveActionToast {
+                0% { opacity: 0; transform: translateY(12px) scale(.97); }
+                18% { opacity: 1; transform: translateY(0) scale(1); }
+                82% { opacity: 1; transform: translateY(0) scale(1); }
+                100% { opacity: .92; transform: translateY(-2px) scale(.995); }
+            }
+
+            .poker-action-chip-flight {
+                position: absolute;
+                display: block;
+                width: 1.05rem;
+                height: 1.05rem;
+                border-radius: 999px;
+                border: 3px solid rgba(254,243,199,.9);
+                background: radial-gradient(circle at 50% 50%, rgba(254,243,199,.85) 0 18%, rgba(220,38,38,.96) 20% 62%, rgba(127,29,29,.98) 64% 100%);
+                box-shadow: 0 10px 18px rgba(0,0,0,.34);
+                animation: pokerChipFlightToPot 820ms cubic-bezier(.2,.9,.25,1) both;
+            }
+            .poker-action-chip-flight-allin { width: 1.18rem; height: 1.18rem; animation-duration: 980ms; }
+            .poker-action-chip-flight-source { box-shadow: 0 0 34px rgba(251,191,36,.18), inset 0 0 20px rgba(251,191,36,.08); }
+            .poker-action-raise-impact { animation: pokerRaiseImpact 620ms cubic-bezier(.2,.9,.3,1.25) both; }
+            .poker-action-allin-blast { animation: pokerAllInBlast 900ms ease-out both; }
+            .poker-action-fold-shade { filter: saturate(.76) brightness(.82); }
+            .poker-fold-overlay { animation: pokerFoldOverlay 480ms ease-out both; }
+            .poker-check-ripple-ring { animation: pokerCheckRipple 760ms ease-out both; }
+            .poker-action-check-ripple { box-shadow: 0 0 30px rgba(125,211,252,.20); }
+            .poker-live-action-toast { animation: pokerLiveActionToast 2.4s ease-out both; }
+
+            .poker-live-border-sweep > * { position: relative; z-index: 1; }
+
+            @keyframes pokerShowdownWinningGlow {
+                0%, 100% {
+                    transform: translateY(0) scale(1);
+                    box-shadow:
+                        0 0 18px rgba(251,191,36,.34),
+                        0 0 28px rgba(251,191,36,.22);
+                }
+
+                50% {
+                    transform: translateY(-3px) scale(1.055);
+                    box-shadow:
+                        0 0 42px rgba(251,191,36,.78),
+                        0 0 68px rgba(251,191,36,.35);
+                }
+            }
+
+            .poker-showdown-winning-card {
+                animation:
+                    pokerShowdownWinningGlow 1.35s ease-in-out infinite;
+                z-index: 2;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .poker-action-flash,
+                .poker-action-pop,
+                .poker-pot-receive,
+                .poker-street-transition,
+                .poker-winner-seat,
+                .poker-live-turn-seat,
+                .poker-turn-critical-pulse,
+                .poker-live-name-glow,
+                .poker-live-border-sweep::before,
+                .poker-action-chip-flight,
+                .poker-action-raise-impact,
+                .poker-action-allin-blast,
+                .poker-fold-overlay,
+                .poker-check-ripple-ring,
+                .poker-live-action-toast {
+                    animation: none !important;
+                }
+            }
+        `}</style>
+    );
+}
+
+
+function actionToneLabel(label) {
+    const normalized = String(label ?? '').toLowerCase();
+
+    if (normalized.includes('all')) {
+        return 'All-in';
+    }
+
+    if (normalized.includes('raise')) {
+        return 'Raise';
+    }
+
+    if (normalized.includes('bet')) {
+        return 'Bet';
+    }
+
+    if (normalized.includes('call')) {
+        return 'Call';
+    }
+
+    if (normalized.includes('check')) {
+        return 'Check';
+    }
+
+    if (normalized.includes('fold')) {
+        return 'Fold';
+    }
+
+    return 'Ação';
+}
+
+
+function actionVisualTone(label) {
+    const tone = actionToneLabel(label);
+
+    const tones = {
+        Fold: {
+            seatClass: 'poker-action-fold-shade',
+            badgeClass: 'border-slate-300/40 bg-slate-950/90 text-slate-100',
+            effect: 'fold',
+            verb: 'descartou',
+            description: 'Cartas protegidas e assento escurecido.',
+        },
+        Check: {
+            seatClass: 'poker-action-check-ripple',
+            badgeClass: 'border-sky-100/60 bg-sky-300 text-sky-950',
+            effect: 'check',
+            verb: 'passou a ação',
+            description: 'Sem aposta adicional nesta rodada.',
+        },
+        Call: {
+            seatClass: 'poker-action-chip-flight-source',
+            badgeClass: 'border-emerald-100/60 bg-emerald-300 text-emerald-950',
+            effect: 'chips',
+            verb: 'pagou',
+            description: 'Fichas seguem para o centro da mesa.',
+        },
+        Bet: {
+            seatClass: 'poker-action-chip-flight-source',
+            badgeClass: 'border-amber-100/60 bg-amber-300 text-amber-950',
+            effect: 'chips',
+            verb: 'apostou',
+            description: 'Aposta adicionada ao pote.',
+        },
+        Raise: {
+            seatClass: 'poker-action-raise-impact',
+            badgeClass: 'border-orange-100/70 bg-orange-300 text-orange-950',
+            effect: 'chips',
+            verb: 'aumentou',
+            description: 'Pressão na mesa e fichas ao centro.',
+        },
+        'All-in': {
+            seatClass: 'poker-action-allin-blast',
+            badgeClass: 'border-rose-100/70 bg-rose-400 text-rose-950',
+            effect: 'allin',
+            verb: 'foi all-in',
+            description: 'Momento decisivo da mão.',
+        },
+    };
+
+    return tones[tone] ?? {
+        seatClass: 'poker-action-flash',
+        badgeClass: 'border-violet-100/50 bg-violet-300 text-violet-950',
+        effect: 'pulse',
+        verb: 'agiu',
+        description: 'Ação executada na mesa.',
+    };
+}
+
+function actionToastTitle(item) {
+    if (!item) {
+        return 'Ação executada';
+    }
+
+    const tone = actionVisualTone(item.label);
+    const amount = Number(item?.amount ?? 0);
+    const amountLabel = amount > 0 ? ` ${formatChipAmount(amount)}` : '';
+
+    return `${item.actor} ${tone.verb}${amountLabel}`;
 }
 
 function MotionChip({ item, index, allIn = false }) {
@@ -353,6 +734,67 @@ function LatestActionToast({ state }) {
     );
 }
 
+function actionStreetLabel(action, fallbackStreet) {
+    const street = String(action?.street ?? action?.round ?? fallbackStreet ?? '').toLowerCase();
+    const labels = {
+        pre_flop: 'Pré-flop',
+        preflop: 'Pré-flop',
+        flop: 'Flop',
+        turn: 'Turn',
+        river: 'River',
+        showdown: 'Showdown',
+    };
+
+    return labels[street] ?? 'Mesa';
+}
+
+function actionImpactLabel(item) {
+    if (Number(item?.amount ?? 0) > 0) {
+        return `${item.label} ${formatChipAmount(item.amount)}`;
+    }
+
+    return item?.label ?? 'Ação';
+}
+
+function actionTimelineDetailedItems(state) {
+    const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
+
+    return [...history]
+        .slice(-7)
+        .reverse()
+        .map((action, index) => {
+            const label = normalizeActionLabel(action) ?? 'Ação';
+
+            return {
+                key: `${action?.id ?? action?.seatNumber ?? action?.tablePlayerId ?? actionActorRole(action) ?? 'action'}-${action?.action ?? action?.type ?? label}-${index}`,
+                seatNumber: action?.seatNumber,
+                actorRole: actionActorRole(action),
+                actor: actionActorLabel(action),
+                label,
+                tone: actionToneLabel(label),
+                street: actionStreetLabel(action, state?.street),
+                amount: Number(action?.amount ?? 0),
+            };
+        });
+}
+
+function actionFlowSummary(state) {
+    const actions = actionTimelineDetailedItems(state);
+    const latest = actions[0];
+
+    if (!latest) {
+        return {
+            title: 'Mesa aguardando primeira ação',
+            description: state?.isFinished ? 'Mão encerrada sem novas ações registradas.' : 'Assim que alguém agir, o fluxo aparece aqui.',
+        };
+    }
+
+    return {
+        title: `${latest.actor} · ${actionImpactLabel(latest)}`,
+        description: `${latest.street} · ${state?.isFinished ? 'mão finalizada' : 'mesa em andamento'}`,
+    };
+}
+
 function streetProgressItems(state) {
     const streets = [
         { key: 'pre_flop', label: 'Pré-flop' },
@@ -399,6 +841,18 @@ function shortStackLabel(state) {
     return `${shortStack.nickname ?? shortStack.displayName ?? `Assento ${shortStack.seatNumber}`} · ${formatChipAmount(shortStack.stack)}`;
 }
 
+function latestTableActionLabel(state) {
+    const [latest] = actionTimelineItems(state);
+
+    if (!latest) {
+        return 'Aguardando ação';
+    }
+
+    return latest.amount > 0
+        ? `${latest.actor}: ${latest.label} ${formatChipAmount(latest.amount)}`
+        : `${latest.actor}: ${latest.label}`;
+}
+
 function quickSeatRailLabel(player, state) {
     const seatNumber = Number(player?.seatNumber ?? 0);
     const currentTurnSeat = multiSeatCurrentTurnSeat(state);
@@ -441,6 +895,121 @@ function tournamentBlindLevelLabel(state) {
     return level
         ? `Nível ${level} · ${formatChipAmount(state?.smallBlind)} / ${formatChipAmount(state?.bigBlind)}`
         : `Blinds ${formatChipAmount(state?.smallBlind)} / ${formatChipAmount(state?.bigBlind)}`;
+}
+
+function multiSeatWinnerSeats(state) {
+    const winnerSeats = Array.isArray(state?.multiSeat?.winnerSeats) ? state.multiSeat.winnerSeats : [];
+    const normalizedWinnerSeats = winnerSeats
+        .map(Number)
+        .filter((seatNumber) => seatNumber > 0);
+    const conclusionSeat = Number(state?.conclusion?.winner?.seatNumber ?? 0);
+
+    if (normalizedWinnerSeats.length > 0) {
+        return [...new Set(normalizedWinnerSeats)];
+    }
+
+    return conclusionSeat > 0 ? [conclusionSeat] : [];
+}
+
+function isMultiSeatSplitPot(state) {
+    return Boolean(state?.isFinished) && multiSeatWinnerSeats(state).length > 1;
+}
+
+function isMultiSeatWinner(state, seatNumber) {
+    return Boolean(state?.isFinished) && multiSeatWinnerSeats(state).includes(Number(seatNumber));
+}
+
+function multiSeatWinnerBadgeLabel(state, seatNumber) {
+    if (!isMultiSeatWinner(state, seatNumber)) {
+        return null;
+    }
+
+    return isMultiSeatSplitPot(state) ? 'Empate' : 'Vencedor';
+}
+
+function multiSeatShowdownSummary(state) {
+    if (!state?.isFinished) {
+        return state?.currentTurn?.message ?? 'Sincronizando mesa.';
+    }
+
+    if (isMultiSeatSplitPot(state)) {
+        return `Pote dividido entre ${multiSeatWinnerSeats(state).length} jogadores.`;
+    }
+
+    return state?.currentTurn?.message ?? 'Showdown concluído. Inicie uma nova mão para liberar novas ações.';
+}
+
+
+function narrativeStageLabel(state) {
+    if (state?.isFinished) {
+        return isMultiSeatSplitPot(state) ? 'Pote dividido' : 'Showdown decidido';
+    }
+
+    const street = String(state?.street ?? '').toLowerCase();
+    const labels = {
+        pre_flop: 'Pré-flop em andamento',
+        preflop: 'Pré-flop em andamento',
+        flop: 'Flop aberto',
+        turn: 'Turn revelado',
+        river: 'River revelado',
+        showdown: 'Showdown',
+        waiting: 'Aguardando próxima mão',
+    };
+
+    return labels[street] ?? 'Mão em andamento';
+}
+
+function narrativeStageDescription(state, currentTurnPlayer) {
+    if (state?.isFinished) {
+        if (isMultiSeatSplitPot(state)) {
+            return `O pote foi dividido entre ${multiSeatWinnerSeats(state).length} jogadores. Revise as mãos e inicie a próxima rodada.`;
+        }
+
+        const winner = multiSeatPlayers(state).find((player) => isMultiSeatWinner(state, player?.seatNumber));
+        const winnerName = winner?.nickname ?? winner?.displayName ?? (winner?.seatNumber ? `Assento ${winner.seatNumber}` : null);
+
+        return winnerName
+            ? `${winnerName} levou o pote. A mesa está pronta para conferir o showdown antes da próxima mão.`
+            : 'Showdown concluído. Confira o resultado e inicie uma nova mão quando estiver pronto.';
+    }
+
+    if (currentTurnPlayer?.nickname || currentTurnPlayer?.displayName) {
+        return `${currentTurnPlayer.nickname ?? currentTurnPlayer.displayName} está com a decisão da rodada.`;
+    }
+
+    return state?.currentTurn?.message ?? 'A mesa está sincronizando a próxima ação.';
+}
+
+function narrativeWinnerNames(state) {
+    const winners = multiSeatWinnerSeats(state);
+
+    if (winners.length === 0) {
+        return 'A definir';
+    }
+
+    return multiSeatPlayers(state)
+        .filter((player) => winners.includes(Number(player?.seatNumber ?? 0)))
+        .map((player) => player?.nickname ?? player?.displayName ?? `Assento ${player.seatNumber}`)
+        .join(' · ') || 'A definir';
+}
+
+function narrativeTimelineItems(state) {
+    const currentStreet = String(state?.street ?? '').toLowerCase();
+    const order = ['pre_flop', 'flop', 'turn', 'river', 'showdown'];
+    const safeStreet = currentStreet === 'preflop' ? 'pre_flop' : currentStreet;
+    const currentIndex = Math.max(0, order.indexOf(safeStreet));
+
+    return [
+        { key: 'pre_flop', label: 'Pré-flop' },
+        { key: 'flop', label: 'Flop' },
+        { key: 'turn', label: 'Turn' },
+        { key: 'river', label: 'River' },
+        { key: 'showdown', label: 'Showdown' },
+    ].map((item, index) => ({
+        ...item,
+        active: !state?.isFinished && item.key === safeStreet,
+        done: Boolean(state?.isFinished) || index < currentIndex,
+    }));
 }
 
 function ShowdownPremiumPanel({ state }) {
@@ -495,6 +1064,57 @@ function ShowdownPremiumPanel({ state }) {
 }
 
 
+
+function showdownCinematicWinnerLabel(state) {
+    if (!state?.isFinished) {
+        return 'Aguardando resultado';
+    }
+
+    if (isMultiSeatLayout(state)) {
+        const winners = multiSeatPlayers(state).filter((player) => isMultiSeatWinner(state, player?.seatNumber));
+        const winnerNames = winners
+            .map((player) => player?.nickname ?? player?.displayName ?? `Assento ${player?.seatNumber}`)
+            .filter(Boolean);
+
+        if (isMultiSeatSplitPot(state)) {
+            return winnerNames.length > 0 ? `Pote dividido: ${winnerNames.join(' · ')}` : 'Pote dividido';
+        }
+
+        return winnerNames[0] ? `${winnerNames[0]} levou o pote` : 'Vencedor definido';
+    }
+
+    const winner = winnerPlayer(state);
+
+    if (winner === 'tie') {
+        return 'Pote dividido no showdown';
+    }
+
+    if (winner === 'player') {
+        return 'Você levou o pote';
+    }
+
+    if (winner === 'opponent') {
+        const opponentName = state?.playersContext?.opponents?.[0]?.nickname ?? 'Adversário';
+        return `${opponentName} levou o pote`;
+    }
+
+    return 'Resultado definido';
+}
+
+function showdownCinematicBestHandLabel(state) {
+    if (isMultiSeatLayout(state)) {
+        const winners = multiSeatPlayers(state).filter((player) => isMultiSeatWinner(state, player?.seatNumber));
+        const winnerBestHand = winners.find((player) => player?.bestHand?.name)?.bestHand?.name;
+
+        return winnerBestHand ?? state?.bestHand?.name ?? 'Melhor combinação revelada';
+    }
+
+    if (winnerPlayer(state) === 'opponent') {
+        return state?.opponentBestHand?.name ?? 'Melhor combinação revelada';
+    }
+
+    return state?.bestHand?.name ?? 'Melhor combinação revelada';
+}
 
 function ShowdownCinematicRibbon({ state }) {
     if (!state?.isFinished) {
@@ -633,6 +1253,104 @@ function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed,
     }
 
     return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
+}
+
+function normalizeActionLabel(action) {
+    const raw = String(action?.label ?? action?.action ?? action?.type ?? '').toLowerCase();
+
+    const labels = {
+        fold: 'Fold',
+        folded: 'Fold',
+        check: 'Check',
+        call: 'Call',
+        bet: 'Bet',
+        raise: 'Raise',
+        all_in: 'All-in',
+        allin: 'All-in',
+    };
+
+    return labels[raw] ?? (action?.label ?? action?.action ?? action?.type ?? null);
+}
+
+function latestActionForSeat(state, player) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const tablePlayerId = Number(player?.tablePlayerId ?? player?.id ?? 0);
+    const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
+
+    const action = [...history].reverse().find((item) => {
+        const itemSeat = Number(item?.seatNumber ?? 0);
+        const itemPlayerId = Number(item?.tablePlayerId ?? item?.table_player_id ?? 0);
+
+        return (seatNumber > 0 && itemSeat === seatNumber)
+            || (tablePlayerId > 0 && itemPlayerId === tablePlayerId);
+    });
+
+    if (action) {
+        return action;
+    }
+
+    const lastAction = state?.lastAction;
+
+    if (Number(lastAction?.seatNumber ?? 0) === seatNumber) {
+        return lastAction;
+    }
+
+    return null;
+}
+
+function multiSeatLastActionLabel(state, player, hasFolded, isCurrentTurn) {
+    if (hasFolded) {
+        return 'Fold';
+    }
+
+    const action = latestActionForSeat(state, player);
+    const label = normalizeActionLabel(action);
+
+    if (label) {
+        const amount = Number(action?.amount ?? 0);
+
+        return amount > 0 ? `${label} ${amount}` : label;
+    }
+
+    if (isCurrentTurn) {
+        return 'Pensando';
+    }
+
+    return 'Aguardando';
+}
+
+function multiSeatActionPillClasses(actionLabel, isCurrentTurn, hasFolded) {
+    const normalized = String(actionLabel ?? '').toLowerCase();
+
+    if (hasFolded || normalized.includes('fold')) {
+        return 'border-slate-400/30 bg-slate-950/80 text-slate-200';
+    }
+
+    if (normalized.includes('all')) {
+        return 'border-rose-100/60 bg-rose-400 text-rose-950 shadow-rose-950/20';
+    }
+
+    if (normalized.includes('raise') || normalized.includes('bet')) {
+        return 'border-amber-100/60 bg-amber-300 text-amber-950 shadow-amber-950/20';
+    }
+
+    if (normalized.includes('call')) {
+        return 'border-emerald-100/60 bg-emerald-300 text-emerald-950 shadow-emerald-950/20';
+    }
+
+    if (normalized.includes('check')) {
+        return 'border-sky-100/60 bg-sky-300 text-sky-950 shadow-sky-950/20';
+    }
+
+    if (isCurrentTurn || normalized.includes('pensando')) {
+        return 'border-emerald-100/45 bg-emerald-300 text-emerald-950 shadow-emerald-950/20';
+    }
+
+    return 'border-violet-100/40 bg-violet-300 text-violet-950 shadow-violet-950/20';
+}
+
+function shouldShowMultiSeatActionPill(actionLabel) {
+    return Boolean(actionLabel) && String(actionLabel).toLowerCase() !== 'aguardando';
 }
 
 function multiSeatAssistedModeLabel(state, currentPlayer) {
@@ -1089,6 +1807,48 @@ function MultiSeatPlayerSpot({ player, state, currentUserSeat, currentTurnSeat, 
             )}
         </article>
     );
+}
+
+
+function premiumActionControlItems(state) {
+    const canAct = Boolean(state?.canAct) || Boolean(state?.currentTurn?.canAct);
+    const callAmount = Number(state?.callAmount ?? state?.toCall ?? state?.currentBetToCall ?? 0);
+    const minimumRaise = Number(state?.minimumRaiseTo ?? state?.minimumRaise ?? state?.minRaise ?? 0);
+    const maximumRaise = Number(state?.maximumRaiseTo ?? state?.maximumRaise ?? state?.maxRaise ?? state?.playerStack ?? 0);
+    const canCheck = Boolean(state?.canCheck) || callAmount <= 0;
+    const canCall = Boolean(state?.canCall) || callAmount > 0;
+    const canRaise = Boolean(state?.canRaise) || maximumRaise > minimumRaise;
+
+    return [
+        {
+            key: 'fold',
+            label: 'Fold',
+            helper: 'Sair da mão',
+            enabled: canAct,
+            className: 'border-rose-200/35 bg-rose-400/10 text-rose-100',
+        },
+        {
+            key: canCheck ? 'check' : 'call',
+            label: canCheck ? 'Check' : 'Call',
+            helper: canCheck ? 'Passar' : formatChipAmount(callAmount),
+            enabled: canAct && (canCheck || canCall),
+            className: 'border-emerald-200/35 bg-emerald-300/12 text-emerald-100',
+        },
+        {
+            key: 'raise',
+            label: 'Raise',
+            helper: minimumRaise > 0 ? `mín. ${formatChipAmount(minimumRaise)}` : 'Aumentar',
+            enabled: canAct && canRaise,
+            className: 'border-amber-200/40 bg-amber-300/15 text-amber-100',
+        },
+        {
+            key: 'all-in',
+            label: 'All-in',
+            helper: maximumRaise > 0 ? formatChipAmount(maximumRaise) : 'Tudo',
+            enabled: canAct && maximumRaise > 0,
+            className: 'border-fuchsia-200/35 bg-fuchsia-400/12 text-fuchsia-100',
+        },
+    ];
 }
 
 
