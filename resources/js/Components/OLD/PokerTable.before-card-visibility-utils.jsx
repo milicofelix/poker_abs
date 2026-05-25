@@ -20,10 +20,6 @@ import {
     shouldPulsePot,
     shouldShowMultiSeatActionPill,
 } from '@/features/poker/utils/tableActions';
-import {
-    multiSeatCardVisibilityLabel,
-    multiSeatShowdownCardsForPlayer,
-} from '@/features/poker/utils/tableCards';
 import { playerInitials, stackPressureClasses, stackPressureLabel } from '@/features/poker/utils/tablePlayers';
 import {
     isMultiSeatSplitPot,
@@ -576,6 +572,67 @@ function ShowdownCinematicRibbon({ state }) {
             </motion.section>
         </AnimatePresence>
     );
+}
+
+function normalizeCardCollection(cards) {
+    return Array.isArray(cards) ? cards.filter(Boolean) : [];
+}
+
+function multiSeatShowdownCardsForPlayer(player, state, isCurrentUserSeat, opponentsCount = 0) {
+    const seatNumber = Number(player?.seatNumber ?? 0);
+    const playerCards = normalizeCardCollection(player?.cards);
+    const playerShowdownCards = normalizeCardCollection(player?.showdownCards);
+    const playerHoleCards = normalizeCardCollection(player?.holeCards);
+    const playerHandCards = normalizeCardCollection(player?.handCards);
+    const playerPrivateCards = normalizeCardCollection(player?.privateCards);
+    const showdownCardsBySeat = state?.multiSeat?.showdownCardsBySeat ?? {};
+    const publicSeatCards = normalizeCardCollection(
+        showdownCardsBySeat?.[seatNumber]
+            ?? showdownCardsBySeat?.[String(seatNumber)]
+            ?? playerShowdownCards,
+    );
+
+    if (isMultiSeatShowdownResolved(state) && publicSeatCards.length > 0) {
+        return publicSeatCards.slice(0, 2);
+    }
+
+    if (isCurrentUserSeat) {
+        const currentCards = normalizeCardCollection(state?.playerCards);
+
+        return currentCards.length > 0
+            ? currentCards
+            : [...playerCards, ...playerShowdownCards, ...playerHoleCards, ...playerHandCards, ...playerPrivateCards].slice(0, 2);
+    }
+
+    const directCards = [...playerCards, ...playerShowdownCards, ...playerHoleCards, ...playerHandCards, ...playerPrivateCards].slice(0, 2);
+
+    if (directCards.length > 0) {
+        return directCards;
+    }
+
+    const legacyOpponentCards = normalizeCardCollection(state?.opponentCards);
+
+    if (isMultiSeatShowdownResolved(state) && opponentsCount === 1 && legacyOpponentCards.length > 0) {
+        return legacyOpponentCards.slice(0, 2);
+    }
+
+    return [];
+}
+
+function multiSeatCardVisibilityLabel(isCurrentUserSeat, isFinished, isRevealed, hasFolded = false) {
+    if (hasFolded) {
+        return 'Cartas descartadas';
+    }
+
+    if (isFinished) {
+        return 'Cartas abertas no showdown';
+    }
+
+    if (!isCurrentUserSeat) {
+        return 'Cartas protegidas';
+    }
+
+    return isRevealed ? 'Ocultar suas cartas' : 'Revelar suas cartas';
 }
 
 function multiSeatAssistedModeLabel(state, currentPlayer) {
