@@ -32,23 +32,15 @@ export type PokerWinnerPayload = {
   canonicalPlayer?: string | number | null;
   seatNumber?: PokerSeatNumber | null;
   tablePlayerId?: number | string | null;
-  cards?: PokerCard[] | null;
   winning_cards?: PokerCard[] | null;
   winningCards?: PokerCard[] | null;
   highlight_cards?: PokerCard[] | null;
   highlightCards?: PokerCard[] | null;
-  rank?: number | string | null;
-  name?: string | null;
   hand_name?: string | null;
   handName?: string | null;
 };
 
 export type PokerBestHandPayload = {
-  name?: string | null;
-  handName?: string | null;
-  hand_name?: string | null;
-  rank?: number | string | null;
-  kickers?: Array<number | string> | null;
   cards?: PokerCard[] | null;
   highlight_cards?: PokerCard[] | null;
   highlightCards?: PokerCard[] | null;

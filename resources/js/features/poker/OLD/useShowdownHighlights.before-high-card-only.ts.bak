@@ -1,78 +1,21 @@
 import { useMemo } from 'react';
 import type { CardMatcher, PokerBestHandPayload, PokerCard, PokerTableState, PokerWinnerPayload } from '../types/poker';
-import { normalizePokerCard, pokerCardSignature, uniquePokerCards } from '../utils/cards';
-
-const FACE_CARD_RANK_VALUES: Record<string, number> = {
-  A: 14,
-  K: 13,
-  Q: 12,
-  J: 11,
-  T: 10,
-};
-
-function normalizedHandName(hand: PokerBestHandPayload | PokerWinnerPayload | null | undefined): string {
-  return String(hand?.name ?? hand?.handName ?? hand?.hand_name ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function isHighCardHand(hand: PokerBestHandPayload | PokerWinnerPayload | null | undefined): boolean {
-  const rank = Number(hand?.rank ?? 0);
-
-  if (rank === 1) {
-    return true;
-  }
-
-  const name = normalizedHandName(hand);
-
-  return name === 'carta alta' || name === 'high card';
-}
-
-function cardRankValue(card: PokerCard | null | undefined): number {
-  const rank = String(normalizePokerCard(card).rank ?? '');
-  const numericRank = Number(rank);
-
-  return FACE_CARD_RANK_VALUES[rank] ?? (Number.isFinite(numericRank) ? numericRank : 0);
-}
-
-function highestPokerCard(cards: PokerCard[] = []): PokerCard[] {
-  const [highest] = [...cards].sort((left, right) => cardRankValue(right) - cardRankValue(left));
-
-  return highest ? [highest] : [];
-}
-
-function visualHighlightCardsForHand(
-  hand: PokerBestHandPayload | PokerWinnerPayload | null | undefined,
-  cards: PokerCard[] = [],
-): PokerCard[] {
-  const uniqueCards = uniquePokerCards(cards);
-
-  if (!isHighCardHand(hand)) {
-    return uniqueCards;
-  }
-
-  return highestPokerCard(uniqueCards);
-}
+import { pokerCardSignature, uniquePokerCards } from '../utils/cards';
 
 function cardListFromWinner(winner: PokerWinnerPayload | null | undefined): PokerCard[] {
-  return visualHighlightCardsForHand(winner, [
+  return uniquePokerCards([
     ...(winner?.highlight_cards ?? []),
     ...(winner?.highlightCards ?? []),
-    ...((winner?.highlight_cards ?? winner?.highlightCards)?.length ? [] : (winner?.cards ?? [])),
   ]);
 }
 
 function cardListFromBestHand(bestHand: PokerBestHandPayload | null | undefined): PokerCard[] {
-  const highlights = visualHighlightCardsForHand(bestHand, [
+  const highlights = uniquePokerCards([
     ...(bestHand?.highlight_cards ?? []),
     ...(bestHand?.highlightCards ?? []),
   ]);
 
-  return highlights.length > 0
-    ? highlights
-    : visualHighlightCardsForHand(bestHand, bestHand?.cards ?? []);
+  return highlights.length > 0 ? highlights : uniquePokerCards(bestHand?.cards ?? []);
 }
 
 function currentUserSeatNumber(state: PokerTableState | null | undefined): number {
@@ -107,14 +50,11 @@ function currentPlayerWonShowdown(
 
 export function extractShowdownHighlightCards(state: PokerTableState | null | undefined): PokerCard[] {
   const winner = state?.conclusion?.winner ?? state?.multiSeat?.winner ?? state?.multiSeat?.showdown?.winner;
-  const stateLevelHighlights = visualHighlightCardsForHand(winner, [
+  const directCards = uniquePokerCards([
     ...(state?.highlight_cards ?? []),
     ...(state?.highlightCards ?? []),
     ...(state?.conclusion?.highlight_cards ?? []),
     ...(state?.conclusion?.highlightCards ?? []),
-  ]);
-  const directCards = uniquePokerCards([
-    ...stateLevelHighlights,
     ...cardListFromWinner(winner),
     ...(currentPlayerWonShowdown(state, winner) ? cardListFromBestHand(state?.bestHand) : []),
   ]);

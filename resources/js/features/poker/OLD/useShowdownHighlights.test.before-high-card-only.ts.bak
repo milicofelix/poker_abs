@@ -9,8 +9,6 @@ const kingOfSpades = { rank: 'K', suit: 'spades' };
 const kingOfDiamonds = { rank: 'K', suit: 'diamonds' };
 const eightOfClubs = { rank: '8', suit: 'clubs' };
 const aceOfHearts = { rank: 'A', suit: 'hearts' };
-const queenOfDiamonds = { rank: 'Q', suit: 'diamonds' };
-const jackOfSpades = { rank: 'J', suit: 'spades' };
 
 describe('useShowdownHighlights helpers', () => {
   it('usa highlight_cards em vez de winning_cards para não destacar kickers', () => {
@@ -91,33 +89,5 @@ describe('useShowdownHighlights helpers', () => {
 
     expect(matcher(aceOfHearts)).toBe(false);
     expect(matcher(kingOfSpades)).toBe(true);
-  });
-
-  it('reduz carta alta para apenas a maior carta visual mesmo quando o payload traz cinco cartas', () => {
-    const state = {
-      isFinished: true,
-      bestHand: {
-        name: 'Carta alta',
-        rank: 1,
-        highlightCards: [aceOfHearts, kingOfHearts, queenOfDiamonds, jackOfSpades, eightOfClubs],
-      },
-      conclusion: {
-        winner: {
-          player: 'player',
-          handName: 'Carta alta',
-          highlightCards: [aceOfHearts, kingOfHearts, queenOfDiamonds, jackOfSpades, eightOfClubs],
-        },
-      },
-    };
-
-    const cards = extractShowdownHighlightCards(state);
-    const matcher = createShowdownHighlightMatcher(cards);
-
-    expect(cards).toHaveLength(1);
-    expect(matcher(aceOfHearts)).toBe(true);
-    expect(matcher(kingOfHearts)).toBe(false);
-    expect(matcher(queenOfDiamonds)).toBe(false);
-    expect(matcher(jackOfSpades)).toBe(false);
-    expect(matcher(eightOfClubs)).toBe(false);
   });
 });

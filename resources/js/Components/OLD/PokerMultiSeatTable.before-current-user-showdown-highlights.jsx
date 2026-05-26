@@ -160,7 +160,6 @@ export function MultiSeatPokerTable({ state, community, playerCardsRevealed, set
                                         onTogglePlayerCards={() => setPlayerCardsRevealed((isRevealed) => !isRevealed)}
                                         index={8}
                                         turnTimer={turnTimer}
-                                        showdownHighlights={showdownHighlights}
                                     />
                                 ) : (
                                     <div className="rounded-2xl border border-amber-200/25 bg-amber-300/10 p-4 text-sm font-bold text-amber-100">
